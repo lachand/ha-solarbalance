@@ -1,0 +1,29 @@
+# Lovelace card configuration using `power-flow-card-plus`.
+# Install via HACS: https://github.com/flixlix/power-flow-card-plus
+#
+# Drop this into a Lovelace dashboard view.
+
+type: custom:power-flow-card-plus
+title: SolarBalance — Energy flow
+clickable_entities: true
+display_zero_lines:
+  mode: show
+  transparency: 50
+use_new_flow_rate_model: true
+
+grid:
+  entity: sensor.solarbalance_grid_power
+  name: Grid
+
+solar:
+  entity: sensor.solarbalance_pv_total
+  display_zero_state: true
+
+battery:
+  entity: sensor.solarbalance_battery_power_total
+  state_of_charge: sensor.solarbalance_battery_soc_avg
+  invert_state: false              # SolarBalance publishes charge_positive
+
+home:
+  entity: sensor.solarbalance_baseline_consumption
+  override_state: true

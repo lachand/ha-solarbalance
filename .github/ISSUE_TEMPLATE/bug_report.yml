@@ -1,0 +1,64 @@
+name: Bug report
+description: Report a defect in SolarBalance
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill out as much of the form as you can.
+
+  - type: input
+    id: version
+    attributes:
+      label: SolarBalance version
+      placeholder: e.g. 0.1.2
+    validations:
+      required: true
+
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant version
+      placeholder: e.g. 2026.3.1
+    validations:
+      required: true
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Setup description
+      description: Devices, batteries, inverters, meters and their integrations.
+      placeholder: |
+        - 2× Ecoflow Delta Pro Ultra (via hass-ecoflow-cloud)
+        - Shelly 3EM at PDL
+        - Solcast for forecast
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Enable debug logging via `logger.solarbalance: debug`. Attach excerpts.
+      render: shell
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration (redacted)
+      description: Your `solarbalance:` YAML config. **Remove sensitive entity names if needed.**
+      render: yaml

@@ -1,0 +1,15 @@
+{
+  "domain": "solarbalance",
+  "name": "SolarBalance",
+  "version": "0.1.0",
+  "codeowners": ["@solarbalance"],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/solarbalance/ha-solarbalance",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/solarbalance/ha-solarbalance/issues",
+  "requirements": [],
+  "homeassistant": "2026.1.0",
+  "loggers": ["custom_components.solarbalance"]
+}

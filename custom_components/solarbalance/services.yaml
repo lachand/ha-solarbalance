@@ -1,0 +1,107 @@
+pause:
+  name: Pause SolarBalance
+  description: Suspends the HEMS — calculated setpoints are no longer published.
+
+resume:
+  name: Resume SolarBalance
+  description: Resumes normal operation after a pause.
+
+force_charge:
+  name: Force charge
+  description: Force batteries to charge towards a target SoC, optionally with a deadline.
+  fields:
+    target_soc_pct:
+      name: Target SoC (%)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+    power_w:
+      name: Power limit (W)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 20000
+          unit_of_measurement: "W"
+    deadline:
+      name: Deadline
+      required: false
+      selector:
+        datetime:
+
+force_discharge:
+  name: Force discharge
+  description: Force batteries to discharge towards a target SoC.
+  fields:
+    target_soc_pct:
+      name: Target SoC (%)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+    power_w:
+      name: Power limit (W)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 20000
+          unit_of_measurement: "W"
+
+preserve_for_evening:
+  name: Preserve energy for a future time
+  description: Reserve a minimum SoC at a given time today.
+  fields:
+    min_soc_at:
+      name: At time
+      required: true
+      selector:
+        datetime:
+    min_soc_pct:
+      name: Minimum SoC (%)
+      required: true
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+
+set_mode:
+  name: Set HEMS mode
+  description: Set the global operating mode.
+  fields:
+    mode:
+      name: Mode
+      required: true
+      selector:
+        select:
+          options:
+            - normal
+            - storm
+            - vacation
+
+activate_storm_mode:
+  name: Activate storm mode
+  description: Manually trigger storm preparation.
+  fields:
+    target_soc_pct:
+      name: Target SoC (%)
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+    duration_h:
+      name: Duration (hours)
+      required: false
+      selector:
+        number:
+          min: 1
+          max: 72
+          unit_of_measurement: "h"

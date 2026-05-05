@@ -1,0 +1,89 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SolarBalance — Global Settings",
+        "description": "Set up the Home Energy Management System. Devices and meters are declared in configuration.yaml.",
+        "data": {
+          "tick_interval_s": "Update interval (seconds)",
+          "zero_injection_enabled": "Enable zero-injection regulation",
+          "zero_injection_setpoint_w": "Zero-injection setpoint (W)",
+          "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
+          "phases": "Electrical phases",
+          "subscribed_power_kva": "Subscribed power (kVA)",
+          "pv_forecast_entity": "PV forecast entity (optional)",
+          "weather_warning_entity": "Météo-France warning entity (optional)"
+        },
+        "data_description": {
+          "zero_injection_setpoint_w": "Target grid power in watts. 0 = exactly zero injection. Negative values allow a small safety export buffer.",
+          "pv_forecast_entity": "Entity ID of a sensor providing current PV forecast in watts (e.g. from Solcast or Forecast.Solar).",
+          "weather_warning_entity": "Entity ID of a binary_sensor or sensor representing a Météo-France weather warning."
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Only one instance of SolarBalance is allowed."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SolarBalance — Settings",
+        "data": {
+          "tick_interval_s": "Update interval (seconds)",
+          "zero_injection_enabled": "Enable zero-injection regulation",
+          "zero_injection_setpoint_w": "Zero-injection setpoint (W)",
+          "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
+          "phases": "Electrical phases",
+          "subscribed_power_kva": "Subscribed power (kVA)",
+          "pv_forecast_entity": "PV forecast entity (optional)",
+          "weather_warning_entity": "Météo-France warning entity (optional)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "mode": { "name": "HEMS Mode" },
+      "dominant_strategy": { "name": "Active Strategy" },
+      "grid_power": { "name": "Grid Power" },
+      "pv_power": { "name": "PV Power" },
+      "battery_power": { "name": "Battery Power" },
+      "baseline_consumption": { "name": "Baseline Consumption" },
+      "battery_setpoint_charge": { "name": "{device} Charge Setpoint" },
+      "battery_setpoint_discharge": { "name": "{device} Discharge Setpoint" }
+    },
+    "select": {
+      "hems_mode": {
+        "name": "Operating Mode",
+        "state": {
+          "normal": "Normal",
+          "storm": "Storm",
+          "vacation": "Vacation",
+          "paused": "Paused",
+          "manual_override": "Manual Override"
+        }
+      }
+    },
+    "number": {
+      "zi_setpoint": { "name": "ZI Setpoint" },
+      "zi_hysteresis": { "name": "ZI Deadband" }
+    },
+    "switch": {
+      "zero_injection": { "name": "Zero-Injection Regulation" }
+    },
+    "binary_sensor": {
+      "storm_mode": { "name": "Storm Mode" },
+      "weather_warning": { "name": "Weather Warning" }
+    }
+  },
+  "services": {
+    "pause": { "name": "Pause", "description": "Suspends all HEMS decisions. The engine stops running until resumed." },
+    "resume": { "name": "Resume", "description": "Resumes normal HEMS operation after a pause or manual override." },
+    "force_charge": { "name": "Force charge", "description": "Force all batteries to charge at maximum power until the target SoC is reached." },
+    "force_discharge": { "name": "Force discharge", "description": "Force all batteries to discharge until the floor SoC is reached." },
+    "preserve_for_evening": { "name": "Preserve energy", "description": "Reserve a minimum SoC target to be reached before a given time-of-day." },
+    "set_mode": { "name": "Set mode", "description": "Directly set the global HEMS operating mode." },
+    "activate_storm_mode": { "name": "Activate storm mode", "description": "Manually trigger storm-preparation mode: ramp SoC to the storm target." }
+  }
+}

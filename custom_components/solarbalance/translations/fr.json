@@ -1,0 +1,89 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "SolarBalance — Paramètres globaux",
+        "description": "Configurez le système de gestion énergétique (HEMS). Les équipements et compteurs sont déclarés dans configuration.yaml.",
+        "data": {
+          "tick_interval_s": "Intervalle de mise à jour (secondes)",
+          "zero_injection_enabled": "Activer la régulation zéro injection",
+          "zero_injection_setpoint_w": "Consigne zéro injection (W)",
+          "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
+          "phases": "Nombre de phases",
+          "subscribed_power_kva": "Puissance souscrite (kVA)",
+          "pv_forecast_entity": "Entité prévision PV (optionnel)",
+          "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
+        },
+        "data_description": {
+          "zero_injection_setpoint_w": "Puissance réseau cible en watts. 0 = zéro injection exacte. Une valeur négative autorise une légère marge d'injection.",
+          "pv_forecast_entity": "Identifiant d'un capteur fournissant la prévision PV instantanée en watts (ex: Solcast, Forecast.Solar).",
+          "weather_warning_entity": "Identifiant d'un binary_sensor ou capteur représentant une vigilance Météo-France."
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Une seule instance de SolarBalance est autorisée."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "SolarBalance — Paramètres",
+        "data": {
+          "tick_interval_s": "Intervalle de mise à jour (secondes)",
+          "zero_injection_enabled": "Activer la régulation zéro injection",
+          "zero_injection_setpoint_w": "Consigne zéro injection (W)",
+          "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
+          "phases": "Nombre de phases",
+          "subscribed_power_kva": "Puissance souscrite (kVA)",
+          "pv_forecast_entity": "Entité prévision PV (optionnel)",
+          "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "mode": { "name": "Mode HEMS" },
+      "dominant_strategy": { "name": "Stratégie active" },
+      "grid_power": { "name": "Puissance réseau" },
+      "pv_power": { "name": "Puissance PV" },
+      "battery_power": { "name": "Puissance batteries" },
+      "baseline_consumption": { "name": "Consommation de fond" },
+      "battery_setpoint_charge": { "name": "Consigne charge {device}" },
+      "battery_setpoint_discharge": { "name": "Consigne décharge {device}" }
+    },
+    "select": {
+      "hems_mode": {
+        "name": "Mode de fonctionnement",
+        "state": {
+          "normal": "Normal",
+          "storm": "Tempête",
+          "vacation": "Vacances",
+          "paused": "En pause",
+          "manual_override": "Override manuel"
+        }
+      }
+    },
+    "number": {
+      "zi_setpoint": { "name": "Consigne zéro injection" },
+      "zi_hysteresis": { "name": "Hystérésis zéro injection" }
+    },
+    "switch": {
+      "zero_injection": { "name": "Régulation zéro injection" }
+    },
+    "binary_sensor": {
+      "storm_mode": { "name": "Mode tempête" },
+      "weather_warning": { "name": "Vigilance météo" }
+    }
+  },
+  "services": {
+    "pause": { "name": "Mettre en pause", "description": "Suspend toutes les décisions du HEMS. Le moteur s'arrête jusqu'à la reprise." },
+    "resume": { "name": "Reprendre", "description": "Reprend le fonctionnement normal après une pause ou un override manuel." },
+    "force_charge": { "name": "Forcer la charge", "description": "Force la charge de toutes les batteries à puissance maximale jusqu'au SoC cible." },
+    "force_discharge": { "name": "Forcer la décharge", "description": "Force la décharge des batteries jusqu'au SoC plancher." },
+    "preserve_for_evening": { "name": "Préserver l'énergie", "description": "Réserve un SoC minimum à atteindre avant une heure donnée." },
+    "set_mode": { "name": "Définir le mode", "description": "Définit directement le mode de fonctionnement global du HEMS." },
+    "activate_storm_mode": { "name": "Activer le mode tempête", "description": "Déclenche manuellement le mode préparation tempête : monte le SoC jusqu'à la cible définie." }
+  }
+}

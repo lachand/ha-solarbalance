@@ -1,0 +1,40 @@
+name: Device support request
+description: Help map a new inverter/battery to SolarBalance
+labels: ["device-support", "triage"]
+body:
+  - type: input
+    id: device
+    attributes:
+      label: Device brand and model
+      placeholder: e.g. Deye SUN-12K-SG04LP3
+    validations:
+      required: true
+
+  - type: input
+    id: integration
+    attributes:
+      label: Home Assistant integration used
+      placeholder: e.g. https://github.com/kellerza/sunsynk
+    validations:
+      required: true
+
+  - type: textarea
+    id: read-entities
+    attributes:
+      label: Entities exposed (read)
+      description: List the relevant entities (SoC, battery power, PV power, AC, etc.) with their entity IDs.
+      render: yaml
+    validations:
+      required: true
+
+  - type: textarea
+    id: write-entities
+    attributes:
+      label: Entities allowing write (if any)
+      render: yaml
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes / quirks
+      description: Update frequency, sign conventions, idiosyncrasies.
