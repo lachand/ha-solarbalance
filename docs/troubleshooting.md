@@ -71,7 +71,11 @@ solarbalance:
 
 **Cause**: PI tuning mismatch. The default (`Kp = 0.6`, `Ki = 0.05`) may be too aggressive for slow-responding equipment or noisy PDL sensors.
 
-**Fixes**:
+**If the battery is full and PV keeps exporting**: this is the *saturation* case, not a tuning problem. Hysteresis and Kp/Ki adjustments will not help. You need a curtailment path:
+- Declare `power_set_entity` on your MPPT or micro-inverter's device role. In v1, SolarBalance will publish a `sensor.solarbalance_setpoint_mppt_<device>` you can use in an automation. Direct writing is v2 (F14).
+- If curtailment is impossible (e.g. no controllable entity), the ZI controller enters `degraded_zi` mode and logs a persistent notification.
+
+**Fixes for genuine oscillation**:
 
 1. **Increase hysteresis** via `number.solarbalance_zi_hysteresis`. Start at 100–150 W. This introduces a deadband around the setpoint — no correction is issued when the PDL reading is within ±hysteresis of the target.
 2. **Lower Kp** in your YAML (`zi_kp: 0.3`) to reduce the proportional reaction speed.

@@ -25,6 +25,7 @@ SolarBalance orchestrates photovoltaic production, battery storage, and electric
 ## Companion frontend
 
 Visualization is provided by:
+
 - **v1**: composition of [`power-flow-card-plus`](https://github.com/flixlix/power-flow-card-plus), [`apexcharts-card`](https://github.com/RomRider/apexcharts-card), and [`mushroom`](https://github.com/piitaya/lovelace-mushroom). Example dashboards in [`examples/lovelace/`](examples/lovelace/).
 - **v1.5+**: dedicated [`solarbalance-card`](https://github.com/<org>/solarbalance-card) (separate repo).
 

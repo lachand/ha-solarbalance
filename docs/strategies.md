@@ -33,6 +33,14 @@ priorities:
 - Grid near zero → no directional preference.
 - Forbids export by default (`max_export_w = 0`).
 
+**MPPT and micro-inverter production** is always included: every device with an `mppt` role contributes to `sensor.solarbalance_pv_power`, regardless of whether it is a string MPPT tracker, a micro-inverter, or a hybrid inverter's integrated MPPT. The strategy reacts to the aggregate reading.
+
+**When batteries are full** and PV keeps producing, export becomes unavoidable unless production itself is curtailed. The ZI controller handles this in three steps, in preference order ([SPECIFICATIONS §6.3](SPECIFICATIONS.md)):
+
+1. **MPPT/micro-inverter with `power_set_entity`** — if the role declares a controllable power-limit entity (e.g. a Hoymiles or Enphase micro-inverter exposed via an HA integration), the ZI controller calculates a curtailment setpoint. In **v1** this is published as a read-only sensor (`sensor.solarbalance_setpoint_mppt_<device>`); actual writing is **v2 (F14)**. You can already wire the sensor to your own automation.
+2. **Inverter production regulation** — via a dedicated entity on the `inverter` role (v2+).
+3. **No curtailment available** — the ZI controller enters `degraded_zi` mode and emits a persistent notification.
+
 **When to use**: every setup. Place it first unless a cost or revenue strategy should be dominant.
 
 **Parameters**: none (pure reactive on grid signal).

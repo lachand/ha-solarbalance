@@ -6,6 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 ## [1.0.0] — 2026-05-05
 
 ### Added
+
 - **Core engine** — models, strategies (self_consumption, cost_min, backup, longevity, peak_shaving), controllers (balancing, zero_injection, load_dispatch), arbiter.
 - **Tariff module** — generic multi-slot tariff (HC/HP factory, weekday filter, overnight-aware, separate import/export prices).
 - **Adapters** — `EntityReader` (HA → Snapshot), `DecisionPublisher` (ArbitrationResult → HA attributes), `ForecastReader` (PV forecast + weather warning).
@@ -22,6 +23,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 ## [Unreleased]
 
 ### Added
+
 - Initial repository scaffold (manifest, pyproject, CI, AGENTS.md).
 - Core engine skeleton (models, strategy base, balancing controller stub).
 - Specification document (`docs/SPECIFICATIONS.md`).

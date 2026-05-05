@@ -79,12 +79,33 @@
     }
   },
   "services": {
-    "pause": { "name": "Mettre en pause", "description": "Suspend toutes les décisions du HEMS. Le moteur s'arrête jusqu'à la reprise." },
-    "resume": { "name": "Reprendre", "description": "Reprend le fonctionnement normal après une pause ou un override manuel." },
-    "force_charge": { "name": "Forcer la charge", "description": "Force la charge de toutes les batteries à puissance maximale jusqu'au SoC cible." },
-    "force_discharge": { "name": "Forcer la décharge", "description": "Force la décharge des batteries jusqu'au SoC plancher." },
-    "preserve_for_evening": { "name": "Préserver l'énergie", "description": "Réserve un SoC minimum à atteindre avant une heure donnée." },
-    "set_mode": { "name": "Définir le mode", "description": "Définit directement le mode de fonctionnement global du HEMS." },
-    "activate_storm_mode": { "name": "Activer le mode tempête", "description": "Déclenche manuellement le mode préparation tempête : monte le SoC jusqu'à la cible définie." }
+    "pause": {
+      "name": "Mettre en pause",
+      "description": "Suspend toutes les décisions du HEMS. Le moteur s'arrête jusqu'à la reprise."
+    },
+    "resume": {
+      "name": "Reprendre",
+      "description": "Reprend le fonctionnement normal après une pause ou un override manuel."
+    },
+    "force_charge": {
+      "name": "Forcer la charge",
+      "description": "Force la charge de toutes les batteries à puissance maximale jusqu'au SoC cible."
+    },
+    "force_discharge": {
+      "name": "Forcer la décharge",
+      "description": "Force la décharge des batteries jusqu'au SoC plancher."
+    },
+    "preserve_for_evening": {
+      "name": "Préserver l'énergie",
+      "description": "Réserve un SoC minimum à atteindre avant une heure donnée."
+    },
+    "set_mode": {
+      "name": "Définir le mode",
+      "description": "Définit directement le mode de fonctionnement global du HEMS."
+    },
+    "activate_storm_mode": {
+      "name": "Activer le mode tempête",
+      "description": "Déclenche manuellement le mode préparation tempête : monte le SoC jusqu'à la cible définie."
+    }
   }
 }
