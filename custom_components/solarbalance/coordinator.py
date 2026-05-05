@@ -255,7 +255,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         load_states = {ls.name: ls for ls in snapshot.loads}
         self._load_dispatch.dispatch(
-            available_surplus_w=max(0.0, -snapshot.grid_power_w - balancing_result.allocated_w),
+            available_surplus_w=max(0.0, -snapshot.grid_power_w - sum(balancing_result.per_battery_w.values())),
             states=load_states,
             now=snapshot.timestamp,
         )

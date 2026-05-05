@@ -8,16 +8,16 @@ This page covers the most common issues encountered when setting up and operatin
 
 **Symptom**: The component never finishes loading; no entities are created.
 
-**Check the logs first** — in Home Assistant, go to *Settings → System → Logs*, search for `solarbalance`.
+**Check the logs first** — in Home Assistant, go to _Settings → System → Logs_, search for `solarbalance`.
 
 **Common causes**:
 
-| Log message fragment | Cause | Fix |
-|---|---|---|
-| `voluptuous.error.Invalid` or `Invalid config` | YAML schema error in `configuration.yaml` | Validate your YAML against the schema in [SPECIFICATIONS §3](SPECIFICATIONS.md). Check indentation and mandatory fields. |
-| `No PDL meter declared` | No device with a `meter` role of `kind: pdl` | Add a PDL meter entry under `devices:`. See [device-mapping.md](device-mapping.md). |
-| `No battery role declared` | No device has a `battery` role | At least one battery role is required. |
-| `EntityNotFound` | An entity ID in your YAML does not exist in HA | Copy-paste entity IDs from *Developer Tools → States*. Watch for typos and letter case. |
+| Log message fragment                           | Cause                                          | Fix                                                                                                                      |
+| ---------------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `voluptuous.error.Invalid` or `Invalid config` | YAML schema error in `configuration.yaml`      | Validate your YAML against the schema in [SPECIFICATIONS §3](SPECIFICATIONS.md). Check indentation and mandatory fields. |
+| `No PDL meter declared`                        | No device with a `meter` role of `kind: pdl`   | Add a PDL meter entry under `devices:`. See [device-mapping.md](device-mapping.md).                                      |
+| `No battery role declared`                     | No device has a `battery` role                 | At least one battery role is required.                                                                                   |
+| `EntityNotFound`                               | An entity ID in your YAML does not exist in HA | Copy-paste entity IDs from _Developer Tools → States_. Watch for typos and letter case.                                  |
 
 ---
 
@@ -35,7 +35,7 @@ is driven by your entity mappings. A wrong sign convention on any measured entit
 
 **Diagnosis steps**:
 
-1. Open *Developer Tools → States*, inspect `sensor.solarbalance_grid_power`. Confirm it is positive when your home draws from the grid and negative when exporting.
+1. Open _Developer Tools → States_, inspect `sensor.solarbalance_grid_power`. Confirm it is positive when your home draws from the grid and negative when exporting.
 2. Inspect each battery `power_entity`. With `power_sign_convention: charge_positive` (default) the value must be positive when the battery is charging. If your device reports the opposite, declare `power_sign_convention: discharge_positive`.
 3. If you use separate `charge_power_entity` + `discharge_power_entity`, both must be positive (the sign is handled internally by the role).
 4. Check that PV sensors are not negative.
@@ -51,8 +51,8 @@ is driven by your entity mappings. A wrong sign convention on any measured entit
 **Diagnosis**:
 
 1. Check logs for `Watchdog: stale critical entity` or `stale monitored entity` messages — the entity ID is logged.
-2. Go to *Developer Tools → States*, find the stale entity. Check its `last_updated` timestamp.
-3. Verify the device providing that entity is online (ping it, or check the integration's status in *Settings → Integrations*).
+2. Go to _Developer Tools → States_, find the stale entity. Check its `last_updated` timestamp.
+3. Verify the device providing that entity is online (ping it, or check the integration's status in _Settings → Integrations_).
 
 **The degraded sensor clears automatically** once all critical entities are fresh again. You do not need to restart HA.
 
@@ -60,7 +60,7 @@ is driven by your entity mappings. A wrong sign convention on any measured entit
 
 ```yaml
 solarbalance:
-  watchdog_timeout_s: 600   # increase to 10 min
+  watchdog_timeout_s: 600 # increase to 10 min
 ```
 
 ---
@@ -71,7 +71,8 @@ solarbalance:
 
 **Cause**: PI tuning mismatch. The default (`Kp = 0.6`, `Ki = 0.05`) may be too aggressive for slow-responding equipment or noisy PDL sensors.
 
-**If the battery is full and PV keeps exporting**: this is the *saturation* case, not a tuning problem. Hysteresis and Kp/Ki adjustments will not help. You need a curtailment path:
+**If the battery is full and PV keeps exporting**: this is the _saturation_ case, not a tuning problem. Hysteresis and Kp/Ki adjustments will not help. You need a curtailment path:
+
 - Declare `power_set_entity` on your MPPT or micro-inverter's device role. In v1, SolarBalance will publish a `sensor.solarbalance_setpoint_mppt_<device>` you can use in an automation. Direct writing is v2 (F14).
 - If curtailment is impossible (e.g. no controllable entity), the ZI controller enters `degraded_zi` mode and logs a persistent notification.
 
@@ -98,7 +99,7 @@ service: solarbalance.resume
 
 Or use the **Resume** button in the dashboard if you deployed the [example dashboard](../examples/lovelace/dashboard.yaml).
 
-**If the override never cleared** even after the battery definitely reached the target: check whether the battery's `soc_entity` was already at the target value *at the moment the service was called*. The check fires each tick; if the very first tick already satisfies `current_soc ≥ target_soc`, the override is cleared immediately. If it keeps running, confirm the `soc_entity` is reporting the correct value.
+**If the override never cleared** even after the battery definitely reached the target: check whether the battery's `soc_entity` was already at the target value _at the moment the service was called_. The check fires each tick; if the very first tick already satisfies `current_soc ≥ target_soc`, the override is cleared immediately. If it keeps running, confirm the `soc_entity` is reporting the correct value.
 
 ---
 
@@ -109,7 +110,7 @@ Or use the **Resume** button in the dashboard if you deployed the [example dashb
 **Checks**:
 
 1. Confirm the mapped entity is a `binary_sensor` (not `sensor`) with state `"on"`.
-2. Verify `weather_warning_entity` in your YAML matches the exact entity ID (copy-paste from *Developer Tools → States*).
+2. Verify `weather_warning_entity` in your YAML matches the exact entity ID (copy-paste from _Developer Tools → States_).
 3. Check that the phenomenon and level in `storm_triggers` match what the Météo-France integration actually exposes. For instance, `phenomenon: wind, min_level: orange` only fires if the entity state is `"orange"` or `"red"` — not `"yellow"`.
 
 ---
@@ -120,7 +121,7 @@ Or use the **Resume** button in the dashboard if you deployed the [example dashb
 
 **Checks**:
 
-1. Confirm the `priorities` list in the integration options (Config Flow → *Options*) contains at least `self_consumption`.
+1. Confirm the `priorities` list in the integration options (Config Flow → _Options_) contains at least `self_consumption`.
 2. Check that the PDL meter entity is reading a non-zero value during daytime — if it reads 0 at all times, the strategies receive no signal.
 3. Ensure the battery is not at `soc_max_pct` (already full). In that case, `self_consumption` will not output a charge decision.
 
