@@ -74,7 +74,8 @@
     },
     "binary_sensor": {
       "storm_mode": { "name": "Storm Mode" },
-      "weather_warning": { "name": "Weather Warning" }
+      "weather_warning": { "name": "Weather Warning" },
+      "degraded": { "name": "Degraded Mode" }
     }
   },
   "services": {

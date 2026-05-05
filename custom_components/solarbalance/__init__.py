@@ -1,14 +1,16 @@
 """SolarBalance — Home Energy Management System integration."""
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
 
 from .const import DOMAIN
 from .coordinator import SolarBalanceCoordinator
+from .core.models import HemsMode
 from .yaml_loader import parse_yaml_config
 
 _LOGGER = logging.getLogger(__name__)
@@ -28,7 +30,7 @@ YAML_CONFIG_KEY = "yaml_config"
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
-    """Parse the YAML ``solarbalance:`` block if present."""
+    """Parse the YAML ``solarbalance:`` block if present and register services."""
     hass.data.setdefault(DOMAIN, {})
     raw = config.get(DOMAIN)
     if raw:
@@ -44,7 +46,77 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
             len(meters),
             len(loads),
         )
+
+    _register_services(hass)
     return True
+
+
+def _get_coordinator(hass: HomeAssistant) -> SolarBalanceCoordinator | None:
+    """Return the active coordinator from hass.data, or None."""
+    for entry_data in hass.data.get(DOMAIN, {}).values():
+        if isinstance(entry_data, dict) and COORDINATOR_KEY in entry_data:
+            return entry_data[COORDINATOR_KEY]  # type: ignore[return-value]
+    return None
+
+
+def _register_services(hass: HomeAssistant) -> None:
+    """Register all SolarBalance services (idempotent — called once at domain setup)."""
+
+    async def handle_pause(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass)
+        if coord:
+            coord.mode = HemsMode.PAUSED
+            coord.async_update_listeners()
+
+    async def handle_resume(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass)
+        if coord and coord.mode is HemsMode.PAUSED:
+            coord.mode = HemsMode.NORMAL
+            coord.async_update_listeners()
+
+    async def handle_set_mode(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass)
+        if coord:
+            coord.mode = HemsMode(call.data["mode"])
+            coord.async_update_listeners()
+
+    async def handle_force_charge(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass)
+        if coord:
+            deadline_raw = call.data.get("deadline")
+            deadline: datetime | None = (
+                datetime.fromisoformat(str(deadline_raw)) if deadline_raw else None
+            )
+            coord.set_force_override(
+                kind="charge",
+                target_soc_pct=float(call.data["target_soc_pct"]),
+                power_w=call.data.get("power_w"),
+                deadline=deadline,
+            )
+            coord.async_update_listeners()
+
+    async def handle_force_discharge(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass)
+        if coord:
+            coord.set_force_override(
+                kind="discharge",
+                target_soc_pct=float(call.data["target_soc_pct"]),
+                power_w=call.data.get("power_w"),
+            )
+            coord.async_update_listeners()
+
+    async def handle_activate_storm_mode(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass)
+        if coord:
+            coord.mode = HemsMode.STORM
+            coord.async_update_listeners()
+
+    hass.services.async_register(DOMAIN, "pause", handle_pause)
+    hass.services.async_register(DOMAIN, "resume", handle_resume)
+    hass.services.async_register(DOMAIN, "set_mode", handle_set_mode)
+    hass.services.async_register(DOMAIN, "force_charge", handle_force_charge)
+    hass.services.async_register(DOMAIN, "force_discharge", handle_force_discharge)
+    hass.services.async_register(DOMAIN, "activate_storm_mode", handle_activate_storm_mode)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

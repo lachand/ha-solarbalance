@@ -8,7 +8,7 @@
 
 SolarBalance orchestrates photovoltaic production, battery storage, and electrical loads in your home to meet one or several energy goals (self-consumption, cost minimization, autonomy, hardware longevity), while adapting to dynamic context (tariffs, weather, grid alerts).
 
-> **Status**: pre-alpha (v0.1 in development). Not ready for production use yet.
+> **Status**: v1.0 MVP — ready for early adopters. Core engine, all strategies, watchdog, services, and Lovelace examples are functional. Direct hardware control (writing to inverters) is scheduled for v2.
 
 ## Highlights
 
@@ -19,6 +19,8 @@ SolarBalance orchestrates photovoltaic production, battery storage, and electric
 - **Storm mode** — automatic SoC ramp-up on Météo-France weather warnings.
 - **Loadable load types** — on/off, stepped, modulating (EV chargers, dimmable resistive loads).
 - **Forecast-aware** — integrates with existing Solcast / Forecast.Solar / OpenMeteo PV forecasts.
+- **Watchdog & graceful degradation** — stale entity detection auto-switches to `degraded` mode, then auto-recovers without restart.
+- **HA services** — `pause`, `resume`, `force_charge`, `force_discharge`, `set_mode`, `activate_storm_mode` callable from automations or the dashboard.
 
 ## Companion frontend
 

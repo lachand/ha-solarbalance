@@ -1,7 +1,8 @@
 """DataUpdateCoordinator for SolarBalance."""
 
 import logging
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -9,6 +10,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .adapters.decision_publisher import DecisionPublisher
 from .adapters.entity_reader import EntityReader
+from .adapters.watchdog import EntityWatchdog
 from .const import (
     CONF_PRIORITIES,
     CONF_TICK_INTERVAL_S,
@@ -25,10 +27,13 @@ from .core.controllers.balancing import BalancingController
 from .core.controllers.load_dispatch import LoadDispatchController
 from .core.controllers.zero_injection import ZeroInjectionController, ZeroInjectionState
 from .core.models import (
+    BatteryTarget,
+    Decision,
     Device,
     HemsMode,
     Load,
     Meter,
+    MeterKind,
     Snapshot,
     StrategyKind,
 )
@@ -50,6 +55,16 @@ _STRATEGY_CLASSES = {
     StrategyKind.PEAK_SHAVING.value: PeakShavingStrategy,
     StrategyKind.REVENUE_MAX.value: RevenueMaxStrategy,
 }
+
+
+@dataclass
+class _BatteryOverride:
+    """Parameters for a force_charge or force_discharge service call."""
+
+    kind: str  # "charge" | "discharge"
+    target_soc_pct: float
+    power_w: float | None = None
+    expires_at: datetime | None = None
 
 
 class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
@@ -78,6 +93,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._loads = loads
         self._tariff = tariff or TariffConfig()
         self._mode: HemsMode = HemsMode.NORMAL
+        self._pre_degraded_mode: HemsMode = HemsMode.NORMAL
+        self._battery_override: _BatteryOverride | None = None
         self._zi_state = ZeroInjectionState()
 
         self._reader = EntityReader(
@@ -102,6 +119,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._zi_setpoint_w = float(cfg.get(CONF_ZERO_INJECTION_SETPOINT_W, 0))
         self._tick_s = tick
 
+        # Watchdog — entity lists built from config
+        self._critical_entity_ids, self._monitored_entity_ids = self._collect_entity_ids(
+            devices, meters
+        )
+        self._watchdog = EntityWatchdog(hass)
+
         # Build ordered strategy list from config
         priorities: list[str] = cfg.get(CONF_PRIORITIES, list(_STRATEGY_CLASSES))
         self._arbiter = self._build_arbiter(priorities, devices, loads, tariff)
@@ -122,10 +145,37 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def publisher(self) -> DecisionPublisher:
         return self._publisher
 
+    @property
+    def is_degraded(self) -> bool:
+        """True when the HEMS is in degraded mode."""
+        return self._mode is HemsMode.DEGRADED
+
+    def set_force_override(
+        self,
+        kind: str,
+        target_soc_pct: float,
+        power_w: float | None = None,
+        deadline: datetime | None = None,
+    ) -> None:
+        """Start a force_charge or force_discharge override."""
+        self._battery_override = _BatteryOverride(
+            kind=kind,
+            target_soc_pct=target_soc_pct,
+            power_w=power_w,
+            expires_at=deadline,
+        )
+        self.mode = HemsMode.MANUAL_OVERRIDE
+
+    def clear_force_override(self) -> None:
+        """Cancel any active force override and return to normal mode."""
+        self._battery_override = None
+        if self._mode is HemsMode.MANUAL_OVERRIDE:
+            self.mode = HemsMode.NORMAL
+
     # ------------------------------------------------------------------ HA hook
 
     async def _async_update_data(self) -> Snapshot | None:
-        """Run one tick: read entities → snapshot → arbitrate → publish."""
+        """Run one tick: read entities → watchdog → snapshot → arbitrate → publish."""
         if self._mode is HemsMode.PAUSED:
             return None
 
@@ -134,17 +184,35 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         except Exception as exc:
             raise UpdateFailed(f"EntityReader failed: {exc}") from exc
 
-        # Storm mode: override battery targets to ramp SoC up
-        if snapshot.weather_warning_active and self._mode is HemsMode.NORMAL:
-            self.mode = HemsMode.STORM
-        elif not snapshot.weather_warning_active and self._mode is HemsMode.STORM:
+        # --- Watchdog: detect stale critical entities ---
+        wd = self._watchdog.check(self._critical_entity_ids, self._monitored_entity_ids)
+        if wd.is_degraded:
+            if self._mode is not HemsMode.DEGRADED:
+                _LOGGER.warning(
+                    "Switching to DEGRADED — stale critical entities: %s",
+                    wd.critical_stale,
+                )
+                self._pre_degraded_mode = self._mode
+                self.mode = HemsMode.DEGRADED
+        elif self._mode is HemsMode.DEGRADED:
+            _LOGGER.info(
+                "Critical entities recovered — restoring %s mode",
+                self._pre_degraded_mode.value,
+            )
+            self.mode = self._pre_degraded_mode
+            self._pre_degraded_mode = HemsMode.NORMAL
+
+        # --- Storm mode auto-trigger (only when in normal operation) ---
+        if self._mode is HemsMode.NORMAL:
+            if snapshot.weather_warning_active:
+                self.mode = HemsMode.STORM
+        elif self._mode is HemsMode.STORM and not snapshot.weather_warning_active:
             self.mode = HemsMode.NORMAL
 
         # Resolve current tariff prices
         import_price = self._tariff.current_import_price(snapshot.timestamp)
         export_price = self._tariff.current_export_price(snapshot.timestamp)
 
-        # Rebuild snapshot with tariff prices (snapshot is frozen, so replace)
         from dataclasses import replace
         snapshot = replace(
             snapshot,
@@ -152,12 +220,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             current_export_price=export_price,
         )
 
-        # Run strategies
-        decisions = [s.compute(snapshot) for s in self._arbiter._strategies]
-        result: ArbitrationResult = self._arbiter.arbitrate(decisions)
+        # --- Strategy execution or manual override ---
+        if self._mode is HemsMode.MANUAL_OVERRIDE and self._battery_override is not None:
+            result: ArbitrationResult = self._build_override_result(snapshot)
+        else:
+            decisions = [s.compute(snapshot) for s in self._arbiter._strategies]
+            result = self._arbiter.arbitrate(decisions)
 
-        # Apply zero-injection correction if enabled
-        if self._zi_enabled:
+        # Apply zero-injection correction if enabled and not degraded
+        if self._zi_enabled and self._mode is not HemsMode.DEGRADED:
             zi_result = self._zi_controller.step(
                 grid_power_w=snapshot.grid_power_w,
                 setpoint_w=self._zi_setpoint_w,
@@ -193,6 +264,86 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return snapshot
 
     # ------------------------------------------------------------------ helpers
+
+    def _build_override_result(self, snapshot: Snapshot) -> ArbitrationResult:
+        """Build an ArbitrationResult directly from the active battery override."""
+        ovr = self._battery_override
+        assert ovr is not None
+
+        # Expiry check
+        if ovr.expires_at is not None and snapshot.timestamp >= ovr.expires_at:
+            _LOGGER.info("Force %s override expired — returning to normal", ovr.kind)
+            self.clear_force_override()
+            decisions = [s.compute(snapshot) for s in self._arbiter._strategies]
+            return self._arbiter.arbitrate(decisions)
+
+        # Target-reached check
+        available = [b for b in snapshot.batteries if b.available]
+        if available:
+            if ovr.kind == "charge":
+                reached = all(b.soc_pct >= ovr.target_soc_pct for b in available)
+            else:
+                reached = all(b.soc_pct <= ovr.target_soc_pct for b in available)
+            if reached:
+                _LOGGER.info("Force %s target %.0f%% reached — resuming normal", ovr.kind, ovr.target_soc_pct)
+                self.clear_force_override()
+                decisions = [s.compute(snapshot) for s in self._arbiter._strategies]
+                return self._arbiter.arbitrate(decisions)
+
+        # Build per-device battery targets
+        targets: dict[str, BatteryTarget] = {}
+        for device in self._devices:
+            if device.battery is None:
+                continue
+            bat = device.battery
+            if ovr.kind == "charge":
+                targets[device.name] = BatteryTarget(
+                    soc_min_pct=float(bat.soc_min_pct),
+                    soc_max_pct=ovr.target_soc_pct,
+                    preferred_power_w=float(ovr.power_w if ovr.power_w else bat.max_charge_power_w),
+                )
+            else:
+                targets[device.name] = BatteryTarget(
+                    soc_min_pct=ovr.target_soc_pct,
+                    soc_max_pct=float(bat.soc_max_pct),
+                    preferred_power_w=-float(ovr.power_w if ovr.power_w else bat.max_discharge_power_w),
+                )
+
+        override_decision = Decision(
+            battery_targets=targets,
+            confidence=1.0,
+            rationale=f"force_{ovr.kind} → {ovr.target_soc_pct:.0f}%",
+        )
+        return ArbitrationResult(
+            decision=override_decision,
+            dominant_strategy="manual_override",
+            per_strategy=(),
+        )
+
+    @staticmethod
+    def _collect_entity_ids(
+        devices: list[Device], meters: list[Meter]
+    ) -> tuple[list[str], list[str]]:
+        """Return (critical_ids, monitored_ids) derived from config.
+
+        Critical: PDL meter power entity — its staleness triggers DEGRADED.
+        Monitored: battery SoC/power entities and MPPT power entities.
+        """
+        critical: list[str] = []
+        monitored: list[str] = []
+        for m in meters:
+            if m.kind is MeterKind.PDL:
+                critical.append(m.power_entity)
+            else:
+                monitored.append(m.power_entity)
+        for d in devices:
+            if d.battery:
+                monitored.append(d.battery.soc_entity)
+                if d.battery.power_entity:
+                    monitored.append(d.battery.power_entity)
+            if d.mppt:
+                monitored.append(d.mppt.power_entity)
+        return critical, monitored
 
     @staticmethod
     def _build_arbiter(

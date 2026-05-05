@@ -11,28 +11,34 @@ cards:
     cards:
       - type: custom:mushroom-template-card
         primary: "{{ states('sensor.solarbalance_mode') | title }}"
-        secondary: "Priority: {{ states('sensor.solarbalance_dominant_priority') }}"
+        secondary: "Priority: {{ states('sensor.solarbalance_dominant_strategy') }}"
         icon: mdi:home-battery
         icon_color: |-
           {% set m = states('sensor.solarbalance_mode') %}
           {% if m == 'storm' %}red
           {% elif m == 'degraded' %}orange
           {% elif m == 'paused' %}grey
+          {% elif m == 'manual_override' %}yellow
           {% else %}green{% endif %}
 
       - type: custom:mushroom-entity-card
-        entity: binary_sensor.solarbalance_zero_injection_active
-        icon: mdi:transmission-tower-export
-        name: Zero injection
+        entity: binary_sensor.solarbalance_storm_mode
+        icon: mdi:weather-lightning
+        name: Storm mode
+
+      - type: custom:mushroom-entity-card
+        entity: binary_sensor.solarbalance_degraded
+        icon: mdi:alert-circle
+        name: Degraded
 
   - type: custom:power-flow-card-plus
     title: Energy flow
     grid:
       entity: sensor.solarbalance_grid_power
     solar:
-      entity: sensor.solarbalance_pv_total
+      entity: sensor.solarbalance_pv_power
     battery:
-      entity: sensor.solarbalance_battery_power_total
+      entity: sensor.solarbalance_battery_power
       state_of_charge: sensor.solarbalance_battery_soc_avg
     home:
       entity: sensor.solarbalance_baseline_consumption
@@ -47,27 +53,49 @@ cards:
     span:
       start: hour
     series:
-      - entity: sensor.solarbalance_pv_total
+      - entity: sensor.solarbalance_pv_power
         name: Realised
         type: area
       - entity: sensor.solcast_pv_forecast_forecast_today
-        name: Forecast
+        name: Forecast (Solcast)
         type: line
         stroke_width: 2
+
+  # ----- Tariff & prices -----------------------------------------------------
+  - type: custom:apexcharts-card
+    header:
+      show: true
+      title: Tariff window (24 h)
+    graph_span: 24h
+    span:
+      start: hour
+    series:
+      - entity: sensor.solarbalance_current_import_price
+        name: Import price (€/kWh)
+        type: line
+      - entity: sensor.solarbalance_current_export_price
+        name: Export price (€/kWh)
+        type: line
 
   # ----- Decisions log -------------------------------------------------------
   - type: entities
     title: Latest arbitration
     entities:
-      - entity: sensor.solarbalance_dominant_priority
-      - entity: sensor.solarbalance_arbitration_log
-      - entity: sensor.solarbalance_zero_injection_error
+      - entity: sensor.solarbalance_mode
+      - entity: sensor.solarbalance_dominant_strategy
+      - entity: sensor.solarbalance_grid_power
+      - entity: sensor.solarbalance_pv_power
+      - entity: sensor.solarbalance_battery_power
+      - entity: sensor.solarbalance_baseline_consumption
       - entity: sensor.solarbalance_current_import_price
       - entity: sensor.solarbalance_current_export_price
+      - entity: binary_sensor.solarbalance_storm_mode
+      - entity: binary_sensor.solarbalance_weather_warning
+      - entity: binary_sensor.solarbalance_degraded
 
   # ----- Overrides -----------------------------------------------------------
   - type: vertical-stack
-    title: Overrides
+    title: Controls & overrides
     cards:
       - type: custom:mushroom-select-card
         entity: select.solarbalance_mode
@@ -76,6 +104,7 @@ cards:
         cards:
           - type: button
             name: Storm mode
+            icon: mdi:weather-lightning
             tap_action:
               action: call-service
               service: solarbalance.activate_storm_mode
@@ -85,6 +114,7 @@ cards:
 
           - type: button
             name: Force charge 100%
+            icon: mdi:battery-charging-100
             tap_action:
               action: call-service
               service: solarbalance.force_charge
@@ -92,7 +122,31 @@ cards:
                 target_soc_pct: 100
 
           - type: button
+            name: Force discharge 20%
+            icon: mdi:battery-20
+            tap_action:
+              action: call-service
+              service: solarbalance.force_discharge
+              data:
+                target_soc_pct: 20
+
+          - type: button
             name: Pause
+            icon: mdi:pause-circle
             tap_action:
               action: call-service
               service: solarbalance.pause
+
+          - type: button
+            name: Resume
+            icon: mdi:play-circle
+            tap_action:
+              action: call-service
+              service: solarbalance.resume
+
+      - type: entities
+        title: Zero-injection settings
+        entities:
+          - entity: switch.solarbalance_zero_injection
+          - entity: number.solarbalance_zi_setpoint
+          - entity: number.solarbalance_zi_hysteresis

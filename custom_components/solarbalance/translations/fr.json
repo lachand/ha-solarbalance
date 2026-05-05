@@ -74,7 +74,8 @@
     },
     "binary_sensor": {
       "storm_mode": { "name": "Mode tempête" },
-      "weather_warning": { "name": "Vigilance météo" }
+      "weather_warning": { "name": "Vigilance météo" },
+      "degraded": { "name": "Mode dégradé" }
     }
   },
   "services": {

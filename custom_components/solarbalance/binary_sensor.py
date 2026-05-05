@@ -29,6 +29,7 @@ async def async_setup_entry(
     async_add_entities([
         StormModeBinarySensor(coordinator, entry),
         WeatherWarningBinarySensor(coordinator, entry),
+        DegradedBinarySensor(coordinator, entry),
     ])
 
 
@@ -70,3 +71,18 @@ class WeatherWarningBinarySensor(_SBBinarySensor):
     def is_on(self) -> bool:
         snap: Snapshot | None = self.coordinator.data
         return snap.weather_warning_active if snap else False
+
+
+class DegradedBinarySensor(_SBBinarySensor):
+    """True when the HEMS is in degraded mode (stale critical entities)."""
+
+    _attr_translation_key = "degraded"
+    _attr_icon = "mdi:alert-circle"
+    _attr_device_class = None
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "degraded")
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.is_degraded
