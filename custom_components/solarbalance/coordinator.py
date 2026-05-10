@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -98,6 +98,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._zi_state = ZeroInjectionState()
         self._negative_baseline_ticks: int = 0
         self._baseline_notification_sent: bool = False
+        self._storm_expires_at: datetime | None = None
+        self._storm_manual: bool = False
 
         self._reader = EntityReader(
             hass,
@@ -211,6 +213,16 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if self._mode is HemsMode.MANUAL_OVERRIDE:
             self.mode = HemsMode.NORMAL
 
+    def activate_storm_mode(self, duration_h: float | None = None) -> None:
+        """Enter storm mode, optionally with an automatic exit after ``duration_h`` hours."""
+        self.mode = HemsMode.STORM
+        self._storm_manual = True
+        if duration_h is not None:
+            self._storm_expires_at = datetime.now(UTC) + timedelta(hours=duration_h)
+            _LOGGER.info("Storm mode activated — will auto-exit after %.1f h", duration_h)
+        else:
+            self._storm_expires_at = None
+
     # ------------------------------------------------------------------ HA hook
 
     async def _async_update_data(self) -> Snapshot | None:
@@ -244,12 +256,19 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             self.mode = self._pre_degraded_mode
             self._pre_degraded_mode = HemsMode.NORMAL
 
-        # --- Storm mode auto-trigger (only when in normal operation) ---
-        if self._mode is HemsMode.NORMAL:
-            if snapshot.weather_warning_active:
-                self.mode = HemsMode.STORM
-        elif self._mode is HemsMode.STORM and not snapshot.weather_warning_active:
-            self.mode = HemsMode.NORMAL
+        # --- Storm mode auto-trigger and duration expiry ---
+        if self._mode is HemsMode.STORM:
+            if self._storm_expires_at is not None and snapshot.timestamp >= self._storm_expires_at:
+                _LOGGER.info("Storm mode duration elapsed — returning to normal")
+                self._storm_expires_at = None
+                self._storm_manual = False
+                self.mode = HemsMode.NORMAL
+            elif not self._storm_manual and not snapshot.weather_warning_active:
+                # Auto-triggered storm: exit when warning clears
+                self.mode = HemsMode.NORMAL
+        elif self._mode is HemsMode.NORMAL and snapshot.weather_warning_active:
+            self._storm_manual = False
+            self.mode = HemsMode.STORM
 
         # Resolve current tariff prices
         import_price = self._tariff.current_import_price(snapshot.timestamp)

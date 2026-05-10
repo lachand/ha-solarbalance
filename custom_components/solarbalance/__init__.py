@@ -113,7 +113,8 @@ def _register_services(hass: HomeAssistant) -> None:
     async def handle_activate_storm_mode(call: ServiceCall) -> None:
         coord = _get_coordinator(hass)
         if coord:
-            coord.mode = HemsMode.STORM
+            duration_h: float | None = call.data.get("duration_h")
+            coord.activate_storm_mode(duration_h=duration_h)
             coord.async_update_listeners()
 
     hass.services.async_register(DOMAIN, "pause", handle_pause)
