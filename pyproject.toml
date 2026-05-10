@@ -77,6 +77,8 @@ ignore = [
 # do not need individual docstrings; the class docstring covers them.
 "custom_components/solarbalance/sensor.py" = ["D102"]
 "custom_components/solarbalance/coordinator.py" = ["D102"]
+# Intra-package relative imports are intentional across all core modules.
+"custom_components/solarbalance/core/**" = ["TID252"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
