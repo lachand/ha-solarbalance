@@ -35,5 +35,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - **Exemples YAML** — `examples/config/ecoflow_stream.yaml` (EcoFlow STREAM Ultra 2 + STREAM Tiny, triphasé Shelly 3EM) et `examples/config/jackery.yaml` (Jackery HomePower 2000 Ultra, monophasé Shelly 1PM).
 - **Tests d'intégration** — `tests/integration/test_config_flow.py` (création entry, abort single_instance) et `tests/integration/test_coordinator.py` (setup, mode par défaut, unload). 5 nouveaux tests d'intégration HA.
 
+## [Unreleased]
+
+### Added
+
+- **Tarifs dynamiques EDF Tempo** (`TempoTariff`) — résolution HC/HP combinée avec la couleur du jour (bleu/blanc/rouge). Le fournisseur de couleur est une callback HA (entité `rte_tempo`), permettant d'anticiper les tarifs rouges/blancs pour le jour J+1. Prix 2025-2026 intégrés par défaut, entièrement surchargeables.
+- **Tarifs spot EPEX/Nordpool** (`EpexSpotTariff`) — pass-through du prix spot horaire avec markup fixe configurable (taxes + acheminement + marge). Plafonnement (`price_cap`) et plancher (`price_floor`) optionnels pour écrêter les pics extrêmes ou les prix négatifs. Fonctionne avec les intégrations `nordpool` et `epex_spot` HACS.
+- 20 nouveaux tests unitaires couvrant la détection HC/HP, les trois couleurs Tempo, les cas UNKNOWN, le plafonnement/plancher EPEX.
+
+### Added (triphasé — précédent commit)
+
+- **ZI triphasé** (`PerPhaseZeroInjectionController`) — trois contrôleurs PI indépendants L1/L2/L3. Activé via `per_phase_zi: true` sur le compteur PDL YAML. Le coordinator bascule automatiquement si les trois entités de puissance par phase sont fournies.
+- **`PerPhaseZeroInjectionState`** / **`PerPhaseZeroInjectionResult`** — état immutable par phase, agrégation `correction_w` et `in_deadband` sur l'ensemble des trois phases.
+- **Modèles** — champs `grid_power_l1_w`, `grid_power_l2_w`, `grid_power_l3_w` sur `Snapshot` ; champ `per_phase_zi` sur `Meter`.
+- **`EntityReader._read_grid_power_per_phase()`** — lecture des trois entités de puissance par phase du compteur PDL.
+- **YAML** — champ `per_phase_zi` dans le schéma compteur.
+- 4 nouveaux tests unitaires ZI triphasé.
+
 [1.1.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/solarbalance/ha-solarbalance/releases/tag/v1.0.0

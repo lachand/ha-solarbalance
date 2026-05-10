@@ -5,12 +5,17 @@ a time-of-day window on selected weekdays. The model resolves the current
 import/export price for a given datetime, returning `None` when no slot matches
 (graceful degradation — callers fall back to a no-opinion decision).
 
+This module also provides:
+- `TempoTariff`: EDF Tempo three-colour tariff (blue/white/red days + HC/HP slots).
+- `EpexSpotTariff`: Day-ahead spot price pass-through with configurable markup.
+
 See SPECIFICATIONS §8 — Configuration tarifaire générique multi-plages.
 """
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, time
+from enum import StrEnum
 
 # ---------------------------------------------------------------------------
 # Slot definition
@@ -151,3 +156,171 @@ def make_hchp_tariff(
             )
         )
     return TariffConfig(slots=parsed)
+
+
+# ---------------------------------------------------------------------------
+# EDF Tempo tariff
+# ---------------------------------------------------------------------------
+
+
+class TempoColor(StrEnum):
+    """EDF Tempo day colour.
+
+    EDF publishes the next day's colour by 11:00 (10:00 in winter) each
+    working day. SolarBalance reads it from a HA entity (typically provided by
+    the ``rte_tempo`` or ``rte`` HACS integration).
+    """
+
+    BLUE = "blue"
+    WHITE = "white"
+    RED = "red"
+    UNKNOWN = "unknown"
+
+
+@dataclass(slots=True, frozen=True)
+class TempoSlotPrices:
+    """HC/HP import prices for one Tempo colour.
+
+    Args:
+        hc_price: Off-peak (Heures Creuses) import price in €/kWh.
+        hp_price: Peak (Heures Pleines) import price in €/kWh.
+        export_price: Buy-back price (same for all colours in current EDF offers).
+    """
+
+    hc_price: float
+    hp_price: float
+    export_price: float = 0.0
+
+
+# Default 2025-2026 Tempo prices (indicative; override at instantiation).
+_TEMPO_DEFAULTS: dict[TempoColor, TempoSlotPrices] = {
+    TempoColor.BLUE: TempoSlotPrices(hc_price=0.1296, hp_price=0.1609),
+    TempoColor.WHITE: TempoSlotPrices(hc_price=0.1467, hp_price=0.1894),
+    TempoColor.RED: TempoSlotPrices(hc_price=0.1569, hp_price=0.7562),
+}
+
+# HC window: 22:00 → 06:00 (overnight).
+_TEMPO_HC_START = time(22, 0)
+_TEMPO_HC_END = time(6, 0)
+
+
+class TempoTariff:
+    """EDF Tempo three-colour tariff resolver.
+
+    Combines a day-colour provider (callback returning `TempoColor` for a given
+    date) with HC/HP slot detection to resolve the current import/export price.
+
+    Args:
+        color_provider: Callable ``(dt) -> TempoColor`` returning the Tempo colour
+            for the **day** of ``dt``. When it returns ``UNKNOWN`` the tariff
+            falls back to ``None`` (graceful degradation).
+        prices: Per-colour price mapping. Defaults to 2025-2026 EDF prices.
+        export_price: Global export (buy-back) price in €/kWh.
+    """
+
+    def __init__(
+        self,
+        color_provider: Callable[[datetime], TempoColor],
+        *,
+        prices: dict[TempoColor, TempoSlotPrices] | None = None,
+        export_price: float = 0.0,
+    ) -> None:
+        self._color_provider = color_provider
+        self._prices = prices if prices is not None else dict(_TEMPO_DEFAULTS)
+        self._export_price = export_price
+
+    def _is_hc(self, dt: datetime) -> bool:
+        t = dt.time().replace(second=0, microsecond=0)
+        # HC = 22:00 → 06:00 (overnight)
+        return t >= _TEMPO_HC_START or t < _TEMPO_HC_END
+
+    def current_import_price(self, dt: datetime) -> float | None:
+        """Return the HC or HP import price for the current Tempo colour."""
+        color = self._color_provider(dt)
+        if color is TempoColor.UNKNOWN:
+            return None
+        slot = self._prices.get(color)
+        if slot is None:
+            return None
+        return slot.hc_price if self._is_hc(dt) else slot.hp_price
+
+    def current_export_price(self, dt: datetime) -> float | None:
+        """Return the export price (constant, independent of colour/slot)."""
+        return self._export_price
+
+    def as_tariff_config(self, dt: datetime) -> TariffConfig:
+        """Snapshot current prices into a static `TariffConfig` for this tick.
+
+        Useful for strategies that call ``tariff.current_import_price`` multiple
+        times — avoids repeated calls to the color provider.
+        """
+        import_price = self.current_import_price(dt)
+        export_price = self.current_export_price(dt)
+        return TariffConfig(
+            default_import_price=import_price,
+            default_export_price=export_price,
+        )
+
+
+# ---------------------------------------------------------------------------
+# EPEX/Nordpool day-ahead spot tariff
+# ---------------------------------------------------------------------------
+
+
+class EpexSpotTariff:
+    """Day-ahead electricity spot price pass-through.
+
+    The spot price for the current hour is supplied by a callback (typically
+    reading a HA sensor fed by the ``nordpool`` or ``epex_spot`` integration).
+    A fixed markup is added to cover grid fees, taxes, and supplier margin.
+
+    Args:
+        spot_price_provider: Callable ``(dt) -> float | None`` returning the
+            raw spot price in €/kWh for the hour containing ``dt``.
+            Returns ``None`` when the price is unavailable.
+        markup: Fixed add-on in €/kWh (taxes + grid fees + margin). Added to
+            the spot price to obtain the consumer import price.
+        export_price: Fixed buy-back price in €/kWh (independent of spot).
+        price_cap: Optional ceiling on the computed import price in €/kWh.
+            Useful to clip extreme values without disabling the strategy.
+        price_floor: Optional floor on the computed import price. Prevents
+            negative prices from triggering unexpected behaviour.
+    """
+
+    def __init__(
+        self,
+        spot_price_provider: Callable[[datetime], float | None],
+        *,
+        markup: float = 0.0,
+        export_price: float = 0.0,
+        price_cap: float | None = None,
+        price_floor: float | None = None,
+    ) -> None:
+        self._provider = spot_price_provider
+        self._markup = markup
+        self._export_price = export_price
+        self._price_cap = price_cap
+        self._price_floor = price_floor
+
+    def current_import_price(self, dt: datetime) -> float | None:
+        """Return markup-adjusted spot import price, clamped if configured."""
+        raw = self._provider(dt)
+        if raw is None:
+            return None
+        price = raw + self._markup
+        if self._price_floor is not None:
+            price = max(self._price_floor, price)
+        if self._price_cap is not None:
+            price = min(self._price_cap, price)
+        return price
+
+    def current_export_price(self, dt: datetime) -> float | None:
+        """Return the fixed export buy-back price."""
+        return self._export_price
+
+    def as_tariff_config(self, dt: datetime) -> TariffConfig:
+        """Snapshot current prices into a static `TariffConfig` for this tick."""
+        return TariffConfig(
+            default_import_price=self.current_import_price(dt),
+            default_export_price=self.current_export_price(dt),
+        )
