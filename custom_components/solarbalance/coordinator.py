@@ -313,6 +313,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values()
             ),
             states=battery_states,
+            now=snapshot.timestamp,
         )
         load_states = {ls.name: ls for ls in snapshot.loads}
         self._load_dispatch.dispatch(

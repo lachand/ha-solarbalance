@@ -12,15 +12,11 @@ def _state(device_name: str, soc_pct: float, *, available: bool = True) -> Batte
 
 class TestBalancingController:
     @pytest.mark.parametrize("alpha", [-0.1, 1.5])
-    def test_alpha_must_be_in_unit_interval(
-        self, alpha: float, ecoflow_device: Device
-    ) -> None:
+    def test_alpha_must_be_in_unit_interval(self, alpha: float, ecoflow_device: Device) -> None:
         with pytest.raises(ValueError, match="alpha"):
             BalancingController([ecoflow_device], alpha=alpha)
 
-    def test_no_eligible_batteries_returns_unallocated(
-        self, ecoflow_device: Device
-    ) -> None:
+    def test_no_eligible_batteries_returns_unallocated(self, ecoflow_device: Device) -> None:
         controller = BalancingController([ecoflow_device], alpha=0.6)
         result = controller.allocate(
             total_power_w=500.0,
@@ -119,3 +115,98 @@ class TestBalancingController:
         )
         assert result.per_battery_w["ecoflow_living_room"] == 0.0
         assert result.per_battery_w["jackery_garage"] == pytest.approx(500.0, abs=2.0)
+
+
+class TestAntiShortCycle:
+    """Tests for the min_dwell_s direction-reversal guard."""
+
+    def test_first_direction_is_always_allowed(self, ecoflow_device: Device) -> None:
+        from datetime import UTC, datetime
+
+        controller = BalancingController([ecoflow_device], alpha=0.6, min_dwell_s=60.0)
+        now = datetime(2026, 5, 10, 12, 0, tzinfo=UTC)
+        result = controller.allocate(
+            total_power_w=500.0,
+            states={"ecoflow_living_room": _state("ecoflow_living_room", 50.0)},
+            now=now,
+        )
+        assert result.per_battery_w["ecoflow_living_room"] > 0.0
+
+    def test_reversal_blocked_within_dwell(self, ecoflow_device: Device) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        controller = BalancingController([ecoflow_device], alpha=0.6, min_dwell_s=60.0)
+        t0 = datetime(2026, 5, 10, 12, 0, tzinfo=UTC)
+
+        # First tick: charge
+        controller.allocate(
+            total_power_w=500.0,
+            states={"ecoflow_living_room": _state("ecoflow_living_room", 50.0)},
+            now=t0,
+        )
+        # 30 s later: try to discharge (within dwell window)
+        t1 = t0 + timedelta(seconds=30)
+        result = controller.allocate(
+            total_power_w=-500.0,
+            states={"ecoflow_living_room": _state("ecoflow_living_room", 50.0)},
+            now=t1,
+        )
+        # Battery should be excluded → unallocated
+        assert result.per_battery_w == {}
+        assert result.unallocated_w == pytest.approx(-500.0)
+
+    def test_reversal_allowed_after_dwell(self, ecoflow_device: Device) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        controller = BalancingController([ecoflow_device], alpha=0.6, min_dwell_s=60.0)
+        t0 = datetime(2026, 5, 10, 12, 0, tzinfo=UTC)
+
+        # First tick: charge
+        controller.allocate(
+            total_power_w=500.0,
+            states={"ecoflow_living_room": _state("ecoflow_living_room", 50.0)},
+            now=t0,
+        )
+        # 61 s later: try to discharge (past dwell window)
+        t1 = t0 + timedelta(seconds=61)
+        result = controller.allocate(
+            total_power_w=-500.0,
+            states={"ecoflow_living_room": _state("ecoflow_living_room", 50.0)},
+            now=t1,
+        )
+        assert result.per_battery_w["ecoflow_living_room"] < 0.0
+
+    def test_no_guard_when_min_dwell_zero(self, ecoflow_device: Device) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        controller = BalancingController([ecoflow_device], alpha=0.6, min_dwell_s=0.0)
+        t0 = datetime(2026, 5, 10, 12, 0, tzinfo=UTC)
+        controller.allocate(
+            total_power_w=500.0,
+            states={"ecoflow_living_room": _state("ecoflow_living_room", 50.0)},
+            now=t0,
+        )
+        # Immediate reversal allowed when guard is disabled
+        t1 = t0 + timedelta(seconds=1)
+        result = controller.allocate(
+            total_power_w=-500.0,
+            states={"ecoflow_living_room": _state("ecoflow_living_room", 50.0)},
+            now=t1,
+        )
+        assert result.per_battery_w["ecoflow_living_room"] < 0.0
+
+    def test_no_guard_when_now_is_none(self, ecoflow_device: Device) -> None:
+        controller = BalancingController([ecoflow_device], alpha=0.6, min_dwell_s=60.0)
+        # Charge with now=None (no tracking)
+        controller.allocate(
+            total_power_w=500.0,
+            states={"ecoflow_living_room": _state("ecoflow_living_room", 50.0)},
+            now=None,
+        )
+        # Immediate discharge also with now=None (guard skipped)
+        result = controller.allocate(
+            total_power_w=-500.0,
+            states={"ecoflow_living_room": _state("ecoflow_living_room", 50.0)},
+            now=None,
+        )
+        assert result.per_battery_w["ecoflow_living_room"] < 0.0
