@@ -34,45 +34,6 @@ YAML_CONFIG_KEY = "yaml_config"
 _CARD_URL = "/solarbalance_card/solarbalance-card.js"
 
 
-def _schedule_lovelace_registration(hass: HomeAssistant) -> None:
-    """Register a one-shot listener that adds the card resource after HA starts.
-
-    Using EVENT_HOMEASSISTANT_STARTED guarantees Lovelace storage is loaded.
-    This is a plain ``def`` so it can be called without ``await`` in async_setup.
-    """
-    from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
-
-    async def _do_register(event: Any) -> None:
-        try:
-            lovelace_data = hass.data.get("lovelace")
-            # hass.data["lovelace"] is a NamedTuple — use getattr, not .get()
-            lovelace_resources = getattr(lovelace_data, "resources", None)
-            if lovelace_resources is not None:
-                items = await lovelace_resources.async_items()
-                if not any(r.get("url") == _CARD_URL for r in items):
-                    await lovelace_resources.async_create_item(
-                        {"res_type": "module", "url": _CARD_URL}
-                    )
-                    _LOGGER.info("SolarBalance: Lovelace resource registered at %s", _CARD_URL)
-                return
-        except Exception:  # lovelace in YAML mode or unexpected structure
-            pass
-
-        # Lovelace is in YAML mode: show a one-time notification with the URL.
-        from homeassistant.components.persistent_notification import async_create
-
-        async_create(
-            hass,
-            f"Ajoutez cette ressource dans **Paramètres → Tableaux de bord → Ressources** :\n\n"
-            f"`{_CARD_URL}`  (type : Module JavaScript)\n\n"
-            f"Ensuite ajoutez une carte `custom:solarbalance-card`.",
-            title="SolarBalance — carte Lovelace",
-            notification_id="solarbalance_card_resource",
-        )
-
-    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _do_register)
-
-
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Parse the YAML ``solarbalance:`` block if present and register services."""
     import pathlib
@@ -89,8 +50,12 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         [StaticPathConfig("/solarbalance_card", str(www_path), cache_headers=False)]
     )
 
-    # Schedule Lovelace resource registration after HA has fully started.
-    _schedule_lovelace_registration(hass)
+    # Register the JS module with the HA frontend — the canonical way for
+    # custom components to expose a Lovelace card without touching the
+    # Lovelace resources storage (which is mode-dependent and loads lazily).
+    from homeassistant.components.frontend import add_extra_js_url
+
+    add_extra_js_url(hass, _CARD_URL)
     raw = config.get(DOMAIN)
     if raw:
         try:
