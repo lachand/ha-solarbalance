@@ -53,7 +53,10 @@ async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
         pass
 
     # Lovelace is in YAML mode or not yet ready: notify the user once.
-    hass.components.persistent_notification.async_create(
+    from homeassistant.components.persistent_notification import async_create
+
+    async_create(
+        hass,
         f"Ajoutez cette ressource dans **Paramètres → Tableaux de bord → Ressources** :\n\n"
         f"`{_CARD_URL}`  (type : Module JavaScript)\n\n"
         f"Ensuite redémarrez et ajoutez une carte `custom:solarbalance-card`.",
