@@ -32,30 +32,42 @@ COORDINATOR_KEY = "coordinator"
 YAML_CONFIG_KEY = "yaml_config"
 
 _CARD_URL = "/solarbalance_card/solarbalance-card.js"
+_CARD_REGISTERED_KEY = "_card_frontend_registered"
+
+
+def _register_card_frontend(hass: HomeAssistant) -> None:
+    """Register the static path and JS module URL with the HA frontend.
+
+    Idempotent — safe to call from both async_setup and async_setup_entry.
+    """
+    if hass.data.get(DOMAIN, {}).get(_CARD_REGISTERED_KEY):
+        return
+
+    import pathlib
+
+    from homeassistant.components.frontend import add_extra_js_url
+    from homeassistant.components.http import StaticPathConfig
+
+    www_path = pathlib.Path(__file__).parent / "www"
+    hass.async_create_task(
+        hass.http.async_register_static_paths(
+            [StaticPathConfig("/solarbalance_card", str(www_path), cache_headers=False)]
+        )
+    )
+    add_extra_js_url(hass, _CARD_URL)
+    hass.data.setdefault(DOMAIN, {})[_CARD_REGISTERED_KEY] = True
+    _LOGGER.info(
+        "SolarBalance: carte Lovelace disponible à %s — ajoutez une carte custom:solarbalance-card",
+        _CARD_URL,
+    )
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Parse the YAML ``solarbalance:`` block if present and register services."""
-    import pathlib
-
-    from homeassistant.components.http import StaticPathConfig
-
     from .yaml_loader import parse_yaml_config
 
     hass.data.setdefault(DOMAIN, {})
-
-    # Serve the bundled Lovelace card at /solarbalance_card/solarbalance-card.js
-    www_path = pathlib.Path(__file__).parent / "www"
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig("/solarbalance_card", str(www_path), cache_headers=False)]
-    )
-
-    # Register the JS module with the HA frontend — the canonical way for
-    # custom components to expose a Lovelace card without touching the
-    # Lovelace resources storage (which is mode-dependent and loads lazily).
-    from homeassistant.components.frontend import add_extra_js_url
-
-    add_extra_js_url(hass, _CARD_URL)
+    _register_card_frontend(hass)
     raw = config.get(DOMAIN)
     if raw:
         try:
@@ -150,6 +162,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     _LOGGER.debug("Setting up SolarBalance entry %s", entry.entry_id)
     hass.data.setdefault(DOMAIN, {})
+    _register_card_frontend(hass)
 
     yaml_cfg = hass.data[DOMAIN].get(YAML_CONFIG_KEY)
     devices, meters, loads = yaml_cfg if yaml_cfg else ([], [], [])
