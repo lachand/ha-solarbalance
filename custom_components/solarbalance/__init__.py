@@ -1,26 +1,29 @@
 """SolarBalance — Home Energy Management System integration."""
 
+from __future__ import annotations
+
 import logging
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant, ServiceCall
+if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant, ServiceCall
+
+    from .coordinator import SolarBalanceCoordinator
 
 from .const import DOMAIN
-from .coordinator import SolarBalanceCoordinator
 from .core.models import HemsMode
-from .yaml_loader import parse_yaml_config
 
 _LOGGER = logging.getLogger(__name__)
 
-PLATFORMS: list[Platform] = [
-    Platform.SENSOR,
-    Platform.BINARY_SENSOR,
-    Platform.SELECT,
-    Platform.NUMBER,
-    Platform.SWITCH,
+# Plain strings — Platform is a StrEnum so HA accepts both forms.
+PLATFORMS: list[str] = [
+    "sensor",
+    "binary_sensor",
+    "select",
+    "number",
+    "switch",
 ]
 
 # Key used to store the coordinator in hass.data[DOMAIN][entry_id]
@@ -31,6 +34,8 @@ YAML_CONFIG_KEY = "yaml_config"
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Parse the YAML ``solarbalance:`` block if present and register services."""
+    from .yaml_loader import parse_yaml_config
+
     hass.data.setdefault(DOMAIN, {})
     raw = config.get(DOMAIN)
     if raw:
@@ -121,6 +126,8 @@ def _register_services(hass: HomeAssistant) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up SolarBalance from a config entry."""
+    from .coordinator import SolarBalanceCoordinator
+
     _LOGGER.debug("Setting up SolarBalance entry %s", entry.entry_id)
     hass.data.setdefault(DOMAIN, {})
 
