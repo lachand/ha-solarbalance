@@ -39,11 +39,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ### Added
 
+- **`solarbalance-card`** (Lovelace custom card) — `frontend/solarbalance-card/` : composant Lit + TypeScript compilé via Vite vers `custom_components/solarbalance/www/solarbalance-card.js`. Affiche un diagramme Sankey temps réel (solaire / batterie / maison / réseau) avec badge mode HEMS, métriques puissances, jauge SoC batterie. Configuration YAML minimale : `type: custom:solarbalance-card`. Nouvelle cible `make build-frontend`.
 - **Tarifs dynamiques EDF Tempo** (`TempoTariff`) — résolution HC/HP combinée avec la couleur du jour (bleu/blanc/rouge). Le fournisseur de couleur est une callback HA (entité `rte_tempo`), permettant d'anticiper les tarifs rouges/blancs pour le jour J+1. Prix 2025-2026 intégrés par défaut, entièrement surchargeables.
-- **Tarifs spot EPEX/Nordpool** (`EpexSpotTariff`) — pass-through du prix spot horaire avec markup fixe configurable (taxes + acheminement + marge). Plafonnement (`price_cap`) et plancher (`price_floor`) optionnels pour écrêter les pics extrêmes ou les prix négatifs. Fonctionne avec les intégrations `nordpool` et `epex_spot` HACS.
+- **Tarifs spot EPEX/Nordpool** (`EpexSpotTariff`) — pass-through du prix spot horaire avec markup fixe configurable (taxes + acheminement + marge). Plafonnement (`price_cap`) et plancher (`price_floor`) optionnels. Fonctionne avec les intégrations `nordpool` et `epex_spot` HACS.
 - 20 nouveaux tests unitaires couvrant la détection HC/HP, les trois couleurs Tempo, les cas UNKNOWN, le plafonnement/plancher EPEX.
 
-### Added (triphasé — précédent commit)
+### Added (triphasé — commit précédent)
 
 - **ZI triphasé** (`PerPhaseZeroInjectionController`) — trois contrôleurs PI indépendants L1/L2/L3. Activé via `per_phase_zi: true` sur le compteur PDL YAML. Le coordinator bascule automatiquement si les trois entités de puissance par phase sont fournies.
 - **`PerPhaseZeroInjectionState`** / **`PerPhaseZeroInjectionResult`** — état immutable par phase, agrégation `correction_w` et `in_deadband` sur l'ensemble des trois phases.

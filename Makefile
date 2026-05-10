@@ -1,16 +1,17 @@
-.PHONY: help install test lint format typecheck clean dev
+.PHONY: help install test lint format typecheck clean dev build-frontend
 
 help:
 	@echo "SolarBalance development commands:"
-	@echo "  make install    - Install dev dependencies"
-	@echo "  make test       - Run all tests"
-	@echo "  make test-core  - Run core tests only (fast)"
-	@echo "  make lint       - Run ruff linter"
-	@echo "  make format     - Format code with ruff"
-	@echo "  make typecheck  - Run mypy on core/"
-	@echo "  make check      - Run lint + typecheck + test"
-	@echo "  make clean      - Remove caches and build artifacts"
-	@echo "  make dev        - Install in editable mode"
+	@echo "  make install         - Install dev dependencies"
+	@echo "  make test            - Run all tests"
+	@echo "  make test-core       - Run core tests only (fast)"
+	@echo "  make lint            - Run ruff linter"
+	@echo "  make format          - Format code with ruff"
+	@echo "  make typecheck       - Run mypy on core/"
+	@echo "  make check           - Run lint + typecheck + test"
+	@echo "  make build-frontend  - Build solarbalance-card JS bundle"
+	@echo "  make clean           - Remove caches and build artifacts"
+	@echo "  make dev             - Install in editable mode"
 
 install:
 	python -m pip install --upgrade pip
@@ -45,3 +46,6 @@ clean:
 dev: install
 	@echo "✓ Development environment ready"
 	@echo "Run 'make test' to verify installation"
+
+build-frontend:
+	cd frontend/solarbalance-card && npm install && npm run build
