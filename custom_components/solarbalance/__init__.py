@@ -31,12 +31,56 @@ COORDINATOR_KEY = "coordinator"
 # Key used to store YAML-parsed config (devices, meters, loads) set by async_setup
 YAML_CONFIG_KEY = "yaml_config"
 
+_CARD_URL = "/solarbalance_card/solarbalance-card.js"
+
+
+async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
+    """Add the card JS as a Lovelace resource if not already registered.
+
+    Attempts to auto-register via the lovelace storage API (storage mode only).
+    Falls back to a persistent notification if lovelace is in YAML mode or if
+    the storage collection is not yet available.
+    """
+    try:
+        lovelace_resources = hass.data.get("lovelace", {}).get("resources")
+        if lovelace_resources is not None:
+            items = await lovelace_resources.async_items()
+            if not any(r.get("url") == _CARD_URL for r in items):
+                await lovelace_resources.async_create_item({"res_type": "module", "url": _CARD_URL})
+                _LOGGER.info("SolarBalance: Lovelace resource registered at %s", _CARD_URL)
+            return
+    except Exception:  # lovelace storage not available (YAML mode or not ready)
+        pass
+
+    # Lovelace is in YAML mode or not yet ready: notify the user once.
+    hass.components.persistent_notification.async_create(
+        f"Ajoutez cette ressource dans **Paramètres → Tableaux de bord → Ressources** :\n\n"
+        f"`{_CARD_URL}`  (type : Module JavaScript)\n\n"
+        f"Ensuite redémarrez et ajoutez une carte `custom:solarbalance-card`.",
+        title="SolarBalance — carte Lovelace",
+        notification_id="solarbalance_card_resource",
+    )
+
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     """Parse the YAML ``solarbalance:`` block if present and register services."""
+    import pathlib
+
+    from homeassistant.components.http import StaticPathConfig
+
     from .yaml_loader import parse_yaml_config
 
     hass.data.setdefault(DOMAIN, {})
+
+    # Serve the bundled Lovelace card at /solarbalance_card/solarbalance-card.js
+    www_path = pathlib.Path(__file__).parent / "www"
+    await hass.http.async_register_static_paths(
+        [StaticPathConfig("/solarbalance_card", str(www_path), cache_headers=False)]
+    )
+
+    # Auto-register the Lovelace resource so the card is available without
+    # manual resource configuration by the user.
+    await _async_register_lovelace_resource(hass)
     raw = config.get(DOMAIN)
     if raw:
         try:
