@@ -34,20 +34,19 @@ YAML_CONFIG_KEY = "yaml_config"
 _CARD_URL = "/solarbalance_card/solarbalance-card.js"
 
 
-async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
-    """Add the card JS as a Lovelace resource once HA has fully started.
+def _schedule_lovelace_registration(hass: HomeAssistant) -> None:
+    """Register a one-shot listener that adds the card resource after HA starts.
 
-    Schedules the actual registration to run after EVENT_HOMEASSISTANT_STARTED
-    so that Lovelace's storage collection is guaranteed to be available.
+    Using EVENT_HOMEASSISTANT_STARTED guarantees Lovelace storage is loaded.
+    This is a plain ``def`` so it can be called without ``await`` in async_setup.
     """
     from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 
     async def _do_register(event: Any) -> None:
         try:
             lovelace_data = hass.data.get("lovelace")
-            lovelace_resources = (
-                lovelace_data.get("resources") if isinstance(lovelace_data, dict) else None
-            )
+            # hass.data["lovelace"] is a NamedTuple — use getattr, not .get()
+            lovelace_resources = getattr(lovelace_data, "resources", None)
             if lovelace_resources is not None:
                 items = await lovelace_resources.async_items()
                 if not any(r.get("url") == _CARD_URL for r in items):
@@ -91,7 +90,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     )
 
     # Schedule Lovelace resource registration after HA has fully started.
-    _async_register_lovelace_resource(hass)
+    _schedule_lovelace_registration(hass)
     raw = config.get(DOMAIN)
     if raw:
         try:
