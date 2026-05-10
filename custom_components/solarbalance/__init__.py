@@ -35,34 +35,43 @@ _CARD_URL = "/solarbalance_card/solarbalance-card.js"
 
 
 async def _async_register_lovelace_resource(hass: HomeAssistant) -> None:
-    """Add the card JS as a Lovelace resource if not already registered.
+    """Add the card JS as a Lovelace resource once HA has fully started.
 
-    Attempts to auto-register via the lovelace storage API (storage mode only).
-    Falls back to a persistent notification if lovelace is in YAML mode or if
-    the storage collection is not yet available.
+    Schedules the actual registration to run after EVENT_HOMEASSISTANT_STARTED
+    so that Lovelace's storage collection is guaranteed to be available.
     """
-    try:
-        lovelace_resources = hass.data.get("lovelace", {}).get("resources")
-        if lovelace_resources is not None:
-            items = await lovelace_resources.async_items()
-            if not any(r.get("url") == _CARD_URL for r in items):
-                await lovelace_resources.async_create_item({"res_type": "module", "url": _CARD_URL})
-                _LOGGER.info("SolarBalance: Lovelace resource registered at %s", _CARD_URL)
-            return
-    except Exception:  # lovelace storage not available (YAML mode or not ready)
-        pass
+    from homeassistant.const import EVENT_HOMEASSISTANT_STARTED
 
-    # Lovelace is in YAML mode or not yet ready: notify the user once.
-    from homeassistant.components.persistent_notification import async_create
+    async def _do_register(event: Any) -> None:
+        try:
+            lovelace_data = hass.data.get("lovelace")
+            lovelace_resources = (
+                lovelace_data.get("resources") if isinstance(lovelace_data, dict) else None
+            )
+            if lovelace_resources is not None:
+                items = await lovelace_resources.async_items()
+                if not any(r.get("url") == _CARD_URL for r in items):
+                    await lovelace_resources.async_create_item(
+                        {"res_type": "module", "url": _CARD_URL}
+                    )
+                    _LOGGER.info("SolarBalance: Lovelace resource registered at %s", _CARD_URL)
+                return
+        except Exception:  # lovelace in YAML mode or unexpected structure
+            pass
 
-    async_create(
-        hass,
-        f"Ajoutez cette ressource dans **Paramètres → Tableaux de bord → Ressources** :\n\n"
-        f"`{_CARD_URL}`  (type : Module JavaScript)\n\n"
-        f"Ensuite redémarrez et ajoutez une carte `custom:solarbalance-card`.",
-        title="SolarBalance — carte Lovelace",
-        notification_id="solarbalance_card_resource",
-    )
+        # Lovelace is in YAML mode: show a one-time notification with the URL.
+        from homeassistant.components.persistent_notification import async_create
+
+        async_create(
+            hass,
+            f"Ajoutez cette ressource dans **Paramètres → Tableaux de bord → Ressources** :\n\n"
+            f"`{_CARD_URL}`  (type : Module JavaScript)\n\n"
+            f"Ensuite ajoutez une carte `custom:solarbalance-card`.",
+            title="SolarBalance — carte Lovelace",
+            notification_id="solarbalance_card_resource",
+        )
+
+    hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _do_register)
 
 
 async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
@@ -81,9 +90,8 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
         [StaticPathConfig("/solarbalance_card", str(www_path), cache_headers=False)]
     )
 
-    # Auto-register the Lovelace resource so the card is available without
-    # manual resource configuration by the user.
-    await _async_register_lovelace_resource(hass)
+    # Schedule Lovelace resource registration after HA has fully started.
+    _async_register_lovelace_resource(hass)
     raw = config.get(DOMAIN)
     if raw:
         try:
