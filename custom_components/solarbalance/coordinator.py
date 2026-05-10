@@ -150,6 +150,43 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         """True when the HEMS is in degraded mode."""
         return self._mode is HemsMode.DEGRADED
 
+    @property
+    def daily_pv_energy_kwh(self) -> float | None:
+        """Sum of today's PV energy across all MPPT devices with daily_energy_entity.
+
+        Returns None when no device declares daily_energy_entity.
+        Source entities are expected to be in kWh (standard HA energy unit).
+        """
+        total = 0.0
+        found = False
+        for device in self._devices:
+            if device.mppt and device.mppt.daily_energy_entity:
+                state = self.hass.states.get(device.mppt.daily_energy_entity)
+                if state and state.state not in {"unavailable", "unknown", ""}:
+                    try:
+                        total += float(state.state)
+                        found = True
+                    except (ValueError, TypeError):
+                        pass
+        return round(total, 3) if found else None
+
+    @property
+    def daily_grid_import_kwh(self) -> float | None:
+        """Grid energy imported today from the PDL meter daily_import_energy_entity.
+
+        Returns None when the PDL meter does not declare daily_import_energy_entity.
+        Source entity is expected to be in kWh.
+        """
+        for meter in self._meters:
+            if meter.kind is MeterKind.PDL and meter.daily_import_energy_entity:
+                state = self.hass.states.get(meter.daily_import_energy_entity)
+                if state and state.state not in {"unavailable", "unknown", ""}:
+                    try:
+                        return round(float(state.state), 3)
+                    except (ValueError, TypeError):
+                        pass
+        return None
+
     def set_force_override(
         self,
         kind: str,
@@ -214,6 +251,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         export_price = self._tariff.current_export_price(snapshot.timestamp)
 
         from dataclasses import replace
+
         snapshot = replace(
             snapshot,
             current_import_price=import_price,
@@ -248,14 +286,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         battery_states = {b.device_name: b for b in snapshot.batteries}
         balancing_result = self._balancing.allocate(
             total_power_w=sum(
-                t.preferred_power_w or 0.0
-                for t in result.decision.battery_targets.values()
+                t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values()
             ),
             states=battery_states,
         )
         load_states = {ls.name: ls for ls in snapshot.loads}
         self._load_dispatch.dispatch(
-            available_surplus_w=max(0.0, -snapshot.grid_power_w - sum(balancing_result.per_battery_w.values())),
+            available_surplus_w=max(
+                0.0, -snapshot.grid_power_w - sum(balancing_result.per_battery_w.values())
+            ),
             states=load_states,
             now=snapshot.timestamp,
         )
@@ -285,7 +324,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             else:
                 reached = all(b.soc_pct <= ovr.target_soc_pct for b in available)
             if reached:
-                _LOGGER.info("Force %s target %.0f%% reached — resuming normal", ovr.kind, ovr.target_soc_pct)
+                _LOGGER.info(
+                    "Force %s target %.0f%% reached — resuming normal", ovr.kind, ovr.target_soc_pct
+                )
                 self.clear_force_override()
                 decisions = [s.compute(snapshot) for s in self._arbiter._strategies]
                 return self._arbiter.arbitrate(decisions)
@@ -306,7 +347,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 targets[device.name] = BatteryTarget(
                     soc_min_pct=ovr.target_soc_pct,
                     soc_max_pct=float(bat.soc_max_pct),
-                    preferred_power_w=-float(ovr.power_w if ovr.power_w else bat.max_discharge_power_w),
+                    preferred_power_w=-float(
+                        ovr.power_w if ovr.power_w else bat.max_discharge_power_w
+                    ),
                 )
 
         override_decision = Decision(

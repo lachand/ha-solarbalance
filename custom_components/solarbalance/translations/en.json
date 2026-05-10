@@ -50,6 +50,9 @@
       "pv_power": { "name": "PV Power" },
       "battery_power": { "name": "Battery Power" },
       "baseline_consumption": { "name": "Baseline Consumption" },
+      "battery_soc_avg": { "name": "Battery SoC Average" },
+      "pv_energy_today": { "name": "PV Energy Today" },
+      "grid_import_today": { "name": "Grid Import Today" },
       "battery_setpoint_charge": { "name": "{device} Charge Setpoint" },
       "battery_setpoint_discharge": { "name": "{device} Discharge Setpoint" }
     },

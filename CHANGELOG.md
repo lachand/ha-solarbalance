@@ -24,9 +24,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ### Added
 
-- Initial repository scaffold (manifest, pyproject, CI, AGENTS.md).
-- Core engine skeleton (models, strategy base, balancing controller stub).
-- Specification document (`docs/SPECIFICATIONS.md`).
+- **`sensor.solarbalance_battery_soc_avg`** — SoC moyen de toutes les batteries disponibles (%).
+- **`sensor.solarbalance_pv_energy_today`** — énergie PV totale du jour (somme des `daily_energy_entity` MPPT, kWh).
+- **`sensor.solarbalance_grid_import_today`** — soutirage réseau du jour (depuis `daily_import_energy_entity` du compteur PDL, kWh).
+- Propriétés `daily_pv_energy_kwh` et `daily_grid_import_kwh` sur le coordinator.
 
 [1.0.0]: https://github.com/solarbalance/ha-solarbalance/releases/tag/v1.0.0
 [Unreleased]: https://github.com/solarbalance/ha-solarbalance/commits/main

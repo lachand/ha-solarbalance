@@ -106,7 +106,7 @@ class BatteryRole:
     soc_min_pct: int = 10
     soc_max_pct: int = 95
     chemistry: Chemistry = Chemistry.LIFEPO4
-    power_sign_convention: PowerSignConvention = PowerSignConvention.CHARGE_POSITIVE
+    power_sign_convention: PowerSignConvention = PowerSignConvention.DISCHARGE_POSITIVE
     usable_capacity_kwh: float | None = None
 
     def __post_init__(self) -> None:
@@ -242,21 +242,14 @@ class Load:
                 )
         elif self.control_type is LoadControlType.STEPPED:
             if not self.steps or self.level_entity is None:
-                raise ValueError(
-                    f"Load {self.name!r} (stepped) requires steps and level_entity"
-                )
-        elif (
-            self.control_type is LoadControlType.MODULATING
-            and (
-                self.min_power_w is None
-                or self.max_power_w is None
-                or self.power_set_entity is None
-            )
+                raise ValueError(f"Load {self.name!r} (stepped) requires steps and level_entity")
+        elif self.control_type is LoadControlType.MODULATING and (
+            self.min_power_w is None or self.max_power_w is None or self.power_set_entity is None
         ):
             raise ValueError(
-                    f"Load {self.name!r} (modulating) requires min_power_w, "
-                    "max_power_w and power_set_entity"
-                )
+                f"Load {self.name!r} (modulating) requires min_power_w, "
+                "max_power_w and power_set_entity"
+            )
 
 
 # ---------------------------------------------------------------------------

@@ -1,5 +1,9 @@
 # Complete Lovelace view for SolarBalance.
 # Requires HACS cards: power-flow-card-plus, apexcharts-card, mushroom.
+#
+# Optional: add sensor.solcast_pv_forecast_forecast_today to the PV chart if
+# you have the Solcast integration installed.
+# Optional: uncomment tariff chart if you have configured tariff_config.
 
 title: SolarBalance
 icon: mdi:solar-power-variant
@@ -33,49 +37,33 @@ cards:
 
   - type: custom:power-flow-card-plus
     title: Energy flow
-    grid:
-      entity: sensor.solarbalance_grid_power
-    solar:
-      entity: sensor.solarbalance_pv_power
-    battery:
-      entity: sensor.solarbalance_battery_power
-      state_of_charge: sensor.solarbalance_battery_soc_avg
-    home:
-      entity: sensor.solarbalance_baseline_consumption
-      override_state: true
+    entities:
+      grid:
+        entity: sensor.solarbalance_grid_power
+      solar:
+        entity: sensor.solarbalance_pv_power
+      battery:
+        entity: sensor.solarbalance_battery_power
+      home:
+        entity: sensor.solarbalance_baseline_consumption
+        override_state: true
 
-  # ----- Forecast vs realised ------------------------------------------------
+  # ----- PV production (last 24 h) ------------------------------------------
   - type: custom:apexcharts-card
     header:
       show: true
-      title: PV — forecast vs realised (24 h)
+      title: PV — production (24 h)
     graph_span: 24h
     span:
       start: hour
     series:
       - entity: sensor.solarbalance_pv_power
-        name: Realised
+        name: PV power
         type: area
-      - entity: sensor.solcast_pv_forecast_forecast_today
-        name: Forecast (Solcast)
-        type: line
-        stroke_width: 2
-
-  # ----- Tariff & prices -----------------------------------------------------
-  - type: custom:apexcharts-card
-    header:
-      show: true
-      title: Tariff window (24 h)
-    graph_span: 24h
-    span:
-      start: hour
-    series:
-      - entity: sensor.solarbalance_current_import_price
-        name: Import price (€/kWh)
-        type: line
-      - entity: sensor.solarbalance_current_export_price
-        name: Export price (€/kWh)
-        type: line
+      # Uncomment to add Solcast forecast:
+      # - entity: sensor.solcast_pv_forecast_forecast_today
+      #   name: Forecast (Solcast)
+      #   type: line
 
   # ----- Decisions log -------------------------------------------------------
   - type: entities
@@ -87,11 +75,16 @@ cards:
       - entity: sensor.solarbalance_pv_power
       - entity: sensor.solarbalance_battery_power
       - entity: sensor.solarbalance_baseline_consumption
-      - entity: sensor.solarbalance_current_import_price
-      - entity: sensor.solarbalance_current_export_price
       - entity: binary_sensor.solarbalance_storm_mode
       - entity: binary_sensor.solarbalance_weather_warning
       - entity: binary_sensor.solarbalance_degraded
+      # Per-device setpoints:
+      - entity: sensor.solarbalance_setpoint_charge_stream_ultra_2
+      - entity: sensor.solarbalance_setpoint_discharge_stream_ultra_2
+      - entity: sensor.solarbalance_setpoint_charge_stream_tiny
+      - entity: sensor.solarbalance_setpoint_discharge_stream_tiny
+      - entity: sensor.solarbalance_setpoint_charge_jackery_chaudiere
+      - entity: sensor.solarbalance_setpoint_discharge_jackery_chaudiere
 
   # ----- Overrides -----------------------------------------------------------
   - type: vertical-stack

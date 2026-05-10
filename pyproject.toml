@@ -64,6 +64,7 @@ select = [
 ignore = [
     "D100",
     "D104",
+    "D105",  # Magic methods in dataclasses (__post_init__) are self-documenting
     "D107",
     "D203",
     "D213",
@@ -72,6 +73,10 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D"]
 "custom_components/solarbalance/__init__.py" = ["D"]
+# HA entity protocol overrides (native_value, etc.) and coordinator properties
+# do not need individual docstrings; the class docstring covers them.
+"custom_components/solarbalance/sensor.py" = ["D102"]
+"custom_components/solarbalance/coordinator.py" = ["D102"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

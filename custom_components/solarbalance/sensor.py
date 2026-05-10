@@ -10,6 +10,9 @@ Sensors published:
 - ``sensor.solarbalance_pv_power``           — total PV power (W)
 - ``sensor.solarbalance_battery_power``      — aggregate battery power (W)
 - ``sensor.solarbalance_baseline_consumption`` — deduced background load (W)
+- ``sensor.solarbalance_battery_soc_avg``    — average SoC across batteries (%)
+- ``sensor.solarbalance_pv_energy_today``    — daily PV energy (kWh, optional)
+- ``sensor.solarbalance_grid_import_today``  — daily grid import (kWh, optional)
 - ``sensor.solarbalance_{device}_setpoint_charge_w``   — per-battery charge setpoint (W)
 - ``sensor.solarbalance_{device}_setpoint_discharge_w`` — per-battery discharge setpoint (W)
 """
@@ -22,7 +25,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfPower
+from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -51,6 +54,9 @@ async def async_setup_entry(
         SolarBalancePvPowerSensor(coordinator, entry),
         SolarBalanceBatteryPowerSensor(coordinator, entry),
         SolarBalanceBaselineConsumptionSensor(coordinator, entry),
+        SolarBalanceBatterySocAvgSensor(coordinator, entry),
+        SolarBalancePvEnergyTodaySensor(coordinator, entry),
+        SolarBalanceGridImportTodaySensor(coordinator, entry),
     ]
 
     # Per-battery setpoint sensors
@@ -201,6 +207,70 @@ class SolarBalanceBaselineConsumptionSensor(_SolarBalanceSensor):
 
 
 # ---------------------------------------------------------------------------
+# SoC average + daily energy sensors
+# ---------------------------------------------------------------------------
+
+
+class SolarBalanceBatterySocAvgSensor(_SolarBalanceSensor):
+    """Average state of charge across all available batteries."""
+
+    _attr_translation_key = "battery_soc_avg"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_device_class = SensorDeviceClass.BATTERY
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:battery-medium"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "battery_soc_avg")
+
+    @property
+    def native_value(self) -> float | None:
+        snap: Snapshot | None = self.coordinator.data
+        if snap is None:
+            return None
+        available = [b.soc_pct for b in snap.batteries if b.available]
+        if not available:
+            return None
+        return round(sum(available) / len(available), 1)
+
+
+class SolarBalancePvEnergyTodaySensor(_SolarBalanceSensor):
+    """Total PV energy produced today (sum of all MPPT daily_energy_entity values)."""
+
+    _attr_translation_key = "pv_energy_today"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:solar-power"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "pv_energy_today")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.daily_pv_energy_kwh
+
+
+class SolarBalanceGridImportTodaySensor(_SolarBalanceSensor):
+    """Grid energy imported today (from PDL meter daily_import_energy_entity)."""
+
+    _attr_translation_key = "grid_import_today"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:transmission-tower-import"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "grid_import_today")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.daily_grid_import_kwh
+
+
+# ---------------------------------------------------------------------------
 # Per-battery setpoint sensors
 # ---------------------------------------------------------------------------
 
@@ -225,7 +295,9 @@ class SolarBalanceBatterySetpointSensor(_SolarBalanceSensor):
         self._direction = direction
         self._attr_translation_key = f"battery_setpoint_{direction}"
         self._attr_translation_placeholders = {"device": device_name}
-        self._attr_icon = "mdi:battery-arrow-up" if direction == "charge" else "mdi:battery-arrow-down"
+        self._attr_icon = (
+            "mdi:battery-arrow-up" if direction == "charge" else "mdi:battery-arrow-down"
+        )
 
     @property
     def native_value(self) -> float | None:

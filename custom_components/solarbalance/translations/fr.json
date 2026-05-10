@@ -50,6 +50,9 @@
       "pv_power": { "name": "Puissance PV" },
       "battery_power": { "name": "Puissance batteries" },
       "baseline_consumption": { "name": "Consommation de fond" },
+      "battery_soc_avg": { "name": "SoC moyen batteries" },
+      "pv_energy_today": { "name": "Énergie PV aujourd'hui" },
+      "grid_import_today": { "name": "Soutirage réseau aujourd'hui" },
       "battery_setpoint_charge": { "name": "Consigne charge {device}" },
       "battery_setpoint_discharge": { "name": "Consigne décharge {device}" }
     },
