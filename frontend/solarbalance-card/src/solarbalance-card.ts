@@ -21,11 +21,7 @@
 
 import { LitElement, html, css, nothing, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type {
-  HomeAssistant,
-  LovelaceCardConfig,
-  HassEntity,
-} from "./types.js";
+import type { HomeAssistant, LovelaceCardConfig, HassEntity } from "./types.js";
 
 // ─── Config ────────────────────────────────────────────────────────────────
 
@@ -97,7 +93,7 @@ const NODE_H = 44;
 function buildSankey(
   pvW: number,
   gridW: number,
-  batW: number
+  batW: number,
 ): { nodes: FlowNode[]; links: FlowLink[] } {
   // Derived values
   const pvAvail = Math.max(0, pvW);
@@ -109,7 +105,7 @@ function buildSankey(
   // Home load = PV + grid import + bat discharge − bat charge − grid export
   const homeLoad = Math.max(
     0,
-    pvAvail + gridImport + batDischarge - batCharge - gridExport
+    pvAvail + gridImport + batDischarge - batCharge - gridExport,
   );
 
   const nodes: FlowNode[] = [
@@ -138,7 +134,7 @@ function buildSankey(
 function linkPath(
   from: FlowNode,
   to: FlowNode,
-  thickness: number
+  thickness: number,
 ): TemplateResult {
   const x1 = from.x + NODE_W;
   const y1 = from.y + NODE_H / 2;
@@ -268,7 +264,10 @@ export class SolarBalanceCard extends LitElement {
     return 4;
   }
 
-  private _entity(key: keyof SolarBalanceCardConfig, fallback: string): HassEntity | undefined {
+  private _entity(
+    key: keyof SolarBalanceCardConfig,
+    fallback: string,
+  ): HassEntity | undefined {
     const id = (this._config?.[key] as string | undefined) ?? fallback;
     return this.hass?.states[id];
   }
@@ -277,11 +276,26 @@ export class SolarBalanceCard extends LitElement {
     if (!this._config || !this.hass) return html``;
 
     const modeEntity = this._entity("mode_entity", "sensor.solarbalance_mode");
-    const strategyEntity = this._entity("strategy_entity", "sensor.solarbalance_dominant_strategy");
-    const gridEntity = this._entity("grid_power_entity", "sensor.solarbalance_grid_power");
-    const pvEntity = this._entity("pv_power_entity", "sensor.solarbalance_pv_power");
-    const batEntity = this._entity("battery_power_entity", "sensor.solarbalance_battery_power");
-    const socEntity = this._entity("battery_soc_entity", "sensor.solarbalance_battery_soc_avg");
+    const strategyEntity = this._entity(
+      "strategy_entity",
+      "sensor.solarbalance_dominant_strategy",
+    );
+    const gridEntity = this._entity(
+      "grid_power_entity",
+      "sensor.solarbalance_grid_power",
+    );
+    const pvEntity = this._entity(
+      "pv_power_entity",
+      "sensor.solarbalance_pv_power",
+    );
+    const batEntity = this._entity(
+      "battery_power_entity",
+      "sensor.solarbalance_battery_power",
+    );
+    const socEntity = this._entity(
+      "battery_soc_entity",
+      "sensor.solarbalance_battery_soc_avg",
+    );
 
     const mode = modeEntity?.state ?? "unknown";
     const strategy = strategyEntity?.state ?? "";
@@ -334,11 +348,7 @@ export class SolarBalanceCard extends LitElement {
               <text class="node-label" x="${n.x + NODE_W / 2}" y="${n.y + 14}">
                 ${n.label}
               </text>
-              <text
-                class="node-value"
-                x="${n.x + NODE_W / 2}"
-                y="${n.y + 30}"
-              >
+              <text class="node-value" x="${n.x + NODE_W / 2}" y="${n.y + 30}">
                 ${n.id === "pv"
                   ? fmtW(pvW)
                   : n.id === "grid"
@@ -346,10 +356,13 @@ export class SolarBalanceCard extends LitElement {
                     : n.id === "battery"
                       ? fmtW(Math.abs(batW))
                       : fmtW(
-                          Math.max(0, pvW + Math.max(0, -gridW) + Math.max(0, -batW))
+                          Math.max(
+                            0,
+                            pvW + Math.max(0, -gridW) + Math.max(0, -batW),
+                          ),
                         )}
               </text>
-            `
+            `,
           )}
         </svg>
 
@@ -397,6 +410,7 @@ window.customCards = window.customCards ?? [];
 window.customCards.push({
   type: "solarbalance-card",
   name: "SolarBalance Card",
-  description: "Flux d'énergie temps réel (solaire / batterie / réseau / maison) avec indicateurs HEMS.",
+  description:
+    "Flux d'énergie temps réel (solaire / batterie / réseau / maison) avec indicateurs HEMS.",
   preview: true,
 });

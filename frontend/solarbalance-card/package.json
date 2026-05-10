@@ -2,7 +2,12 @@
   "name": "solarbalance-card",
   "version": "0.1.0",
   "description": "Custom Lovelace card for SolarBalance — energy flow Sankey + mode/strategy display",
-  "keywords": ["home-assistant", "lovelace", "custom-card", "solarbalance"],
+  "keywords": [
+    "home-assistant",
+    "lovelace",
+    "custom-card",
+    "solarbalance"
+  ],
   "license": "MIT",
   "main": "dist/solarbalance-card.js",
   "type": "module",
