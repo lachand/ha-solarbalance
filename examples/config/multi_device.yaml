@@ -1,0 +1,63 @@
+# Multi-device SolarBalance configuration:
+# - 1 Ecoflow station with battery + MPPT + inverter (EPS-capable)
+# - 1 Jackery battery-only station
+# - Shelly 3EM at PDL
+# - Pilotable loads: hot water tank (on/off) and EV charger (modulating)
+
+solarbalance:
+  devices:
+    - name: ecoflow_living_room
+      roles:
+        battery:
+          capacity_kwh: 3.6
+          chemistry: lifepo4
+          max_charge_power_w: 1800
+          max_discharge_power_w: 1800
+          soc_entity: sensor.ecoflow_living_room_soc
+          power_entity: sensor.ecoflow_living_room_battery_power
+        mppt:
+          peak_power_w: 1000
+          power_entity: sensor.ecoflow_living_room_solar_input
+        inverter:
+          nominal_power_w: 2400
+          eps_capable: true
+          ac_output_power_entity: sensor.ecoflow_living_room_ac_output
+
+    - name: jackery_garage
+      roles:
+        battery:
+          capacity_kwh: 2.0
+          chemistry: lifepo4
+          max_charge_power_w: 1000
+          max_discharge_power_w: 1000
+          soc_entity: sensor.jackery_garage_soc
+          power_entity: sensor.jackery_garage_battery_power
+
+  meters:
+    - name: pdl
+      kind: pdl
+      power_entity: sensor.shelly_3em_total_power
+
+  loads:
+    - name: ballon_ecs
+      control_type: on_off
+      priority: 2
+      interruptible: false
+      min_on_duration_s: 1800       # 30 min minimum once started
+      nominal_power_w: 2200
+      switch_entity: switch.contacteur_ballon_ecs
+      time_window:
+        start: "11:00"
+        end: "16:00"
+
+    - name: borne_ve
+      control_type: modulating
+      priority: 1
+      min_power_w: 1380              # 6 A × 230 V
+      max_power_w: 7360              # 32 A × 230 V
+      step_w: 230                    # 1 A resolution
+      power_set_entity: number.borne_ve_consigne_puissance
+      actual_power_entity: sensor.borne_ve_puissance_reelle
+      deadline_constraint:
+        kwh_required: 20
+        before_time: "07:00"

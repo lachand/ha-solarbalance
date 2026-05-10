@@ -1,0 +1,36 @@
+# Minimal SolarBalance configuration: one Ecoflow station + Shelly 3EM at PDL.
+#
+# Place this in your Home Assistant `configuration.yaml` (or include it
+# via `solarbalance: !include solarbalance.yaml`).
+
+solarbalance:
+  devices:
+    - name: ecoflow_living_room
+      roles:
+        battery:
+          capacity_kwh: 3.6
+          chemistry: lifepo4
+          soc_min_pct: 10
+          soc_max_pct: 95
+          max_charge_power_w: 1800
+          max_discharge_power_w: 1800
+          soc_entity: sensor.ecoflow_living_room_soc
+          power_entity: sensor.ecoflow_living_room_battery_power
+          power_sign_convention: charge_positive
+          temperature_entity: sensor.ecoflow_living_room_temperature
+        mppt:
+          peak_power_w: 1000
+          power_entity: sensor.ecoflow_living_room_solar_input
+        inverter:
+          nominal_power_w: 2400
+          eps_capable: true
+          ac_output_power_entity: sensor.ecoflow_living_room_ac_output
+          eps_active_entity: binary_sensor.ecoflow_living_room_eps_active
+
+  meters:
+    - name: pdl
+      kind: pdl
+      phases: 1
+      power_entity: sensor.shelly_3em_total_power
+      daily_import_energy_entity: sensor.shelly_3em_total_active_energy
+      daily_export_energy_entity: sensor.shelly_3em_total_active_returned_energy

@@ -58,6 +58,7 @@ dmypy.json
 
 # HA local development
 config/
+!examples/config/
 .HA_VERSION
 .storage/
 home-assistant.log*

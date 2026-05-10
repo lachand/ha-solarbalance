@@ -1,0 +1,58 @@
+# EcoFlow STREAM Ultra 2 + STREAM Tiny — double station avec Shelly 3EM au PDL.
+#
+# Topologie :
+#   - STREAM Ultra 2 : batterie 2 kWh LFP + MPPT 1200 W + onduleur 2200 VA (EPS)
+#   - STREAM Tiny    : batterie 1 kWh LFP, raccordée au hub secondaire
+#   - Shelly 3EM     : compteur triphasé au point de livraison
+#
+# Les entités sensor.* correspondent aux noms exposés par l'intégration HA
+# EcoFlow (HACS) avec les noms de machine « stream_ultra2_salon » et
+# « stream_tiny_bureau ».
+
+solarbalance:
+  devices:
+    - name: stream_ultra2_salon
+      roles:
+        battery:
+          capacity_kwh: 2.048
+          chemistry: lifepo4
+          soc_min_pct: 10
+          soc_max_pct: 95
+          max_charge_power_w: 1800
+          max_discharge_power_w: 1800
+          soc_entity: sensor.stream_ultra2_salon_battery_level
+          power_entity: sensor.stream_ultra2_salon_battery_power
+          power_sign_convention: charge_positive
+          temperature_entity: sensor.stream_ultra2_salon_battery_temp
+        mppt:
+          peak_power_w: 1200
+          power_entity: sensor.stream_ultra2_salon_solar_power
+          daily_energy_entity: sensor.stream_ultra2_salon_solar_energy_today
+        inverter:
+          nominal_power_w: 2200
+          eps_capable: true
+          ac_output_power_entity: sensor.stream_ultra2_salon_ac_output_power
+          eps_active_entity: binary_sensor.stream_ultra2_salon_eps_mode
+
+    - name: stream_tiny_bureau
+      roles:
+        battery:
+          capacity_kwh: 1.024
+          chemistry: lifepo4
+          soc_min_pct: 10
+          soc_max_pct: 95
+          max_charge_power_w: 800
+          max_discharge_power_w: 800
+          soc_entity: sensor.stream_tiny_bureau_battery_level
+          power_entity: sensor.stream_tiny_bureau_battery_power
+          power_sign_convention: charge_positive
+          temperature_entity: sensor.stream_tiny_bureau_battery_temp
+
+  meters:
+    - name: pdl
+      kind: pdl
+      phases: 3
+      power_entity: sensor.shelly_3em_total_power
+      power_sign_convention: import_positive
+      daily_import_energy_entity: sensor.shelly_3em_total_active_energy
+      daily_export_energy_entity: sensor.shelly_3em_total_active_returned_energy
