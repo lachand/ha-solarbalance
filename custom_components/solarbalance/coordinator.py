@@ -96,6 +96,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._pre_degraded_mode: HemsMode = HemsMode.NORMAL
         self._battery_override: _BatteryOverride | None = None
         self._zi_state = ZeroInjectionState()
+        self._negative_baseline_ticks: int = 0
+        self._baseline_notification_sent: bool = False
 
         self._reader = EntityReader(
             hass,
@@ -220,6 +222,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             snapshot = self._reader.snapshot()
         except Exception as exc:
             raise UpdateFailed(f"EntityReader failed: {exc}") from exc
+
+        # --- Baseline sanity check: negative baseline signals a mapping error ---
+        self._check_baseline(snapshot)
 
         # --- Watchdog: detect stale critical entities ---
         wd = self._watchdog.check(self._critical_entity_ids, self._monitored_entity_ids)
@@ -362,6 +367,48 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             dominant_strategy="manual_override",
             per_strategy=(),
         )
+
+    _BASELINE_NEGATIVE_THRESHOLD_W = -100.0
+    _BASELINE_NEGATIVE_TICKS_TRIGGER = 3
+    _BASELINE_NOTIFICATION_ID = "solarbalance_baseline_negative"
+
+    def _check_baseline(self, snapshot: Snapshot) -> None:
+        """Fire (or dismiss) a persistent notification when baseline is persistently negative.
+
+        A negative baseline means the sign convention of at least one entity is wrong.
+        We wait for 3 consecutive ticks to avoid spurious alerts during transients.
+        """
+        from homeassistant.components.persistent_notification import async_create, async_dismiss
+
+        if snapshot.baseline_consumption_w < self._BASELINE_NEGATIVE_THRESHOLD_W:
+            self._negative_baseline_ticks += 1
+            if (
+                self._negative_baseline_ticks >= self._BASELINE_NEGATIVE_TICKS_TRIGGER
+                and not self._baseline_notification_sent
+            ):
+                _LOGGER.warning(
+                    "Baseline consumption persistently negative (%.0f W) — "
+                    "check entity sign conventions",
+                    snapshot.baseline_consumption_w,
+                )
+                async_create(
+                    self.hass,
+                    (
+                        f"La consommation de fond calculée est **négative** "
+                        f"({snapshot.baseline_consumption_w:.0f} W) depuis plusieurs cycles.\n\n"
+                        "Cela indique probablement une erreur de convention de signe "
+                        "sur une entité batterie ou compteur. Vérifiez le paramètre "
+                        "`power_sign_convention` dans votre configuration YAML SolarBalance."
+                    ),
+                    title="SolarBalance — Mapping incorrect",
+                    notification_id=self._BASELINE_NOTIFICATION_ID,
+                )
+                self._baseline_notification_sent = True
+        else:
+            if self._baseline_notification_sent:
+                async_dismiss(self.hass, self._BASELINE_NOTIFICATION_ID)
+                self._baseline_notification_sent = False
+            self._negative_baseline_ticks = 0
 
     @staticmethod
     def _collect_entity_ids(

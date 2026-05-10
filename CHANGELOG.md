@@ -28,6 +28,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - **`sensor.solarbalance_pv_energy_today`** — énergie PV totale du jour (somme des `daily_energy_entity` MPPT, kWh).
 - **`sensor.solarbalance_grid_import_today`** — soutirage réseau du jour (depuis `daily_import_energy_entity` du compteur PDL, kWh).
 - Propriétés `daily_pv_energy_kwh` et `daily_grid_import_kwh` sur le coordinator.
+- **Notification baseline négative** — alerte persistante HA si `baseline_consumption_w < -100 W` pendant 3 cycles consécutifs (indique un mapping d'entité incorrect). Disparaît automatiquement quand la baseline revient positive.
 
 [1.0.0]: https://github.com/solarbalance/ha-solarbalance/releases/tag/v1.0.0
 [Unreleased]: https://github.com/solarbalance/ha-solarbalance/commits/main
