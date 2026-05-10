@@ -178,6 +178,7 @@ class Meter:
     kind: MeterKind
     power_entity: str
     phases: int = 1
+    per_phase_zi: bool = False
     power_l1_entity: str | None = None
     power_l2_entity: str | None = None
     power_l3_entity: str | None = None
@@ -314,6 +315,12 @@ class Snapshot:
     weather_warning_active: bool = False
     current_import_price: float | None = None
     current_export_price: float | None = None
+    # Per-phase grid power (None when meter is single-phase or L1/L2/L3 entities
+    # are not declared). Positive = import, negative = export — same convention as
+    # grid_power_w. grid_power_w always carries the aggregate regardless.
+    grid_power_l1_w: float | None = None
+    grid_power_l2_w: float | None = None
+    grid_power_l3_w: float | None = None
 
     @property
     def pv_total_w(self) -> float:

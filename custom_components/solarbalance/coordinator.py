@@ -25,7 +25,12 @@ from .const import (
 from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.controllers.balancing import BalancingController
 from .core.controllers.load_dispatch import LoadDispatchController
-from .core.controllers.zero_injection import ZeroInjectionController, ZeroInjectionState
+from .core.controllers.zero_injection import (
+    PerPhaseZeroInjectionController,
+    PerPhaseZeroInjectionState,
+    ZeroInjectionController,
+    ZeroInjectionState,
+)
 from .core.models import (
     BatteryTarget,
     Decision,
@@ -95,7 +100,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._mode: HemsMode = HemsMode.NORMAL
         self._pre_degraded_mode: HemsMode = HemsMode.NORMAL
         self._battery_override: _BatteryOverride | None = None
-        self._zi_state = ZeroInjectionState()
+        self._zi_state: ZeroInjectionState | PerPhaseZeroInjectionState = ZeroInjectionState()
         self._negative_baseline_ticks: int = 0
         self._baseline_notification_sent: bool = False
         self._storm_expires_at: datetime | None = None
@@ -115,11 +120,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         zi_enabled = bool(cfg.get(CONF_ZERO_INJECTION_ENABLED, True))
         self._zi_enabled = zi_enabled
-        self._zi_controller = ZeroInjectionController(
-            hysteresis_w=float(
-                cfg.get(CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W)
-            ),
+        pdl = next((m for m in meters if m.kind is MeterKind.PDL), None)
+        self._per_phase_zi = bool(pdl and pdl.per_phase_zi and pdl.phases == 3)
+        hysteresis = float(
+            cfg.get(CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W)
         )
+        if self._per_phase_zi:
+            self._zi_controller: ZeroInjectionController | PerPhaseZeroInjectionController = (
+                PerPhaseZeroInjectionController(hysteresis_w=hysteresis)
+            )
+            self._zi_state = PerPhaseZeroInjectionState()
+        else:
+            self._zi_controller = ZeroInjectionController(hysteresis_w=hysteresis)
         self._zi_setpoint_w = float(cfg.get(CONF_ZERO_INJECTION_SETPOINT_W, 0))
         self._tick_s = tick
 
@@ -291,20 +303,57 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         # Apply zero-injection correction if enabled and not degraded
         if self._zi_enabled and self._mode is not HemsMode.DEGRADED:
-            zi_result = self._zi_controller.step(
-                grid_power_w=snapshot.grid_power_w,
-                setpoint_w=self._zi_setpoint_w,
-                dt_s=float(self._tick_s),
-                state=self._zi_state,
-            )
-            self._zi_state = zi_result.new_state
-            if not zi_result.in_deadband:
-                _LOGGER.debug(
-                    "ZI correction %.0fW (grid=%.0fW, setpoint=%.0fW)",
-                    zi_result.correction_w,
-                    snapshot.grid_power_w,
-                    self._zi_setpoint_w,
+            if (
+                self._per_phase_zi
+                and isinstance(self._zi_controller, PerPhaseZeroInjectionController)
+                and isinstance(self._zi_state, PerPhaseZeroInjectionState)
+            ):
+                # Per-phase correction requires all three phase readings.
+                l1 = snapshot.grid_power_l1_w
+                l2 = snapshot.grid_power_l2_w
+                l3 = snapshot.grid_power_l3_w
+                if l1 is not None and l2 is not None and l3 is not None:
+                    sp = self._zi_setpoint_w / 3.0
+                    zi_result = self._zi_controller.step(
+                        grid_l1_w=l1,
+                        grid_l2_w=l2,
+                        grid_l3_w=l3,
+                        setpoint_l1_w=sp,
+                        setpoint_l2_w=sp,
+                        setpoint_l3_w=sp,
+                        dt_s=float(self._tick_s),
+                        state=self._zi_state,
+                    )
+                    self._zi_state = zi_result.new_state
+                    if not zi_result.in_deadband:
+                        _LOGGER.debug(
+                            "ZI/3ph corrections L1=%.0fW L2=%.0fW L3=%.0fW",
+                            zi_result.correction_l1_w,
+                            zi_result.correction_l2_w,
+                            zi_result.correction_l3_w,
+                        )
+                else:
+                    _LOGGER.warning(
+                        "per_phase_zi enabled but L1/L2/L3 entities missing — "
+                        "falling back to aggregate ZI"
+                    )
+            else:
+                assert isinstance(self._zi_controller, ZeroInjectionController)
+                assert isinstance(self._zi_state, ZeroInjectionState)
+                zi_result = self._zi_controller.step(
+                    grid_power_w=snapshot.grid_power_w,
+                    setpoint_w=self._zi_setpoint_w,
+                    dt_s=float(self._tick_s),
+                    state=self._zi_state,
                 )
+                self._zi_state = zi_result.new_state
+                if not zi_result.in_deadband:
+                    _LOGGER.debug(
+                        "ZI correction %.0fW (grid=%.0fW, setpoint=%.0fW)",
+                        zi_result.correction_w,
+                        snapshot.grid_power_w,
+                        self._zi_setpoint_w,
+                    )
 
         # Dispatch loads using the unallocated surplus
         battery_states = {b.device_name: b for b in snapshot.batteries}

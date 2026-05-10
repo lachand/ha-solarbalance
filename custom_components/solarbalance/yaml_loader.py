@@ -59,7 +59,9 @@ _BATTERY_SCHEMA = vol.Schema(
         vol.Optional("soc_min_pct", default=10): vol.All(int, vol.Range(0, 100)),
         vol.Optional("soc_max_pct", default=95): vol.All(int, vol.Range(0, 100)),
         vol.Optional("chemistry", default=Chemistry.LIFEPO4.value): _CHEMISTRY,
-        vol.Optional("power_sign_convention", default=PowerSignConvention.CHARGE_POSITIVE.value): _SIGN_CONVENTION,
+        vol.Optional(
+            "power_sign_convention", default=PowerSignConvention.CHARGE_POSITIVE.value
+        ): _SIGN_CONVENTION,
         vol.Optional("usable_capacity_kwh"): vol.Coerce(float),
     }
 )
@@ -104,6 +106,7 @@ _METER_SCHEMA = vol.Schema(
         vol.Required("kind"): _METER_KIND,
         vol.Required("power_entity"): str,
         vol.Optional("phases", default=1): vol.All(int, vol.In([1, 3])),
+        vol.Optional("per_phase_zi", default=False): bool,
         vol.Optional("power_l1_entity"): str,
         vol.Optional("power_l2_entity"): str,
         vol.Optional("power_l3_entity"): str,
@@ -232,6 +235,7 @@ def _build_meter(raw: Mapping[str, Any]) -> Meter:
         kind=MeterKind(raw["kind"]),
         power_entity=raw["power_entity"],
         phases=raw.get("phases", 1),
+        per_phase_zi=raw.get("per_phase_zi", False),
         power_l1_entity=raw.get("power_l1_entity"),
         power_l2_entity=raw.get("power_l2_entity"),
         power_l3_entity=raw.get("power_l3_entity"),

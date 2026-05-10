@@ -7,7 +7,7 @@ The actual per-battery distribution is performed by the BalancingController.
 See SPECIFICATIONS §6.3.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 
 @dataclass(slots=True, frozen=True)
@@ -24,6 +24,46 @@ class ZeroInjectionResult:
     correction_w: float
     in_deadband: bool
     new_state: ZeroInjectionState
+
+
+@dataclass(slots=True, frozen=True)
+class PerPhaseZeroInjectionState:
+    """Persistent PI state for three-phase per-phase zero-injection.
+
+    Each phase carries its own integral accumulator.
+    """
+
+    l1: ZeroInjectionState = field(default_factory=ZeroInjectionState)
+    l2: ZeroInjectionState = field(default_factory=ZeroInjectionState)
+    l3: ZeroInjectionState = field(default_factory=ZeroInjectionState)
+
+
+@dataclass(slots=True, frozen=True)
+class PerPhaseZeroInjectionResult:
+    """Output of one per-phase PI tick.
+
+    `correction_w` is the **sum** of all three phase corrections, ready to be
+    fed to the balancing controller as the aggregate correction signal.
+    Individual phase corrections are also exposed for logging / observability.
+    """
+
+    correction_l1_w: float
+    correction_l2_w: float
+    correction_l3_w: float
+    in_deadband_l1: bool
+    in_deadband_l2: bool
+    in_deadband_l3: bool
+    new_state: PerPhaseZeroInjectionState
+
+    @property
+    def correction_w(self) -> float:
+        """Aggregate correction across all three phases."""
+        return self.correction_l1_w + self.correction_l2_w + self.correction_l3_w
+
+    @property
+    def in_deadband(self) -> bool:
+        """True only when all three phases are within their deadband."""
+        return self.in_deadband_l1 and self.in_deadband_l2 and self.in_deadband_l3
 
 
 class ZeroInjectionController:
@@ -92,4 +132,74 @@ class ZeroInjectionController:
             correction_w=correction,
             in_deadband=False,
             new_state=replace(state, integral_w_s=new_integral),
+        )
+
+
+class PerPhaseZeroInjectionController:
+    """Three independent PI controllers, one per phase (L1/L2/L3).
+
+    Used when `per_phase_zi=True` on a three-phase PDL meter. Each phase
+    has its own error signal and integral state. The aggregate correction
+    (sum of the three phase corrections) is what the balancing controller
+    receives; per-phase values are available for diagnostics.
+
+    The setpoint is applied **per phase**: typically setpoint_w/3 when the
+    target is a balanced three-phase zero-injection, or per-phase setpoints
+    can be supplied individually.
+
+    Args:
+        kp: Proportional gain (same for all phases).
+        ki: Integral gain (same for all phases).
+        hysteresis_w: Deadband half-width **per phase** in watts.
+        integral_clamp_w_s: Anti-windup clamp **per phase**.
+    """
+
+    def __init__(
+        self,
+        *,
+        kp: float = 0.6,
+        ki: float = 0.05,
+        hysteresis_w: float = 50.0,
+        integral_clamp_w_s: float = 1_000_000.0,
+    ) -> None:
+        self._ctrl = ZeroInjectionController(
+            kp=kp,
+            ki=ki,
+            hysteresis_w=hysteresis_w,
+            integral_clamp_w_s=integral_clamp_w_s,
+        )
+
+    def step(
+        self,
+        *,
+        grid_l1_w: float,
+        grid_l2_w: float,
+        grid_l3_w: float,
+        setpoint_l1_w: float,
+        setpoint_l2_w: float,
+        setpoint_l3_w: float,
+        dt_s: float,
+        state: PerPhaseZeroInjectionState,
+    ) -> PerPhaseZeroInjectionResult:
+        """Run one control step for all three phases.
+
+        Each phase is controlled independently. `dt_s` must be strictly positive.
+        """
+        r1 = self._ctrl.step(
+            grid_power_w=grid_l1_w, setpoint_w=setpoint_l1_w, dt_s=dt_s, state=state.l1
+        )
+        r2 = self._ctrl.step(
+            grid_power_w=grid_l2_w, setpoint_w=setpoint_l2_w, dt_s=dt_s, state=state.l2
+        )
+        r3 = self._ctrl.step(
+            grid_power_w=grid_l3_w, setpoint_w=setpoint_l3_w, dt_s=dt_s, state=state.l3
+        )
+        return PerPhaseZeroInjectionResult(
+            correction_l1_w=r1.correction_w,
+            correction_l2_w=r2.correction_w,
+            correction_l3_w=r3.correction_w,
+            in_deadband_l1=r1.in_deadband,
+            in_deadband_l2=r2.in_deadband,
+            in_deadband_l3=r3.in_deadband,
+            new_state=PerPhaseZeroInjectionState(l1=r1.new_state, l2=r2.new_state, l3=r3.new_state),
         )

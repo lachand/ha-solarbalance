@@ -65,6 +65,7 @@ class EntityReader:
             weather_warning_active=self._read_weather_warning(),
             current_import_price=self._current_import_price,
             current_export_price=self._current_export_price,
+            **self._read_grid_power_per_phase(),
         )
 
     def _read_grid_power(self) -> float:
@@ -73,6 +74,21 @@ class EntityReader:
             _LOGGER.warning("No PDL meter declared — grid power defaulting to 0")
             return 0.0
         return self._read_float(pdl.power_entity, default=0.0)
+
+    def _read_grid_power_per_phase(self) -> dict[str, float | None]:
+        """Return per-phase grid power dict for Snapshot keyword args.
+
+        Only populated when the PDL meter declares L1/L2/L3 power entities.
+        Returns a dict with None values when entities are absent.
+        """
+        pdl = next((m for m in self._meters if m.kind.value == "pdl"), None)
+        if pdl is None:
+            return {"grid_power_l1_w": None, "grid_power_l2_w": None, "grid_power_l3_w": None}
+        return {
+            "grid_power_l1_w": self._read_float(pdl.power_l1_entity, default=None),
+            "grid_power_l2_w": self._read_float(pdl.power_l2_entity, default=None),
+            "grid_power_l3_w": self._read_float(pdl.power_l3_entity, default=None),
+        }
 
     def _read_batteries(self) -> tuple[BatteryState, ...]:
         states: list[BatteryState] = []
