@@ -161,11 +161,11 @@ Toutes les stratégies héritent de `Strategy` et implémentent `compute(snapsho
 
 | Stratégie | Objectif | Paramètres | Contrainte grid |
 |---|---|---|---|
-| `self_consumption` | Maximiser l'autoconsommation | — | `max_export_w = 0` |
-| `cost_min` | Minimiser le coût électrique | `cheap_threshold`, `expensive_threshold`, `charge_soc_target_pct` | neutre |
+| `self_consumption` | Maximiser l'autoconsommation | — | neutre (ZI controller gère l'injection) |
+| `cost_min` | Minimiser le coût électrique | `cheap_threshold` (déf. 0,15 €/kWh), `expensive_threshold` (déf. 0,25 €/kWh), `charge_soc_target_pct` | neutre |
 | `backup` | Maintenir une réserve d'autonomie | `reserve_soc_pct` (défaut 30 %) | — |
 | `longevity` | Préserver la vie de la batterie | `override_soc_min/max_pct` (optionnel) | — |
-| `peak_shaving` | Écrêter les pointes de soutirage | `max_import_w` | `max_import_w` |
+| `peak_shaving` | Écrêter les pointes de soutirage | `max_import_w` (= `subscribed_power_kva × 1000 W`) | `max_import_w` |
 | `revenue_max` | Arbitrage revente / achat | `export_premium`, `cheap_import_threshold` | neutre |
 
 ### 4.2 Self-consumption
@@ -177,12 +177,17 @@ n_batteries = max(1, len(batteries))
 # La puissance est répartie équitablement entre les batteries.
 # Le coordinateur somme les preferred_power_w → total = -net_grid.
 preferred_per_battery = -net_grid / n_batteries  # si |net_grid| > 1 W
-max_export_w = 0                                 # interdire l'injection réseau
+# Pas de GridConstraint explicite : c'est le ZeroInjectionController PI
+# (réglage temps-réel) qui empêche l'injection réseau, pas une contrainte statique.
+# confidence = 0.8 : en-dessous des stratégies économiques (1.0) pour que
+# dominant_strategy désigne cost_min ou revenue_max quand ils sont actifs.
 ```
 
 **Exemple** : si le réseau importe 600 W et qu'il y a 2 batteries, chacune reçoit `preferred_power_w = -300 W` (décharger 300 W). La somme vaut -600 W, exactement le déficit.
 
 **Raison du split** : le `BalancingController` somme les `preferred_power_w` de toutes les batteries pour obtenir la puissance agrégée. Sans division, chaque batterie recevrait le déficit complet, et la somme vaudrait N × net_grid (erreur d'un facteur N).
+
+**Pourquoi ne pas mettre `max_export_w = 0` ici** : une contrainte statique bloquerait les stratégies de revenus (`revenue_max`) qui ont légitimement besoin d'exporter. L'injection réseau est contrôlée en temps réel par le régulateur PI zéro-injection (§7) ; la stratégie `self_consumption` n'a pas à en décider.
 
 ### 4.3 Cost-min
 
@@ -221,6 +226,8 @@ La stratégie ne **jamais élargit** au-delà des bornes utilisateur (`soc_min_p
 ### 4.6 Peak-shaving
 
 Émet uniquement une `GridConstraint(max_import_w=X)`. L'arbitre intersecte avec les autres contraintes. Le contrôleur de balancement est responsable de décharger suffisamment pour satisfaire la contrainte.
+
+`max_import_w` est calculé depuis `subscribed_power_kva × 1000` (puissance souscrite déclarée dans le Config Flow). Si `subscribed_power_kva = 0`, la contrainte n'est pas émise (stratégie inerte, pratique pour désactiver l'écrêtage sans changer les priorités).
 
 ### 4.7 Revenue-max
 
@@ -287,6 +294,16 @@ rationale   = concat("[strategy_1] rationale_1 | [strategy_2] rationale_2 | ..."
 # revient à la première stratégie.
 dominant_strategy = highest_confidence_substantive_strategy.kind
 ```
+
+**Niveaux de confiance par stratégie** :
+
+| Stratégie | confidence | Raison |
+|---|---|---|
+| `cost_min`, `revenue_max` | 1.0 | Opinion forte basée sur le tarif |
+| `peak_shaving` | 1.0 | Contrainte dure |
+| `self_consumption` | 0.8 | Objectif de fond ; cède la priorité aux stratégies économiques |
+| `backup`, `longevity` | 0.7–0.9 | Varient selon l'urgence (SoC en zone critique → 1.0) |
+| Abstention (pas d'opinion) | 0.0–0.5 | Ne peut pas devenir `dominant_strategy` |
 
 **Décision substantielle** : une décision est *substantielle* si elle contient au moins un `BatteryTarget` ou une contrainte grid explicite (`max_import_w` ou `max_export_w` non-None). Une décision sans opinion (abstention pure) ne peut pas devenir dominante.
 
