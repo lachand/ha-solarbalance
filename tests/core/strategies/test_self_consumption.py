@@ -61,3 +61,28 @@ class TestSelfConsumptionStrategy:
         # ecoflow_device has default 10/95 bounds.
         assert target.soc_min_pct == 10.0
         assert target.soc_max_pct == 95.0
+
+    def test_preferred_power_sums_to_grid_deviation_for_multiple_batteries(
+        self,
+        ecoflow_device: Device,
+        jackery_device: Device,
+    ) -> None:
+        """Sum of preferred_power_w across all batteries must equal the grid deviation.
+
+        The coordinator sums preferred_power_w as the total_power_w for balancing;
+        each battery must carry its proportional share so the sum matches net_grid.
+        """
+        strat = SelfConsumptionStrategy([ecoflow_device, jackery_device], loads=[])
+        grid_w = 600.0
+        snap = make_snapshot(
+            grid_w=grid_w,
+            batteries=(
+                BatteryState(device_name="ecoflow_living_room", soc_pct=50.0, power_w=0.0),
+                BatteryState(device_name="jackery_garage", soc_pct=50.0, power_w=0.0),
+            ),
+        )
+        decision = strat.compute(snap)
+        total_preferred = sum(
+            t.preferred_power_w or 0.0 for t in decision.battery_targets.values()
+        )
+        assert total_preferred == pytest.approx(-grid_w, abs=0.1)

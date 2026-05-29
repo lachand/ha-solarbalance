@@ -74,15 +74,12 @@ Le `SolarBalanceCoordinator` (sous-classe de `DataUpdateCoordinator`) pilote une
 │                                                                             │
 │  5a. [MANUAL_OVERRIDE] → Decision forcée (charge/décharge)                  │
 │  5b. [autres modes]                                                         │
-│       ├─ Strategy_1.compute(snapshot) → Decision_1                         │
-│       ├─ Strategy_2.compute(snapshot) → Decision_2                         │
-│       ├─ ...                                                                │
-│       └─ Arbiter.arbitrate([D1, D2, ...]) → ArbitrationResult               │
+│       └─ Arbiter.run(snapshot) → ArbitrationResult                         │
 │                                                                             │
 │  6. ZeroInjectionController.step() → correction_w                          │
 │     (mono-phase ou tri-phase selon config)                                  │
 │                                                                             │
-│  7. BalancingController.allocate(total_w) → per-battery setpoints           │
+│  7. BalancingController.allocate(preferred_w + zi_correction_w) → setpoints │
 │                                                                             │
 │  8. LoadDispatchController.dispatch(surplus_w) → commandes loads            │
 │                                                                             │
@@ -175,12 +172,17 @@ Toutes les stratégies héritent de `Strategy` et implémentent `compute(snapsho
 
 ```
 net_grid = snapshot.grid_power_w          # positif si on importe
+n_batteries = max(1, len(batteries))
 
-preferred_power_w = -net_grid             # exporte → charger, importe → décharger
-max_export_w = 0                          # interdire l'injection réseau
+# La puissance est répartie équitablement entre les batteries.
+# Le coordinateur somme les preferred_power_w → total = -net_grid.
+preferred_per_battery = -net_grid / n_batteries  # si |net_grid| > 1 W
+max_export_w = 0                                 # interdire l'injection réseau
 ```
 
-**Exemple** : si le réseau exporte 500 W (production PV excédentaire), `preferred_power_w = +500 W` → batteries se chargent de cet excédent.
+**Exemple** : si le réseau importe 600 W et qu'il y a 2 batteries, chacune reçoit `preferred_power_w = -300 W` (décharger 300 W). La somme vaut -600 W, exactement le déficit.
+
+**Raison du split** : le `BalancingController` somme les `preferred_power_w` de toutes les batteries pour obtenir la puissance agrégée. Sans division, chaque batterie recevrait le déficit complet, et la somme vaudrait N × net_grid (erreur d'un facteur N).
 
 ### 4.3 Cost-min
 
@@ -261,19 +263,32 @@ max_export_w  = min(toutes les max_export_w non-None)
 
 ### 5.3 Fusion des priorités de charge
 
-Moyenne pondérée avec décroissance exponentielle par rang de stratégie :
+**Première opinion gagne** (*first-wins*) : pour chaque charge, la stratégie de plus haute priorité qui exprime une opinion (priorité ≠ absente) remporte la décision. Les stratégies suivantes ne peuvent ni surpasser ni affiner cet avis.
 
-$$w_r = 2^{-(r-1)} \quad (r=1 \to 1.0,\ r=2 \to 0.5,\ r=3 \to 0.25, \ldots)$$
+```
+pour chaque charge dans l'union des charges mentionnées :
+    pour chaque décision (ordre priorité décroissant) :
+        si décision contient une priorité pour cette charge :
+            priorité_finale = décision.load_priorities[charge]
+            break   # première opinion gagne
+```
 
-$$\text{priorité}_{\text{charge}} = \frac{\sum_r w_r \cdot p_{r,\text{charge}}}{\sum_r w_r}$$
+**Rationale** : une moyenne pondérée ordinal × magnitude n'a pas de sémantique définie (les priorités sont des rangs, pas des grandeurs additives). Le modèle *first-wins* est sémantiquement correct et déterministe.
 
 ### 5.4 Confidence et rationale
 
 ```
 confidence  = min(confidence_1, ..., confidence_N)
 rationale   = concat("[strategy_1] rationale_1 | [strategy_2] rationale_2 | ...")
-dominant_strategy = strategies[0].kind
+
+# dominant_strategy = stratégie avec la plus haute confiance parmi celles
+# ayant produit une décision substantielle (battery_targets non vides OU
+# contrainte grid exprimée). En l'absence de décision substantielle,
+# revient à la première stratégie.
+dominant_strategy = highest_confidence_substantive_strategy.kind
 ```
+
+**Décision substantielle** : une décision est *substantielle* si elle contient au moins un `BatteryTarget` ou une contrainte grid explicite (`max_import_w` ou `max_export_w` non-None). Une décision sans opinion (abstention pure) ne peut pas devenir dominante.
 
 ---
 
@@ -346,12 +361,14 @@ $$\text{correction}[k] = -\left(K_p \cdot e[k] + K_i \cdot I[k]\right)$$
 
 **Paramètres par défaut** :
 
-| Paramètre | Valeur | Unité |
-|---|---|---|
-| $K_p$ | 0.6 | — |
-| $K_i$ | 0.05 | 1/s |
-| $H_{\text{hyst}}$ | 50 | W |
-| $I_{\max}$ | 1 000 000 | W·s |
+| Paramètre | Valeur | Unité | Note |
+|---|---|---|---|
+| $K_p$ | 0.6 | — | Calibré pour tick de 10 s |
+| $K_i$ | 0.05 | 1/s | Indépendant du pas de temps (multiplie $e \cdot \Delta t$ en W·s) |
+| $H_{\text{hyst}}$ | 50 | W | Zone morte |
+| $I_{\max}$ | 30 000 | W·s | Anti-windup |
+
+**Calibration** : avec $K_i = 0.05$ /s et $I_{\max} = 30\,000$ W·s, la contribution intégrale maximale est $K_i \cdot I_{\max} = 0.05 \times 30\,000 = 1\,500$ W. Un écart constant de 100 W pendant 300 s (5 min) accumule $100 \times 300 = 30\,000$ W·s (saturation de l'anti-windup). $K_i$ a l'unité 1/s car il multiplie $e[k] \cdot \Delta t$ (en W·s) ; la correction est donc indépendante du cadre temporel.
 
 ### 7.2 Variante triphasée
 
@@ -377,12 +394,14 @@ $$\text{SoC grid} = \left\{ E_i \mid E_i = E_{\min} + i \cdot \frac{E_{\max} - E
 **Transition** (d'un slot $t$ avec SoC $E_s$ en choisissant puissance $P_{\text{bat}}$) :
 
 Si $P_{\text{bat}} \geq 0$ (charge) :
-$$E_{s+1} = E_s + P_{\text{bat}} \cdot \Delta t \cdot \eta_{\text{charge}}$$
+$$E_{s+1} = E_s + \frac{P_{\text{bat}} \cdot \Delta t}{1000} \cdot \eta_{\text{charge}}$$
 
 Si $P_{\text{bat}} < 0$ (décharge) :
-$$E_{s+1} = E_s + P_{\text{bat}} \cdot \Delta t / \eta_{\text{discharge}}$$
+$$E_{s+1} = E_s + \frac{P_{\text{bat}} \cdot \Delta t}{1000 \cdot \eta_{\text{discharge}}}$$
 
-avec $\eta_{\text{charge}} = \eta_{\text{discharge}} = \sqrt{\eta_{\text{RT}}}$ (efficacité aller-retour partagée équitablement).
+Avec $P_{\text{bat}}$ en W, $\Delta t$ en heures, la division par 1 000 convertit Wh → kWh.
+
+**Efficacités** : par défaut $\eta_{\text{charge}} = \eta_{\text{discharge}} = \sqrt{\eta_{\text{RT}}}$ (partage symétrique). Les paramètres `charge_efficiency_override` et `discharge_efficiency_override` de `BatteryConstraints` permettent de spécifier des efficacités asymétriques (ex. LFP avec inverseur à rendements différenciés).
 
 **Puissance réseau** :
 $$P_{\text{grid}} = P_{\text{net\_load}} + P_{\text{bat}}$$
@@ -392,8 +411,14 @@ $$C_t = \frac{P_{\text{grid}} \cdot \Delta t}{1000} \times \begin{cases} \text{p
 
 ### 8.2 DP backward
 
+**Condition terminale** — chaque kWh stocké à la fin de l'horizon a une valeur $V_T$ (€/kWh, défaut 0,20 €/kWh). Une valeur positive réduit le coût terminal, empêchant le planificateur de vider la batterie artificiellement pour minimiser le coût de la dernière tranche :
+
+$$\text{cost}[T][s] = -E_s \cdot V_T$$
+
+Avec $V_T = 0$ (legacy), le planificateur est aveugle à l'énergie résiduelle. Choisir $V_T > \text{prix\_import}$ incite à conserver l'énergie ; $V_T < \text{prix\_import}$ incite à décharger.
+
 ```
-cost[T][s] = 0  pour tout s   (pas de coût futur au terminus)
+cost[T][s] = -E_s × V_T  pour tout s
 
 pour t = T-1 downto 0:
     pour chaque état s:

@@ -75,6 +75,15 @@ class ZeroInjectionController:
       to leave a safety margin against momentary export spikes).
     - The returned `correction_w` is added to the current aggregate battery
       charge power (positive correction → charge more / discharge less).
+
+    Gain calibration notes:
+    - `kp=0.6` and `ki=0.05` are tuned for a reference tick interval of 10 s with
+      a typical home battery of 1–3 kW. The integral accumulates as ``I += e * dt_s``
+      (units: W·s), so Ki has units of 1/s and is tick-rate independent.
+    - `integral_clamp_w_s`: anti-windup clamp on the integral accumulator. The
+      default 30 000 W·s limits the integral-only contribution to
+      ``30_000 × 0.05 = 1 500 W`` — roughly the full discharge power of a 1.5 kW
+      battery. Raise this proportionally for larger installations.
     """
 
     def __init__(
@@ -83,7 +92,7 @@ class ZeroInjectionController:
         kp: float = 0.6,
         ki: float = 0.05,
         hysteresis_w: float = 50.0,
-        integral_clamp_w_s: float = 1_000_000.0,
+        integral_clamp_w_s: float = 30_000.0,
     ) -> None:
         if hysteresis_w < 0:
             raise ValueError("hysteresis_w must be non-negative")
@@ -160,7 +169,7 @@ class PerPhaseZeroInjectionController:
         kp: float = 0.6,
         ki: float = 0.05,
         hysteresis_w: float = 50.0,
-        integral_clamp_w_s: float = 1_000_000.0,
+        integral_clamp_w_s: float = 30_000.0,
     ) -> None:
         self._ctrl = ZeroInjectionController(
             kp=kp,

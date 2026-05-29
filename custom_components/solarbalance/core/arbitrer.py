@@ -1,20 +1,25 @@
 """Arbiter — combines decisions from ordered strategies into a single output.
 
 Rules (see SPECIFICATIONS §6.1):
-- `battery_targets`: the highest-priority opinion sets the central window;
-  lower-priority strategies can only *narrow* the window, never widen it.
-  `preferred_power_w` is taken from the highest-priority opinion.
+- `battery_targets`: SoC window is narrowed by intersection; `preferred_power_w`
+  is taken from the first (highest-priority) strategy that expresses an opinion.
 - `grid_constraint`: intersection across all strategies (most restrictive wins).
-- `load_priorities`: weighted average with exponential decay
-  (priority 1 → 1.0, priority 2 → 0.5, priority 3 → 0.25, …).
+- `load_priorities`: the highest-priority strategy that expresses an opinion on
+  a given load sets that load's priority. Ordinal semantics are preserved
+  (priority 1 = most urgent, not summed with lower-priority opinions).
+- `dominant_strategy`: the strategy with the highest confidence among those that
+  produced a substantive decision (non-empty battery targets or grid constraint).
 - `rationale`: concatenated, prefixed with strategy name.
 """
 
+import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 
-from .models import BatteryTarget, Decision, GridConstraint
+from .models import BatteryTarget, Decision, GridConstraint, Snapshot
 from .strategies.base import Strategy
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(slots=True, frozen=True)
@@ -62,11 +67,43 @@ class Arbiter:
 
         return ArbitrationResult(
             decision=fused,
-            dominant_strategy=self._strategies[0].kind,
+            dominant_strategy=self._compute_dominant_strategy(decisions),
             per_strategy=per_strategy,
         )
 
+    def run(self, snapshot: Snapshot) -> ArbitrationResult:
+        """Compute all strategy decisions for *snapshot* and fuse them.
+
+        Convenience method equivalent to calling ``strategy.compute(snapshot)`` on
+        each strategy and passing the results to ``arbitrate()``. Callers should
+        prefer this over accessing ``_strategies`` directly.
+        """
+        decisions = [s.compute(snapshot) for s in self._strategies]
+        return self.arbitrate(decisions)
+
     # ------------------------------------------------------------------ helpers
+
+    def _compute_dominant_strategy(self, decisions: Sequence[Decision]) -> str | None:
+        """Return the strategy that produced the most substantive decision.
+
+        'Substantive' means the decision has battery targets or a non-None grid
+        constraint. Among substantive decisions, the one with highest confidence
+        wins; ties are broken by list order (highest-priority strategy first).
+        Falls back to the first strategy when all decisions are empty.
+        """
+        best_idx: int | None = None
+        best_confidence = -1.0
+        for i, decision in enumerate(decisions):
+            is_substantive = bool(decision.battery_targets) or (
+                decision.grid_constraint.max_import_w is not None
+                or decision.grid_constraint.max_export_w is not None
+            )
+            if is_substantive and decision.confidence > best_confidence:
+                best_confidence = decision.confidence
+                best_idx = i
+        if best_idx is None:
+            return self._strategies[0].kind if self._strategies else None
+        return self._strategies[best_idx].kind
 
     def _merge_battery_targets(
         self, decisions: Sequence[Decision]
@@ -93,9 +130,15 @@ class Arbiter:
             if soc_min is None or soc_max is None:
                 continue
             if soc_min > soc_max:
-                # Inconsistent narrowing — collapse to the midpoint so downstream
-                # controllers do not have to handle empty windows.
                 midpoint = (soc_min + soc_max) / 2.0
+                _LOGGER.warning(
+                    "SoC window conflict for battery %r: strategies produced "
+                    "min=%.1f%% > max=%.1f%% — collapsing to midpoint %.1f%%",
+                    name,
+                    soc_min,
+                    soc_max,
+                    midpoint,
+                )
                 soc_min = soc_max = midpoint
 
             merged[name] = BatteryTarget(
@@ -126,14 +169,19 @@ class Arbiter:
 
     @staticmethod
     def _merge_load_priorities(decisions: Sequence[Decision]) -> dict[str, int]:
-        merged: dict[str, float] = {}
-        weights: dict[str, float] = {}
-        for rank, decision in enumerate(decisions):
-            weight = 0.5**rank
+        """Return load priorities using the highest-authority strategy's opinion.
+
+        The strategy list is ordered highest-to-lowest priority. For each load,
+        the first (most authoritative) strategy that expresses an opinion wins.
+        This preserves ordinal semantics: priority 1 always means 'most urgent'
+        and is never diluted by averaging with lower-priority opinions.
+        """
+        merged: dict[str, int] = {}
+        for decision in decisions:  # ordered: highest → lowest priority
             for load_name, priority in decision.load_priorities.items():
-                merged[load_name] = merged.get(load_name, 0.0) + priority * weight
-                weights[load_name] = weights.get(load_name, 0.0) + weight
-        return {name: round(merged[name] / weights[name]) for name in merged}
+                if load_name not in merged:  # first opinion wins
+                    merged[load_name] = priority
+        return merged
 
     @staticmethod
     def _compose_rationale(decisions: Sequence[Decision]) -> str:

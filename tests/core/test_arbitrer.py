@@ -38,12 +38,28 @@ class TestArbiter:
         with pytest.raises(ValueError, match="length"):
             arbiter.arbitrate([Decision(), Decision()])
 
-    def test_dominant_strategy_is_first(self) -> None:
+    def test_dominant_strategy_is_highest_confidence_substantive(self) -> None:
+        # Second strategy produces a substantive decision with confidence 1.0;
+        # first strategy is neutral (empty, confidence 0.5) → second dominates.
         arbiter = Arbiter([
-            _StubStrategy("first", Decision(rationale="R1")),
-            _StubStrategy("second", Decision(rationale="R2")),
+            _StubStrategy("first", Decision(confidence=0.5)),
+            _StubStrategy("second", Decision(
+                battery_targets={"bat": BatteryTarget(10.0, 95.0)},
+                confidence=1.0,
+            )),
         ])
-        result = arbiter.arbitrate([Decision(rationale="R1"), Decision(rationale="R2")])
+        result = arbiter.arbitrate([
+            Decision(confidence=0.5),
+            Decision(battery_targets={"bat": BatteryTarget(10.0, 95.0)}, confidence=1.0),
+        ])
+        assert result.dominant_strategy == "second"
+
+    def test_dominant_strategy_falls_back_to_first_when_all_empty(self) -> None:
+        arbiter = Arbiter([
+            _StubStrategy("first", Decision()),
+            _StubStrategy("second", Decision()),
+        ])
+        result = arbiter.arbitrate([Decision(), Decision()])
         assert result.dominant_strategy == "first"
 
     def test_grid_constraint_intersects_to_most_restrictive(self) -> None:
@@ -100,19 +116,44 @@ class TestArbiter:
         assert target.soc_min_pct == 55.0
         assert target.soc_max_pct == 55.0
 
-    def test_load_priorities_weighted_average_with_decay(self) -> None:
+    def test_inconsistent_window_emits_warning(self, caplog: pytest.LogCaptureFixture) -> None:
+        import logging
+
         arbiter = Arbiter([
             _StubStrategy("a", Decision()),
             _StubStrategy("b", Decision()),
-            _StubStrategy("c", Decision()),
+        ])
+        with caplog.at_level(logging.WARNING, logger="custom_components.solarbalance.core.arbitrer"):
+            arbiter.arbitrate([
+                Decision(battery_targets={"bat": BatteryTarget(80.0, 90.0)}),
+                Decision(battery_targets={"bat": BatteryTarget(20.0, 30.0)}),
+            ])
+        assert any("conflict" in r.message.lower() for r in caplog.records)
+
+    def test_load_priorities_highest_authority_wins(self) -> None:
+        # Strategy "a" (highest authority) expresses priority 2 for ballon;
+        # strategy "b" expresses priority 5. First opinion wins.
+        arbiter = Arbiter([
+            _StubStrategy("a", Decision()),
+            _StubStrategy("b", Decision()),
         ])
         result = arbiter.arbitrate([
-            Decision(load_priorities={"ballon": 1}),  # weight 1.0
-            Decision(load_priorities={"ballon": 3}),  # weight 0.5
-            Decision(load_priorities={"ballon": 5}),  # weight 0.25
+            Decision(load_priorities={"ballon": 2}),
+            Decision(load_priorities={"ballon": 5}),
         ])
-        # weighted = (1×1 + 3×0.5 + 5×0.25) / (1 + 0.5 + 0.25) = 3.75 / 1.75 ≈ 2.14 → round 2
         assert result.decision.load_priorities["ballon"] == 2
+
+    def test_load_priorities_fallback_when_first_has_no_opinion(self) -> None:
+        # Strategy "a" has no opinion on "ballon"; strategy "b" fills in.
+        arbiter = Arbiter([
+            _StubStrategy("a", Decision()),
+            _StubStrategy("b", Decision()),
+        ])
+        result = arbiter.arbitrate([
+            Decision(load_priorities={}),
+            Decision(load_priorities={"ballon": 3}),
+        ])
+        assert result.decision.load_priorities["ballon"] == 3
 
     def test_confidence_takes_minimum(self) -> None:
         arbiter = Arbiter([
@@ -136,3 +177,15 @@ class TestArbiter:
         ])
         assert "R1" in result.decision.rationale
         assert "R2" in result.decision.rationale
+
+    def test_run_calls_strategies_and_arbitrates(self, empty_snapshot: Snapshot) -> None:
+        """run() should produce identical results to manually calling compute + arbitrate."""
+        strategy = _StubStrategy(
+            "a",
+            Decision(battery_targets={"bat": BatteryTarget(20.0, 80.0)}, confidence=0.9),
+        )
+        arbiter = Arbiter([strategy])
+        result_run = arbiter.run(empty_snapshot)
+        result_manual = arbiter.arbitrate([strategy.compute(empty_snapshot)])
+        assert result_run.decision.battery_targets == result_manual.decision.battery_targets
+        assert result_run.dominant_strategy == result_manual.dominant_strategy

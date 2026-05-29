@@ -298,10 +298,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if self._mode is HemsMode.MANUAL_OVERRIDE and self._battery_override is not None:
             result: ArbitrationResult = self._build_override_result(snapshot)
         else:
-            decisions = [s.compute(snapshot) for s in self._arbiter._strategies]
-            result = self._arbiter.arbitrate(decisions)
+            result = self._arbiter.run(snapshot)
 
         # Apply zero-injection correction if enabled and not degraded
+        zi_correction_w = 0.0
         if self._zi_enabled and self._mode is not HemsMode.DEGRADED:
             if (
                 self._per_phase_zi
@@ -325,6 +325,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         state=self._zi_state,
                     )
                     self._zi_state = zi_result.new_state
+                    zi_correction_w = zi_result.correction_w
                     if not zi_result.in_deadband:
                         _LOGGER.debug(
                             "ZI/3ph corrections L1=%.0fW L2=%.0fW L3=%.0fW",
@@ -347,6 +348,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     state=self._zi_state,
                 )
                 self._zi_state = zi_result.new_state
+                zi_correction_w = zi_result.correction_w
                 if not zi_result.in_deadband:
                     _LOGGER.debug(
                         "ZI correction %.0fW (grid=%.0fW, setpoint=%.0fW)",
@@ -360,7 +362,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         balancing_result = self._balancing.allocate(
             total_power_w=sum(
                 t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values()
-            ),
+            ) + zi_correction_w,
             states=battery_states,
             now=snapshot.timestamp,
         )
@@ -387,8 +389,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if ovr.expires_at is not None and snapshot.timestamp >= ovr.expires_at:
             _LOGGER.info("Force %s override expired — returning to normal", ovr.kind)
             self.clear_force_override()
-            decisions = [s.compute(snapshot) for s in self._arbiter._strategies]
-            return self._arbiter.arbitrate(decisions)
+            return self._arbiter.run(snapshot)
 
         # Target-reached check
         available = [b for b in snapshot.batteries if b.available]
@@ -402,8 +403,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     "Force %s target %.0f%% reached — resuming normal", ovr.kind, ovr.target_soc_pct
                 )
                 self.clear_force_override()
-                decisions = [s.compute(snapshot) for s in self._arbiter._strategies]
-                return self._arbiter.arbitrate(decisions)
+                return self._arbiter.run(snapshot)
 
         # Build per-device battery targets
         targets: dict[str, BatteryTarget] = {}

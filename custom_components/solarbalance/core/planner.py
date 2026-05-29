@@ -56,7 +56,13 @@ class BatteryConstraints:
         soc_min_pct: Minimum allowed SoC in percent.
         soc_max_pct: Maximum allowed SoC in percent.
         round_trip_efficiency: Round-trip energy efficiency (0 < η ≤ 1).
-            Charge efficiency is sqrt(η), discharge efficiency is sqrt(η).
+            Used as the source for charge/discharge efficiencies unless overrides
+            are supplied. Default split: charge_efficiency = discharge_efficiency = √η.
+        charge_efficiency_override: Direct charge efficiency (0 < η ≤ 1). When set,
+            overrides the √(round_trip_efficiency) default. Use when charge and
+            discharge losses are not symmetric (e.g. LFP with asymmetric inverter loss).
+        discharge_efficiency_override: Direct discharge efficiency (0 < η ≤ 1).
+            Same as charge_efficiency_override but for the discharge direction.
     """
 
     capacity_kwh: float
@@ -65,15 +71,27 @@ class BatteryConstraints:
     soc_min_pct: float = 10.0
     soc_max_pct: float = 95.0
     round_trip_efficiency: float = 0.95
+    charge_efficiency_override: float | None = None
+    discharge_efficiency_override: float | None = None
 
     @property
     def charge_efficiency(self) -> float:
-        """Square-root of round-trip efficiency for the charge direction."""
+        """Charge-direction efficiency.
+
+        Returns charge_efficiency_override when set, else √(round_trip_efficiency).
+        """
+        if self.charge_efficiency_override is not None:
+            return self.charge_efficiency_override
         return math.sqrt(self.round_trip_efficiency)
 
     @property
     def discharge_efficiency(self) -> float:
-        """Square-root of round-trip efficiency for the discharge direction."""
+        """Discharge-direction efficiency.
+
+        Returns discharge_efficiency_override when set, else √(round_trip_efficiency).
+        """
+        if self.discharge_efficiency_override is not None:
+            return self.discharge_efficiency_override
         return math.sqrt(self.round_trip_efficiency)
 
     @property
@@ -156,6 +174,11 @@ class PredictiveScheduler:
     SoC state the planner evaluates all feasible battery power levels and
     selects the one leading to minimum cumulative cost.
 
+    Terminal value: stored energy at the end of the horizon is valued at
+    ``terminal_value_eur_per_kwh`` (default 0.20 €/kWh, a reasonable average
+    import price). This prevents the DP from scheduling aggressive end-of-horizon
+    discharge to minimise immediate cost while disregarding the next day's needs.
+
     Args:
         battery: Battery constraints.
         n_soc_steps: Number of SoC discretisation levels (trade-off between
@@ -163,6 +186,10 @@ class PredictiveScheduler:
             24 hourly slots) and accurate enough for hourly scheduling.
         n_power_steps: Number of battery power levels to evaluate per state.
             Higher values give better resolution at the cost of O(n²) growth.
+        terminal_value_eur_per_kwh: Value assigned to each kWh of stored energy
+            remaining at the end of the planning horizon (€/kWh). Set to 0 to
+            disable the terminal value (legacy behaviour, risks end-of-horizon
+            depletion).
     """
 
     def __init__(
@@ -171,10 +198,12 @@ class PredictiveScheduler:
         *,
         n_soc_steps: int = 50,
         n_power_steps: int = 20,
+        terminal_value_eur_per_kwh: float = 0.20,
     ) -> None:
         self._bat = battery
         self._n = n_soc_steps
         self._m = n_power_steps
+        self._terminal_value_eur_per_kwh = terminal_value_eur_per_kwh
 
         # Pre-compute the SoC grid in kWh
         lo, hi = battery.soc_min_kwh, battery.soc_max_kwh
@@ -225,9 +254,11 @@ class PredictiveScheduler:
         # choice[t][s] = (soc_next_idx, battery_power_w) chosen at (t, s)
         choice: list[list[tuple[int, float]]] = [[(0, 0.0)] * n_soc for _ in range(n_slots)]
 
-        # Terminal condition: no future cost at the end
+        # Terminal condition: value of stored energy at end of horizon.
+        # Stored energy at state s has value terminal_value_eur_per_kwh per kWh,
+        # which means it reduces future cost → negative cost (it's a reward).
         for s in range(n_soc):
-            cost[n_slots][s] = 0.0
+            cost[n_slots][s] = -self._soc_grid[s] * self._terminal_value_eur_per_kwh
 
         # Build power candidates once (relative fractions of max power)
         power_fracs = [i / (self._m - 1) for i in range(self._m)]
@@ -248,11 +279,12 @@ class PredictiveScheduler:
                         frac * bat.max_charge_w,
                         -frac * bat.max_discharge_w,
                     ):
-                        # Energy stored in battery this slot (kWh), accounting for efficiency
+                        # Energy stored in battery this slot (kWh), accounting for efficiency.
+                        # bat_w is in W; bat_w * dt_h [h] gives Wh; divide by 1000 for kWh.
                         if bat_w >= 0:
-                            energy_stored_kwh = bat_w * dt_h * bat.charge_efficiency
+                            energy_stored_kwh = bat_w * dt_h * bat.charge_efficiency / 1000.0
                         else:
-                            energy_stored_kwh = bat_w * dt_h / bat.discharge_efficiency
+                            energy_stored_kwh = bat_w * dt_h / bat.discharge_efficiency / 1000.0
 
                         soc_next_kwh = soc_kwh + energy_stored_kwh
                         if soc_next_kwh < bat.soc_min_kwh - 1e-6:
@@ -296,9 +328,9 @@ class PredictiveScheduler:
 
             soc_kwh = self._soc_grid[s_cur]
             if bat_w >= 0:
-                energy_stored_kwh = bat_w * dt_h * bat.charge_efficiency
+                energy_stored_kwh = bat_w * dt_h * bat.charge_efficiency / 1000.0
             else:
-                energy_stored_kwh = bat_w * dt_h / bat.discharge_efficiency
+                energy_stored_kwh = bat_w * dt_h / bat.discharge_efficiency / 1000.0
             soc_next_kwh = soc_kwh + energy_stored_kwh
 
             grid_w = slot.net_load_w + bat_w

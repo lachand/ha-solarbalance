@@ -25,16 +25,19 @@ class SelfConsumptionStrategy(Strategy):
         battery_targets: dict[str, BatteryTarget] = {}
 
         net_grid = snapshot.grid_power_w
-        # Negative net_grid = exporting. We want batteries to absorb that.
-        # Positive net_grid = importing. We want batteries to provide that.
-        # The arbiter and the balancing controller turn these intents into
-        # per-battery setpoints.
+        # preferred_power_w is a per-battery power intent. The coordinator sums
+        # preferred_power_w across all batteries to derive the total power to
+        # distribute via the balancing controller. Dividing net_grid by the
+        # number of batteries ensures the sum equals the actual grid deviation.
+        n_batteries = max(1, len(self.batteries))
+        preferred_per_battery = (-net_grid / n_batteries) if abs(net_grid) > 1.0 else 0.0
+
         for device in self.batteries:
             assert device.battery is not None  # checked by self.batteries
             target = BatteryTarget(
                 soc_min_pct=float(device.battery.soc_min_pct),
                 soc_max_pct=float(device.battery.soc_max_pct),
-                preferred_power_w=-net_grid if abs(net_grid) > 1.0 else 0.0,
+                preferred_power_w=preferred_per_battery,
             )
             battery_targets[device.name] = target
 

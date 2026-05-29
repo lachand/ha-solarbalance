@@ -64,11 +64,11 @@ class TestPlanningResult:
 
 class TestSocConstraints:
     def test_soc_never_below_min(self) -> None:
-        """Planner must not discharge below soc_min_pct."""
+        """Planner must not go below soc_min_pct even under discharge pressure."""
         bat = _bat(soc_min_pct=20.0)
-        # Heavy discharge pressure: net_load is very negative (big surplus)
-        # but battery starts low; planner should keep SoC above 20%.
-        slots = tuple(_slot(h, -5000.0) for h in range(4))
+        # net_load positive = grid import pressure → planner wants to discharge.
+        # Starting close to soc_min; the planner must respect the bound.
+        slots = tuple(_slot(h, 2000.0, import_price=0.40) for h in range(4))
         sched = PredictiveScheduler(bat).plan(slots, current_soc_pct=25.0)
         for s in sched.schedule:
             assert s.soc_end_pct >= bat.soc_min_pct - 0.1
@@ -92,7 +92,7 @@ class TestCostOptimisation:
             (slot,), current_soc_pct=80.0
         )
         # Battery should discharge (negative power) to reduce grid import cost.
-        assert sched.schedule[0].battery_power_w <= 0.0
+        assert sched.schedule[0].battery_power_w < 0.0
 
     def test_charges_during_cheap_surplus(self) -> None:
         """With negative net load (surplus PV) and low export price the planner
@@ -103,7 +103,7 @@ class TestCostOptimisation:
         sched = PredictiveScheduler(bat, n_soc_steps=30, n_power_steps=10).plan(
             (slot,), current_soc_pct=10.0
         )
-        assert sched.schedule[0].battery_power_w >= 0.0
+        assert sched.schedule[0].battery_power_w > 0.0
 
     def test_total_cost_cheaper_with_battery_than_without(self) -> None:
         """Cost with battery should be <= cost without battery (idle = 0 W)."""
@@ -143,3 +143,45 @@ class TestScheduleShape:
         for s_in, s_out in zip(slots, sched.schedule, strict=False):
             expected = s_in.net_load_w + s_out.battery_power_w
             assert s_out.expected_grid_w == pytest.approx(expected, abs=1e-3)
+
+
+class TestTerminalValue:
+    def test_terminal_value_prevents_end_of_horizon_depletion(self) -> None:
+        """With terminal value above import price, the planner should keep the battery
+        partially charged rather than depleting it to save import costs.
+
+        When tv (0.30 €/kWh) > import_price (0.20 €/kWh), keeping each kWh is worth
+        more than the import cost it would save by discharging, so the optimal policy
+        is to leave the battery full. With tv=0.0 the planner depletes to soc_min.
+        """
+        bat = _bat(capacity_kwh=5.0, max_discharge_w=5000.0, soc_min_pct=0.0)
+        # import_price=0.20 (default) < tv=0.30 → keeping battery charged is optimal.
+        slots = tuple(_slot(h, 1000.0) for h in range(4))  # import_price=0.20 by default
+
+        sched_no_tv = PredictiveScheduler(bat, n_soc_steps=20, terminal_value_eur_per_kwh=0.0).plan(
+            slots, current_soc_pct=80.0
+        )
+        sched_with_tv = PredictiveScheduler(
+            bat, n_soc_steps=20, terminal_value_eur_per_kwh=0.30
+        ).plan(slots, current_soc_pct=80.0)
+
+        final_soc_no_tv = sched_no_tv.schedule[-1].soc_end_pct
+        final_soc_with_tv = sched_with_tv.schedule[-1].soc_end_pct
+        # tv=0.30 > import_price=0.20 → battery stays full; tv=0.0 → battery depleted.
+        assert final_soc_with_tv > final_soc_no_tv
+
+    def test_asymmetric_efficiency_accepted(self) -> None:
+        """BatteryConstraints with explicit charge/discharge efficiency overrides."""
+        bat = BatteryConstraints(
+            capacity_kwh=5.0,
+            max_charge_w=3000.0,
+            max_discharge_w=3000.0,
+            charge_efficiency_override=0.97,
+            discharge_efficiency_override=0.94,
+        )
+        assert bat.charge_efficiency == pytest.approx(0.97)
+        assert bat.discharge_efficiency == pytest.approx(0.94)
+        # Planning should run without error
+        slots = (_slot(0, 500.0),)
+        sched = PredictiveScheduler(bat, n_soc_steps=20).plan(slots, current_soc_pct=50.0)
+        assert len(sched.schedule) == 1
