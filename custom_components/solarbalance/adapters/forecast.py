@@ -1,8 +1,9 @@
 """Wrappers around existing HA forecast and weather-warning integrations.
 
-The reader resolves user-declared entity ids to typed values consumable by
-the core. If the entity is missing or unparseable, returns a graceful
-None / False fallback rather than raising — see SPECIFICATIONS §7.1, §7.2.
+.. deprecated::
+    This module is superseded by ``EntityReader`` which handles PV forecast and
+    weather-warning reading internally. ``ForecastReader`` is kept for backwards
+    compatibility but is not used by the coordinator.
 """
 
 import logging

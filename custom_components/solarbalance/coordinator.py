@@ -13,11 +13,15 @@ from .adapters.entity_reader import EntityReader
 from .adapters.watchdog import EntityWatchdog
 from .const import (
     CONF_PRIORITIES,
+    CONF_SUBSCRIBED_POWER_KVA,
     CONF_TICK_INTERVAL_S,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_SETPOINT_W,
+    DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BALANCING_ALPHA,
+    DEFAULT_COST_MIN_CHEAP_THRESHOLD,
+    DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DOMAIN,
@@ -143,7 +147,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         # Build ordered strategy list from config
         priorities: list[str] = cfg.get(CONF_PRIORITIES, list(_STRATEGY_CLASSES))
-        self._arbiter = self._build_arbiter(priorities, devices, loads, tariff)
+        subscribed_kva = int(cfg.get(CONF_SUBSCRIBED_POWER_KVA, 6))
+        self._arbiter = self._build_arbiter(priorities, devices, loads, tariff, subscribed_kva)
 
     # ------------------------------------------------------------------ public
 
@@ -357,12 +362,32 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         self._zi_setpoint_w,
                     )
 
+        # Apply grid constraints: clamp the aggregate battery target so the
+        # projected grid exchange honours max_import_w and max_export_w.
+        # Projection: new_grid ≈ current_grid + (target_battery - current_battery)
+        total_power_w = (
+            sum(t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values())
+            + zi_correction_w
+        )
+        gc = result.decision.grid_constraint
+        current_battery_w = snapshot.battery_power_total_w
+        if gc.max_import_w is not None:
+            # target_battery ≤ max_import_w - current_grid + current_battery
+            total_power_w = min(
+                total_power_w,
+                gc.max_import_w - snapshot.grid_power_w + current_battery_w,
+            )
+        if gc.max_export_w is not None:
+            # target_battery ≥ -max_export_w - current_grid + current_battery
+            total_power_w = max(
+                total_power_w,
+                -gc.max_export_w - snapshot.grid_power_w + current_battery_w,
+            )
+
         # Dispatch loads using the unallocated surplus
         battery_states = {b.device_name: b for b in snapshot.batteries}
         balancing_result = self._balancing.allocate(
-            total_power_w=sum(
-                t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values()
-            ) + zi_correction_w,
+            total_power_w=total_power_w,
             states=battery_states,
             now=snapshot.timestamp,
         )
@@ -510,6 +535,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         devices: list[Device],
         loads: list[Load],
         tariff: TariffConfig | None,
+        subscribed_power_kva: int = 6,
     ) -> Arbiter:
         strategies = []
         for kind in priorities:
@@ -522,13 +548,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     devices,
                     loads,
                     tariff=tariff or TariffConfig(),
-                    cheap_threshold=0.15,
-                    expensive_threshold=0.25,
+                    cheap_threshold=DEFAULT_COST_MIN_CHEAP_THRESHOLD,
+                    expensive_threshold=DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
                 )
             elif kind == StrategyKind.BACKUP.value:
-                strat = cls(devices, loads, reserve_soc_pct=30.0)
+                strat = cls(devices, loads, reserve_soc_pct=DEFAULT_BACKUP_RESERVE_SOC_PCT)
             elif kind == StrategyKind.PEAK_SHAVING.value:
-                strat = cls(devices, loads, max_import_w=None)
+                # Convert kVA subscription to W; use None only when kVA is 0
+                max_import_w: float | None = (
+                    float(subscribed_power_kva * 1000) if subscribed_power_kva > 0 else None
+                )
+                strat = cls(devices, loads, max_import_w=max_import_w)
             else:
                 strat = cls(devices, loads)
             strategies.append(strat)

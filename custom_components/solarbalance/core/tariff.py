@@ -14,7 +14,7 @@ See SPECIFICATIONS §8 — Configuration tarifaire générique multi-plages.
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from enum import StrEnum
 
 # ---------------------------------------------------------------------------
@@ -138,14 +138,13 @@ def make_hchp_tariff(
     parsed: list[TariffSlot] = []
     for start_s, end_s, price in slots:
         sh, sm = map(int, start_s.split(":"))
-        # "24:00" is not a valid time; normalise to 00:00 with next-day semantics
-        # by treating the slot as ending at midnight (00:00), which in our
-        # applies_at logic means the slot ends just before 00:00 (i.e. 23:59:59).
-        # Callers should declare "22:00"→"06:00" as an overnight slot instead.
         if end_s == "24:00":
-            eh, em = 0, 0
-        else:
-            eh, em = map(int, end_s.split(":"))
+            raise ValueError(
+                f"make_hchp_tariff: end_s='24:00' is not a valid time. "
+                f"Use an overnight slot instead, e.g. ('{start_s}', '00:00', ...) "
+                f"written as an overnight range like ('22:00', '06:00', ...)."
+            )
+        eh, em = map(int, end_s.split(":"))
         parsed.append(
             TariffSlot(
                 name=f"slot_{start_s}_{end_s}",
@@ -235,8 +234,14 @@ class TempoTariff:
         return t >= _TEMPO_HC_START or t < _TEMPO_HC_END
 
     def current_import_price(self, dt: datetime) -> float | None:
-        """Return the HC or HP import price for the current Tempo colour."""
-        color = self._color_provider(dt)
+        """Return the HC or HP import price for the current Tempo colour.
+
+        The Tempo "day" starts at 06:00 and ends at 06:00 the next morning.
+        Ticks in the HC window 00:00–06:00 belong to the Tempo day that started
+        at 06:00 the *previous* calendar day, so we look up that day's colour.
+        """
+        tempo_dt = dt - timedelta(hours=6) if dt.hour < 6 else dt
+        color = self._color_provider(tempo_dt)
         if color is TempoColor.UNKNOWN:
             return None
         slot = self._prices.get(color)

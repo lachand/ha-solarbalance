@@ -108,3 +108,8 @@ class TestMakeHchpTariff:
         assert tariff.current_import_price(_dt(3)) == pytest.approx(0.15)
         assert tariff.current_import_price(_dt(10)) == pytest.approx(0.25)
         assert tariff.current_export_price(_dt(3)) == pytest.approx(0.13)
+
+    def test_end_24h_raises_value_error(self) -> None:
+        """'24:00' as end time creates a permanently-active slot; reject it early."""
+        with pytest.raises(ValueError, match="24:00"):
+            make_hchp_tariff([("22:00", "24:00", 0.15)])

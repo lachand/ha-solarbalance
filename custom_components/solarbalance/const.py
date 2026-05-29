@@ -24,6 +24,11 @@ DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1
 
+# Strategy defaults — see SPECIFICATIONS §6.1 and docs/technical.md
+DEFAULT_BACKUP_RESERVE_SOC_PCT: Final = 30.0
+DEFAULT_COST_MIN_CHEAP_THRESHOLD: Final = 0.15   # €/kWh
+DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD: Final = 0.25  # €/kWh
+
 # Persistent store
 STORE_KEY: Final = "solarbalance.state"
 STORE_VERSION: Final = 1

@@ -48,8 +48,8 @@ class SelfConsumptionStrategy(Strategy):
 
         return Decision(
             battery_targets=battery_targets,
-            grid_constraint=GridConstraint(max_export_w=0.0),
+            grid_constraint=GridConstraint(),
             load_priorities={},
-            confidence=1.0,
+            confidence=0.8,
             rationale=rationale,
         )

@@ -87,13 +87,27 @@ class ZeroInjectionHysteresisNumber(_SBNumber):
         return self._value
 
     async def async_set_native_value(self, value: float) -> None:
-        from .core.controllers.zero_injection import ZeroInjectionController
-        self._value = value
-        # Recreate controller with new hysteresis
-        self.coordinator._zi_controller = ZeroInjectionController(
-            kp=self.coordinator._zi_controller._kp,
-            ki=self.coordinator._zi_controller._ki,
-            hysteresis_w=value,
-            integral_clamp_w_s=self.coordinator._zi_controller._integral_clamp,
+        from .core.controllers.zero_injection import (
+            PerPhaseZeroInjectionController,
+            ZeroInjectionController,
         )
+
+        self._value = value
+        ctrl = self.coordinator._zi_controller
+        if isinstance(ctrl, PerPhaseZeroInjectionController):
+            # Per-phase controller: kp/ki/clamp are on the inner _ctrl instance.
+            inner = ctrl._ctrl
+            self.coordinator._zi_controller = PerPhaseZeroInjectionController(
+                kp=inner._kp,
+                ki=inner._ki,
+                hysteresis_w=value,
+                integral_clamp_w_s=inner._integral_clamp,
+            )
+        else:
+            self.coordinator._zi_controller = ZeroInjectionController(
+                kp=ctrl._kp,
+                ki=ctrl._ki,
+                hysteresis_w=value,
+                integral_clamp_w_s=ctrl._integral_clamp,
+            )
         self.async_write_ha_state()

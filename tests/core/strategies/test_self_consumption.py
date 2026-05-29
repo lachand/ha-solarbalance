@@ -47,11 +47,19 @@ class TestSelfConsumptionStrategy:
         else:
             assert (target.preferred_power_w > 0) is (expected_sign > 0)
 
-    def test_export_is_forbidden_by_default(self, ecoflow_device: Device) -> None:
+    def test_no_grid_export_constraint(self, ecoflow_device: Device) -> None:
+        """SelfConsumption no longer locks out export; ZI controller handles injection."""
         strat = SelfConsumptionStrategy([ecoflow_device], loads=[])
         snap = make_snapshot(grid_w=0.0)
         decision = strat.compute(snap)
-        assert decision.grid_constraint.max_export_w == 0.0
+        assert decision.grid_constraint.max_export_w is None
+
+    def test_confidence_below_economic_strategies(self, ecoflow_device: Device) -> None:
+        """confidence=0.8 so CostMin/RevenueMax (1.0) can win dominant_strategy."""
+        strat = SelfConsumptionStrategy([ecoflow_device], loads=[])
+        snap = make_snapshot(grid_w=0.0)
+        decision = strat.compute(snap)
+        assert decision.confidence < 1.0
 
     def test_battery_targets_use_role_soc_bounds(self, ecoflow_device: Device) -> None:
         strat = SelfConsumptionStrategy([ecoflow_device], loads=[])

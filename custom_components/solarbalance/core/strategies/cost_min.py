@@ -34,7 +34,8 @@ class CostMinStrategy(Strategy):
         """Initialise the strategy.
 
         Args:
-            tariff: Tariff configuration used to resolve current prices.
+            tariff: Accepted for API compatibility; prices are read from the snapshot
+                (the coordinator injects resolved tariff prices each tick). Not stored.
             cheap_threshold: Import price at or below which we want to charge (€/kWh).
             expensive_threshold: Import price above which we want to discharge (€/kWh).
             charge_soc_target_pct: Upper SoC target when charging for cost reasons.
@@ -46,7 +47,7 @@ class CostMinStrategy(Strategy):
                 "cheap_threshold must be ≤ expensive_threshold "
                 f"(got {cheap_threshold} > {expensive_threshold})"
             )
-        self._tariff = tariff
+        del tariff  # prices come from snapshot.current_import_price; tariff not needed
         self._cheap_threshold = cheap_threshold
         self._expensive_threshold = expensive_threshold
         self._charge_soc_target = charge_soc_target_pct
