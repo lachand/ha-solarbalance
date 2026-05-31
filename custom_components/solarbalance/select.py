@@ -36,7 +36,9 @@ class SolarBalanceModeSelect(CoordinatorEntity[SolarBalanceCoordinator], SelectE
     _attr_has_entity_name = True
     _attr_translation_key = "hems_mode"
     _attr_icon = "mdi:cog"
-    _attr_options: ClassVar[list[str]] = [m.value for m in HemsMode if m is not HemsMode.DEGRADED]
+    _attr_options: ClassVar[list[str]] = [
+        m.value for m in HemsMode if m not in {HemsMode.DEGRADED, HemsMode.MANUAL_OVERRIDE}
+    ]
 
     def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator)
