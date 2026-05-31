@@ -110,10 +110,6 @@
       "name": "Force discharge",
       "description": "Force all batteries to discharge until the floor SoC is reached."
     },
-    "preserve_for_evening": {
-      "name": "Preserve energy",
-      "description": "Reserve a minimum SoC target to be reached before a given time-of-day."
-    },
     "set_mode": {
       "name": "Set mode",
       "description": "Directly set the global HEMS operating mode."

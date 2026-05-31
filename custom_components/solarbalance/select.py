@@ -48,5 +48,10 @@ class SolarBalanceModeSelect(CoordinatorEntity[SolarBalanceCoordinator], SelectE
         return self.coordinator.mode.value
 
     async def async_select_option(self, option: str) -> None:
-        self.coordinator.mode = HemsMode(option)
+        if option == HemsMode.STORM.value:
+            # Route through activate_storm_mode so _storm_manual is set,
+            # preventing immediate auto-exit on the next tick.
+            self.coordinator.activate_storm_mode()
+        else:
+            self.coordinator.mode = HemsMode(option)
         self.async_write_ha_state()

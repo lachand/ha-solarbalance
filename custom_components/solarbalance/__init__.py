@@ -113,7 +113,13 @@ def _register_services(hass: HomeAssistant) -> None:
     async def handle_set_mode(call: ServiceCall) -> None:
         coord = _get_coordinator(hass)
         if coord:
-            coord.mode = HemsMode(call.data["mode"])
+            mode = HemsMode(call.data["mode"])
+            if mode is HemsMode.STORM:
+                # Route through activate_storm_mode so _storm_manual is set,
+                # preventing immediate auto-exit on the next tick.
+                coord.activate_storm_mode()
+            else:
+                coord.mode = mode
             coord.async_update_listeners()
 
     async def handle_force_charge(call: ServiceCall) -> None:

@@ -110,10 +110,6 @@
       "name": "Forcer la décharge",
       "description": "Force la décharge des batteries jusqu'au SoC plancher."
     },
-    "preserve_for_evening": {
-      "name": "Préserver l'énergie",
-      "description": "Réserve un SoC minimum à atteindre avant une heure donnée."
-    },
     "set_mode": {
       "name": "Définir le mode",
       "description": "Définit directement le mode de fonctionnement global du HEMS."

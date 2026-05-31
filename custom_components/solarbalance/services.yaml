@@ -53,24 +53,6 @@ force_discharge:
           max: 20000
           unit_of_measurement: "W"
 
-preserve_for_evening:
-  name: Preserve energy for a future time
-  description: Reserve a minimum SoC at a given time today.
-  fields:
-    min_soc_at:
-      name: At time
-      required: true
-      selector:
-        datetime:
-    min_soc_pct:
-      name: Minimum SoC (%)
-      required: true
-      selector:
-        number:
-          min: 0
-          max: 100
-          unit_of_measurement: "%"
-
 set_mode:
   name: Set HEMS mode
   description: Set the global operating mode.
