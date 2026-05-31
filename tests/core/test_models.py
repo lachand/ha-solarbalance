@@ -75,6 +75,16 @@ class TestBatteryRole:
         )
         assert role.charge_power_entity == "sensor.charge"
 
+    def test_default_power_sign_convention_is_charge_positive(self) -> None:
+        role = BatteryRole(
+            capacity_kwh=1.0,
+            max_charge_power_w=100,
+            max_discharge_power_w=100,
+            soc_entity="sensor.s",
+            power_entity="sensor.p",
+        )
+        assert role.power_sign_convention is PowerSignConvention.CHARGE_POSITIVE
+
     @pytest.mark.parametrize(
         "convention",
         [PowerSignConvention.CHARGE_POSITIVE, PowerSignConvention.DISCHARGE_POSITIVE],
