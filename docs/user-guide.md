@@ -362,7 +362,7 @@ Le mode HEMS est visible et modifiable via `select.solarbalance_hems_mode`.
 | **Vacances** | 🏖️ | Manuel | Stratégies actives, comportement neutre si batterie pleine |
 | **Pause** | ⏸️ | Manuel | Boucle de calcul suspendue, aucune consigne émise |
 | **Dégradé** | ⚠️ | Auto (entité critique perdue) | Décisions neutres, alerte dans les logs |
-| **Supervision manuelle** | 🔧 | Service `set_mode` | Force charge ou décharge selon override actif |
+| **Supervision manuelle** | 🔧 | Service `force_charge` / `force_discharge` | Force charge ou décharge selon override actif |
 
 ### 7.2 Mode Tempête
 
@@ -413,7 +413,7 @@ SolarBalance crée automatiquement les entités suivantes après ajout de l'int�
 
 | Entité | Type | Description |
 |---|---|---|
-| `select.solarbalance_hems_mode` | Select | Changer le mode (Normal, Tempête, Vacances, Pause, Supervision) |
+| `select.solarbalance_hems_mode` | Select | Changer le mode (Normal, Tempête, Vacances, Pause) |
 | `number.solarbalance_zi_setpoint` | Number (-500–+500 W) | Consigne zéro-injection |
 | `number.solarbalance_zi_hysteresis` | Number (0–500 W) | Zone morte ZI |
 | `switch.solarbalance_zero_injection` | Switch | Activer/désactiver le PI ZI |
@@ -437,7 +437,7 @@ Changer le mode directement depuis une automatisation.
 ```yaml
 service: solarbalance.set_mode
 data:
-  mode: vacation   # normal | storm | vacation | paused | manual_override
+  mode: vacation   # normal | storm | vacation
 ```
 
 ### `solarbalance.force_charge`

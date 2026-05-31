@@ -666,20 +666,13 @@ data:
   target_soc_pct: 30
   power_w: 1500
 
-service: solarbalance.preserve_for_evening
-data:
-  min_soc_at: "2026-05-04T18:00:00"
-  min_soc_pct: 70
-# Réserve un état pour un horaire
-
 service: solarbalance.set_mode
 data:
   mode: storm | vacation | normal
 
 service: solarbalance.activate_storm_mode
 data:
-  target_soc_pct: 95
-  duration_h: 24
+  duration_h: 24  # optionnel — sortie automatique après N heures
 ```
 
 Tous ces services sont également exposés en boutons et inputs sur la carte Lovelace.
@@ -694,7 +687,7 @@ Les onduleurs gardent leur dernière consigne (établie par leur logique propre 
 **État persistant via `Store` HA, sauvegardé à chaque changement significatif et au minimum toutes les 5 minutes** :
 
 - **Mode actif** : `normal` / `storm` / `vacation` / `paused` / `manual_override`
-- **Overrides en cours et leurs deadlines** : `force_charge`, `force_discharge`, `preserve_for_evening`, `activate_storm_mode` avec leurs paramètres et heure d'expiration
+- **Overrides en cours et leurs deadlines** : `force_charge`, `force_discharge`, `activate_storm_mode` avec leurs paramètres et heure d'expiration
 - **Intégrale du PI zéro injection** : pour éviter un saut de consigne au redémarrage
 - **Statistiques journalières par load** : runtime cumulé du jour, énergie cumulée du jour (réinitialisées à minuit local)
 - **État anti-court-cycle des loads** : timestamp du dernier ON et du dernier OFF par load, pour vérifier `min_on_duration_s` / `min_off_duration_s` au tick suivant

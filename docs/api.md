@@ -140,19 +140,17 @@ data:
 
 ### `solarbalance.activate_storm_mode`
 
-Manually trigger storm-preparation mode. Equivalent to setting `mode = storm` plus optionally specifying the target SoC (overrides the default `DEFAULT_STORM_TARGET_SOC_PCT = 95`).
+Manually trigger storm-preparation mode. Charges batteries to `DEFAULT_STORM_TARGET_SOC_PCT` (95 %). Optionally auto-exits after `duration_h` hours, then returns to normal mode.
 
 ```yaml
 service: solarbalance.activate_storm_mode
 data:
-  target_soc_pct: 100 # optional
-  duration_h: 24 # optional — not yet implemented, reserved for v1.5
+  duration_h: 24 # optional — auto-exit after this many hours
 ```
 
-| Field            | Type         | Required | Description                                  |
-| ---------------- | ------------ | -------- | -------------------------------------------- |
-| `target_soc_pct` | number 0–100 | no       | SoC target for storm charging (default 95)   |
-| `duration_h`     | number 1–72  | no       | Reserved for v1.5 (auto-exit after duration) |
+| Field        | Type        | Required | Description                                          |
+| ------------ | ----------- | -------- | ---------------------------------------------------- |
+| `duration_h` | number 1–72 | no       | Auto-exit after this many hours (stays if omitted)   |
 
 ---
 

@@ -543,10 +543,14 @@ setpoint_discharge_per_battery_w  # dict[str, float], positif (stocké négatif)
 
 Ces valeurs alimentent les sensors `sensor.solarbalance_{device}_setpoint_charge_w`. Elles reflètent la puissance **réellement allouée** après correction ZI, clampage grid et algorithme de balancement — et non la simple intention (`preferred_power_w`) des stratégies. En l'absence d'un résultat de balancement (démarrage, mode PAUSED), le fallback utilise `preferred_power_w`.
 
-### 10.3 ForecastReader
+### 10.3 Lecture prévision et vigilance météo
 
-- `pv_forecast_now_w()` : lit une entité HA exprimant la puissance PV prévue en W (entité utilisateur, typiquement depuis Solcast, Forecast.Solar, ou OpenMeteo via template).
-- `weather_warning_active()` : supporte les `binary_sensor` (ON/OFF) et les `sensor` textuels avec niveaux Météo-France (`orange`, `red`, `rouge`).
+Depuis v0.1 la lecture de la prévision PV et de la vigilance météo est intégrée directement dans `EntityReader` (`_read_pv_forecast()` et `_read_weather_warning()`), sans adaptateur séparé.
+
+- `_read_pv_forecast()` : lit l'entité configurée dans `pv_forecast_entity` ; retourne `None` si absente ou indisponible.
+- `_read_weather_warning()` : supporte les `binary_sensor` (ON/OFF) et les `sensor` textuels avec niveaux Météo-France (`orange`, `red`, `rouge`).
+
+> `adapters/forecast.py` (`ForecastReader`) est conservé pour rétro-compatibilité mais n'est plus utilisé par le coordinateur.
 
 ### 10.4 Watchdog
 
@@ -569,17 +573,23 @@ Vérifie la fraîcheur des entités (via `state.last_updated`). Timeout par déf
                 │       NORMAL         │◄───────────────────────┐
                 └─────────┬────────────┘                        │
                           │                                      │
-         weather_warning  │      user → pause                    │ user/auto
+         weather_warning  │      user → pause                    │ warning cleared
+         (auto ou manuel) │                                      │ ou timer expiré
                 ┌─────────▼────────────┐     ┌─────────────────┐│
-                │        STORM         │     │     PAUSED       ││
-                └─────────┬────────────┘     └─────────────────┘│
-                          │                                      │
-         warning cleared  │ + hysteresis                        │
-                          │                    user → manual     │
-                ┌─────────▼────────────┐     ┌─────────────────┐│
-                │      VACATION        │     │  MANUAL_OVERRIDE ├┘
+                │        STORM         ├─────────────────────────┘
+                └──────────────────────┘     │     PAUSED       ││
+                                              └─────────────────┘│
+                                                  user → resume   │
+                                                                  └──► NORMAL
+
+                user → vacation              user → manual
+                ┌──────────────────────┐     ┌─────────────────┐
+                │      VACATION        │     │  MANUAL_OVERRIDE │
                 └──────────────────────┘     └─────────────────┘
-                          
+                  (retour via set_mode)         (retour via clear)
+                          ↓ user/auto                   ↓
+                       NORMAL                        NORMAL
+
                 ┌──────────────────────┐
                 │      DEGRADED        │  ← watchdog entité critique stale
                 └──────────────────────┘    (auto-recovery si entité se rétablit)
