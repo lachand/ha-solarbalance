@@ -279,14 +279,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if self._storm_expires_at is not None and snapshot.timestamp >= self._storm_expires_at:
                 _LOGGER.info("Storm mode duration elapsed — returning to normal")
                 self._storm_expires_at = None
-                self._storm_manual = False
+                # Keep _storm_manual=True to suppress immediate auto re-entry while
+                # the weather warning is still active.
                 self.mode = HemsMode.NORMAL
             elif not self._storm_manual and not snapshot.weather_warning_active:
                 # Auto-triggered storm: exit when warning clears
                 self.mode = HemsMode.NORMAL
-        elif self._mode is HemsMode.NORMAL and snapshot.weather_warning_active:
-            self._storm_manual = False
+        elif self._mode is HemsMode.NORMAL and snapshot.weather_warning_active and not self._storm_manual:
             self.mode = HemsMode.STORM
+        elif self._mode is HemsMode.NORMAL and not snapshot.weather_warning_active and self._storm_manual:
+            # Warning cleared after a timer-based exit — re-arm auto-trigger for future events.
+            self._storm_manual = False
 
         # Resolve current tariff prices
         import_price = self._tariff.current_import_price(snapshot.timestamp)
@@ -306,9 +309,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         else:
             result = self._arbiter.run(snapshot)
 
-        # Apply zero-injection correction if enabled and not degraded
+        # Apply zero-injection correction if enabled and not degraded or storm
         zi_correction_w = 0.0
-        if self._zi_enabled and self._mode is not HemsMode.DEGRADED:
+        if self._zi_enabled and self._mode not in {HemsMode.DEGRADED, HemsMode.STORM}:
             if (
                 self._per_phase_zi
                 and isinstance(self._zi_controller, PerPhaseZeroInjectionController)

@@ -45,7 +45,19 @@
   "entity": {
     "sensor": {
       "mode": { "name": "HEMS Mode" },
-      "dominant_strategy": { "name": "Active Strategy" },
+      "dominant_strategy": {
+        "name": "Active Strategy",
+        "state": {
+          "self_consumption": "Self-Consumption",
+          "cost_min": "Cost Minimisation",
+          "backup": "Backup Reserve",
+          "longevity": "Longevity",
+          "peak_shaving": "Peak Shaving",
+          "revenue_max": "Revenue Maximisation",
+          "storm": "Storm Preparation",
+          "manual_override": "Manual Override"
+        }
+      },
       "grid_power": { "name": "Grid Power" },
       "pv_power": { "name": "PV Power" },
       "battery_power": { "name": "Battery Power" },

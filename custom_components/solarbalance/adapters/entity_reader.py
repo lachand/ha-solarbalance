@@ -17,8 +17,10 @@ from ..core.models import (
     Device,
     InverterState,
     Load,
+    LoadControlType,
     LoadState,
     Meter,
+    MeterKind,
     MpptState,
     PowerSignConvention,
     Snapshot,
@@ -69,7 +71,7 @@ class EntityReader:
         )
 
     def _read_grid_power(self) -> float:
-        pdl = next((m for m in self._meters if m.kind.value == "pdl"), None)
+        pdl = next((m for m in self._meters if m.kind is MeterKind.PDL), None)
         if pdl is None:
             _LOGGER.warning("No PDL meter declared — grid power defaulting to 0")
             return 0.0
@@ -81,7 +83,7 @@ class EntityReader:
         Only populated when the PDL meter declares L1/L2/L3 power entities.
         Returns a dict with None values when entities are absent.
         """
-        pdl = next((m for m in self._meters if m.kind.value == "pdl"), None)
+        pdl = next((m for m in self._meters if m.kind is MeterKind.PDL), None)
         if pdl is None:
             return {"grid_power_l1_w": None, "grid_power_l2_w": None, "grid_power_l3_w": None}
         return {
@@ -171,7 +173,7 @@ class EntityReader:
             power: float = 0.0
             if load.actual_power_entity:
                 power = self._read_float(load.actual_power_entity, default=0.0) or 0.0
-            elif load.control_type.value == "on_off" and load.switch_entity:
+            elif load.control_type is LoadControlType.ON_OFF and load.switch_entity:
                 sw = self._hass.states.get(load.switch_entity)
                 if sw is not None and sw.state == "on":
                     power = float(load.nominal_power_w or 0)
