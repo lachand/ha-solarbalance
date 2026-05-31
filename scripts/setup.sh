@@ -5,7 +5,7 @@ echo "🔧 Setting up SolarBalance development environment..."
 
 # Check Python version
 PYTHON_VERSION=$(python3 --version | cut -d' ' -f2 | cut -d'.' -f1,2)
-REQUIRED_VERSION="3.13"
+REQUIRED_VERSION="3.14"
 
 if [[ "$PYTHON_VERSION" < "$REQUIRED_VERSION" ]]; then
     echo "❌ Python $REQUIRED_VERSION or higher required (found $PYTHON_VERSION)"

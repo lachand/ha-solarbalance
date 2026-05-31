@@ -16,11 +16,11 @@ grid:
   name: Grid
 
 solar:
-  entity: sensor.solarbalance_pv_total
+  entity: sensor.solarbalance_pv_power
   display_zero_state: true
 
 battery:
-  entity: sensor.solarbalance_battery_power_total
+  entity: sensor.solarbalance_battery_power
   state_of_charge: sensor.solarbalance_battery_soc_avg
   invert_state: false              # SolarBalance publishes charge_positive
 
