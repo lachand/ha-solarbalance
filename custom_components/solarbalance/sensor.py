@@ -301,6 +301,12 @@ class SolarBalanceBatterySetpointSensor(_SolarBalanceSensor):
 
     @property
     def native_value(self) -> float | None:
+        balancing = self.coordinator.publisher.latest_balancing
+        if balancing is not None:
+            pw = balancing.per_battery_w.get(self._device_name, 0.0)
+            if self._direction == "charge":
+                return round(max(0.0, pw), 1)
+            return round(max(0.0, -pw), 1)
         latest = self.coordinator.publisher.latest
         if latest is None:
             return None

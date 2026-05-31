@@ -534,14 +534,14 @@ if charge_power_entity and discharge_power_entity:
 
 ### 10.2 DecisionPublisher
 
-Cache le dernier `ArbitrationResult` et expose les setpoints comme propriétés :
+Cache le dernier `ArbitrationResult` **et** le dernier `BalancingResult`, et expose les setpoints réels comme propriétés :
 
 ```python
-setpoint_charge_per_battery_w     # dict[str, float], positif
-setpoint_discharge_per_battery_w  # dict[str, float], positif (stocké négatif)
+setpoint_charge_per_battery_w     # dict[str, float], positif — tiré de BalancingResult.per_battery_w
+setpoint_discharge_per_battery_w  # dict[str, float], positif (stocké négatif) — idem
 ```
 
-Ces valeurs alimentent les sensors `sensor.solarbalance_{device}_setpoint_charge_w`.
+Ces valeurs alimentent les sensors `sensor.solarbalance_{device}_setpoint_charge_w`. Elles reflètent la puissance **réellement allouée** après correction ZI, clampage grid et algorithme de balancement — et non la simple intention (`preferred_power_w`) des stratégies. En l'absence d'un résultat de balancement (démarrage, mode PAUSED), le fallback utilise `preferred_power_w`.
 
 ### 10.3 ForecastReader
 

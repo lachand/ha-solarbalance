@@ -407,7 +407,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             now=snapshot.timestamp,
         )
 
-        self._publisher.publish(result)
+        self._publisher.publish(result, balancing_result=balancing_result)
         return snapshot
 
     # ------------------------------------------------------------------ helpers

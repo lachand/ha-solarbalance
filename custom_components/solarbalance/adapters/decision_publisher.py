@@ -8,6 +8,7 @@ import logging
 from collections.abc import Mapping
 
 from ..core.arbitrer import ArbitrationResult
+from ..core.controllers.balancing import BalancingResult
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -22,9 +23,10 @@ class DecisionPublisher:
 
     def __init__(self) -> None:
         self._latest: ArbitrationResult | None = None
+        self._latest_balancing: BalancingResult | None = None
 
-    def publish(self, result: ArbitrationResult) -> None:
-        """Cache the most recent arbitration result for entity consumption."""
+    def publish(self, result: ArbitrationResult, *, balancing_result: BalancingResult | None = None) -> None:
+        """Cache the most recent arbitration and balancing results for entity consumption."""
         _LOGGER.debug(
             "Publishing decision (dominant=%s, batteries=%d, grid_import_max=%s)",
             result.dominant_strategy,
@@ -32,6 +34,7 @@ class DecisionPublisher:
             result.decision.grid_constraint.max_import_w,
         )
         self._latest = result
+        self._latest_balancing = balancing_result
 
     @property
     def latest(self) -> ArbitrationResult | None:
@@ -39,8 +42,19 @@ class DecisionPublisher:
         return self._latest
 
     @property
+    def latest_balancing(self) -> BalancingResult | None:
+        """Most recent balancing result, reflecting actual per-battery allocations."""
+        return self._latest_balancing
+
+    @property
     def setpoint_charge_per_battery_w(self) -> Mapping[str, float]:
-        """Most recent per-battery preferred power (positive = charge)."""
+        """Actual per-battery charge power from the last balancing pass (W, positive)."""
+        if self._latest_balancing is not None:
+            return {
+                name: pw
+                for name, pw in self._latest_balancing.per_battery_w.items()
+                if pw > 0
+            }
         if self._latest is None:
             return {}
         return {
@@ -51,7 +65,13 @@ class DecisionPublisher:
 
     @property
     def setpoint_discharge_per_battery_w(self) -> Mapping[str, float]:
-        """Most recent per-battery preferred power (positive value, discharge)."""
+        """Actual per-battery discharge power from the last balancing pass (W, positive value)."""
+        if self._latest_balancing is not None:
+            return {
+                name: -pw
+                for name, pw in self._latest_balancing.per_battery_w.items()
+                if pw < 0
+            }
         if self._latest is None:
             return {}
         return {
