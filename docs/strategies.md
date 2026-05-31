@@ -32,7 +32,7 @@ priorities:
 - Grid **negative** (export) → battery should charge (absorb surplus). `preferred_power_w = max_charge_power_w`.
 - Grid **positive** (import) → battery should discharge (cover load). `preferred_power_w = -max_discharge_power_w`.
 - Grid near zero → no directional preference.
-- Forbids export by default (`max_export_w = 0`).
+- Does **not** set a `GridConstraint`. Export prevention is handled in real-time by the ZI PI controller; imposing a static `max_export_w = 0` here would block `revenue_max` from legitimately exporting.
 
 **MPPT and micro-inverter production** is always included: every device with an `mppt` role contributes to `sensor.solarbalance_pv_power`, regardless of whether it is a string MPPT tracker, a micro-inverter, or a hybrid inverter's integrated MPPT. The strategy reacts to the aggregate reading.
 
@@ -139,11 +139,25 @@ priorities:
 
 ## `revenue_max`
 
-**Status**: stub — planned for v1.5.
+**Goal**: optimize for grid export revenue when the export price justifiably exceeds the import price, and opportunistically charge when the import price is exceptionally cheap.
 
-**Goal**: optimize for grid export revenue (sell PV surplus at peak export price).
+**Logic**:
 
-Not yet implemented. When active it returns an empty `Decision` (no opinion), so it has no effect in v1.
+- If `export_price > import_price + export_premium`: sets `preferred_power_w` to full discharge and authorizes export (`max_export_w > 0`). Confidence = 1.0.
+- If `import_price < cheap_import_threshold`: sets `preferred_power_w` to full charge, allows grid import. Confidence = 1.0.
+- Neither condition met: abstains (confidence = 0.5).
+- No price data: abstains (confidence = 0.0).
+
+**Configuration**:
+
+| Parameter                | Default | Description                                                  |
+| ------------------------ | ------- | ------------------------------------------------------------ |
+| `export_premium`         | 0.05    | Minimum spread (€/kWh) above import price to discharge       |
+| `cheap_import_threshold` | None    | Import price below which grid charging is triggered          |
+| `charge_soc_target_pct`  | 95      | Max SoC for cheap-import charging                            |
+| `discharge_soc_floor_pct`| 15      | Min SoC for export-driven discharge                          |
+
+**When to use**: EPEX spot or other dynamic tariffs where export prices can significantly exceed import prices. Place at high priority if revenue maximisation is the primary goal; otherwise after `self_consumption`.
 
 ---
 

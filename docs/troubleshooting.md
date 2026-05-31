@@ -56,12 +56,7 @@ is driven by your entity mappings. A wrong sign convention on any measured entit
 
 **The degraded sensor clears automatically** once all critical entities are fresh again. You do not need to restart HA.
 
-**If the entity keeps going stale intermittently**, increase the watchdog timeout in your YAML:
-
-```yaml
-solarbalance:
-  watchdog_timeout_s: 600 # increase to 10 min
-```
+**If the entity keeps going stale intermittently**, the watchdog timeout is fixed at 300 s (5 minutes) in v1 and is not configurable via YAML. If you need a longer grace period, it can only be changed by modifying the constant in `adapters/watchdog.py` until a config option is added in a future version.
 
 ---
 
