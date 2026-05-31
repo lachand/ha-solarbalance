@@ -13,6 +13,10 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import COORDINATOR_KEY
 from .const import DOMAIN
 from .coordinator import SolarBalanceCoordinator
+from .core.controllers.zero_injection import (
+    PerPhaseZeroInjectionController,
+    ZeroInjectionController,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -80,18 +84,18 @@ class ZeroInjectionHysteresisNumber(_SBNumber):
 
     def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry, "zi_hysteresis")
-        self._value: float = coordinator._zi_controller._hysteresis_w
+        ctrl = coordinator._zi_controller
+        self._value: float = (
+            ctrl._ctrl._hysteresis_w
+            if isinstance(ctrl, PerPhaseZeroInjectionController)
+            else ctrl._hysteresis_w
+        )
 
     @property
     def native_value(self) -> float:
         return self._value
 
     async def async_set_native_value(self, value: float) -> None:
-        from .core.controllers.zero_injection import (
-            PerPhaseZeroInjectionController,
-            ZeroInjectionController,
-        )
-
         self._value = value
         ctrl = self.coordinator._zi_controller
         if isinstance(ctrl, PerPhaseZeroInjectionController):

@@ -63,7 +63,7 @@ class TestRevenueMaxStrategy:
             batteries=(BatteryState(device_name="ecoflow_living_room", soc_pct=60.0, power_w=0.0),),
         )
         decision = strat.compute(snap)
-        assert decision.confidence == 0.9
+        assert decision.confidence == 1.0
         target = decision.battery_targets["ecoflow_living_room"]
         assert target.preferred_power_w is not None
         assert target.preferred_power_w < 0  # discharge intent
@@ -79,7 +79,7 @@ class TestRevenueMaxStrategy:
             batteries=(BatteryState(device_name="ecoflow_living_room", soc_pct=30.0, power_w=0.0),),
         )
         decision = strat.compute(snap)
-        assert decision.confidence == 0.9
+        assert decision.confidence == 1.0
         target = decision.battery_targets["ecoflow_living_room"]
         assert target.preferred_power_w is not None
         assert target.preferred_power_w > 0  # charge intent

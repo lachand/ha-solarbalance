@@ -17,7 +17,7 @@ See SPECIFICATIONS §9 — Optimisation prédictive multi-horaire.
 
 import math
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 # ---------------------------------------------------------------------------
 # Input types
@@ -239,8 +239,8 @@ class PredictiveScheduler:
             return PlanningResult(
                 schedule=(),
                 total_cost_eur=0.0,
-                horizon_start=datetime.now(),
-                horizon_end=datetime.now(),
+                horizon_start=datetime.now(UTC),
+                horizon_end=datetime.now(UTC),
             )
 
         n_slots = len(slots)

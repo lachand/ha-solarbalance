@@ -302,7 +302,7 @@ dominant_strategy = highest_confidence_substantive_strategy.kind
 | `cost_min`, `revenue_max` | 1.0 | Opinion forte basée sur le tarif |
 | `peak_shaving` | 1.0 | Contrainte dure |
 | `self_consumption` | 0.8 | Objectif de fond ; cède la priorité aux stratégies économiques |
-| `backup`, `longevity` | 0.7–0.9 | Varient selon l'urgence (SoC en zone critique → 1.0) |
+| `backup`, `longevity` | 1.0 | Valeur fixe (v1) — variation par SoC prévue en v2 |
 | Abstention (pas d'opinion) | 0.0–0.5 | Ne peut pas devenir `dominant_strategy` |
 
 **Décision substantielle** : une décision est *substantielle* si elle contient au moins un `BatteryTarget` ou une contrainte grid explicite (`max_import_w` ou `max_export_w` non-None). Une décision sans opinion (abstention pure) ne peut pas devenir dominante.

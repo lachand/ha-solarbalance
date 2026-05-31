@@ -104,9 +104,10 @@ class RevenueMaxStrategy(Strategy):
                 )
 
         if want_discharge:
+            import_str = f"{import_price:.4f}" if import_price is not None else "N/A"
             rationale = (
                 f"revenue_max: export profitable "
-                f"(export={export_price:.4f} > import={import_price}+{self._export_premium})"
+                f"(export={export_price:.4f} > import={import_str}+{self._export_premium})"
             )
             max_export = float(
                 sum(
@@ -124,7 +125,7 @@ class RevenueMaxStrategy(Strategy):
         return Decision(
             battery_targets=targets,
             grid_constraint=grid_constraint,
-            confidence=0.9,
+            confidence=1.0,
             rationale=rationale,
         )
 

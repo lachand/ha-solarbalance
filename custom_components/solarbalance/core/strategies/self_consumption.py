@@ -2,8 +2,7 @@
 
 Maximises local consumption of PV production:
 - when there is PV surplus, allocate it to charging batteries (preferred targets ↑);
-- when there is grid import, allocate batteries to discharge (preferred targets ↓);
-- forbids grid export by default (zero-injection-friendly).
+- when there is grid import, allocate batteries to discharge (preferred targets ↓).
 """
 
 from ..models import (

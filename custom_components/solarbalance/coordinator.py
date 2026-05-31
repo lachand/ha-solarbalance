@@ -1,7 +1,7 @@
 """DataUpdateCoordinator for SolarBalance."""
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
 from homeassistant.config_entries import ConfigEntry
@@ -22,6 +22,7 @@ from .const import (
     DEFAULT_BALANCING_ALPHA,
     DEFAULT_COST_MIN_CHEAP_THRESHOLD,
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
+    DEFAULT_STORM_TARGET_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DOMAIN,
@@ -291,8 +292,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         import_price = self._tariff.current_import_price(snapshot.timestamp)
         export_price = self._tariff.current_export_price(snapshot.timestamp)
 
-        from dataclasses import replace
-
         snapshot = replace(
             snapshot,
             current_import_price=import_price,
@@ -302,6 +301,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # --- Strategy execution or manual override ---
         if self._mode is HemsMode.MANUAL_OVERRIDE and self._battery_override is not None:
             result: ArbitrationResult = self._build_override_result(snapshot)
+        elif self._mode is HemsMode.STORM:
+            result = self._build_storm_result()
         else:
             result = self._arbiter.run(snapshot)
 
@@ -394,7 +395,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         load_states = {ls.name: ls for ls in snapshot.loads}
         self._load_dispatch.dispatch(
             available_surplus_w=max(
-                0.0, -snapshot.grid_power_w - sum(balancing_result.per_battery_w.values())
+                0.0,
+                -snapshot.grid_power_w
+                - sum(balancing_result.per_battery_w.values())
+                + current_battery_w,
             ),
             states=load_states,
             now=snapshot.timestamp,
@@ -404,6 +408,29 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return snapshot
 
     # ------------------------------------------------------------------ helpers
+
+    def _build_storm_result(self) -> ArbitrationResult:
+        """Build an ArbitrationResult that charges all batteries to the storm SoC target."""
+        targets: dict[str, BatteryTarget] = {}
+        for device in self._devices:
+            if device.battery is None:
+                continue
+            bat = device.battery
+            targets[device.name] = BatteryTarget(
+                soc_min_pct=float(bat.soc_min_pct),
+                soc_max_pct=DEFAULT_STORM_TARGET_SOC_PCT,
+                preferred_power_w=float(bat.max_charge_power_w),
+            )
+        storm_decision = Decision(
+            battery_targets=targets,
+            confidence=1.0,
+            rationale=f"storm: charging to {DEFAULT_STORM_TARGET_SOC_PCT:.0f}% SoC",
+        )
+        return ArbitrationResult(
+            decision=storm_decision,
+            dominant_strategy="storm",
+            per_strategy=(),
+        )
 
     def _build_override_result(self, snapshot: Snapshot) -> ArbitrationResult:
         """Build an ArbitrationResult directly from the active battery override."""
