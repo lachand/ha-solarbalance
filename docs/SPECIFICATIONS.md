@@ -69,8 +69,8 @@ SolarBalance est un **HEMS (Home Energy Management System)** intégré à Home A
 | F12 | Overrides utilisateur (pause, force charge/décharge…)     | v1      |
 | F13 | Watchdog par entité et mode dégradé                       | v1      |
 | F14 | Pilotage effectif des onduleurs (écriture)                | v2      |
-| F15 | Tarifs dynamiques avancés (Tempo, EPEX spot)              | v2      |
-| F16 | Optimisation prédictive multi-horaire                     | v2+     |
+| F15 | Tarifs dynamiques avancés (Tempo, EPEX spot)              | v1.5    |
+| F16 | Optimisation prédictive multi-horaire                     | v1.5    |
 | F17 | Profils marque préremplis (assistant de config)           | v2+     |
 | F18 | Triphasé complet                                          | v2      |
 | F19 | Ouverture aux ajustements de service réseau              | v3+     |
@@ -246,8 +246,7 @@ custom_components/solarbalance/
 ├── config_flow.py           # UI de configuration (paramètres globaux)
 ├── coordinator.py           # DataUpdateCoordinator HA
 ├── core/                    # Cœur métier, agnostique HA
-│   ├── models.py            # Dataclasses Device, Role, Load, State
-│   ├── state.py             # Snapshot agrégé du système
+│   ├── models.py            # Dataclasses Device, Role, Load, State, Snapshot
 │   ├── strategies/          # Une classe par priorité
 │   │   ├── base.py
 │   │   ├── self_consumption.py
@@ -266,8 +265,8 @@ custom_components/solarbalance/
 │   ├── entity_reader.py
 │   ├── decision_publisher.py # Publie consignes comme entités HA
 │   └── forecast.py          # Wrappers prévisions PV / météo
-├── sensors.py               # Sensors HA exposés (état + consignes)
-├── selects.py, numbers.py, switches.py  # Entités de contrôle utilisateur
+├── sensor.py                # Sensors HA exposés (état + consignes)
+├── select.py, number.py, switch.py, binary_sensor.py  # Entités de contrôle utilisateur
 └── services.yaml            # Services HA (force_charge, etc.)
 ```
 
@@ -387,14 +386,14 @@ solarbalance:
 - `zero_injection_enabled` (bool, défaut false)
 - `zero_injection_setpoint_w` (int, défaut 0) — cible (peut être négative pour marge de sécurité)
 - `zero_injection_hysteresis_w` (int, défaut 50)
-- `zero_injection_response_time_s` (int, défaut 15)
 - `phases` (1 ou 3, défaut 1)
 - `subscribed_power_kva` (int) — puissance souscrite, sert au peak shaving
 - `pv_forecast_entity` (entity_id, optionnel)
 - `weather_warning_entity` (entity_id, optionnel)
 - `tariff_config` (sous-section, voir §7.3)
-- `storm_mode_target_soc_pct` (int, défaut 95)
-- `storm_mode_lead_time_h` (int, défaut 6)
+
+> Les constantes `storm_mode_target_soc_pct` (défaut 95 %) et `storm_mode_lead_time_h` (défaut 6 h) sont
+> pour l'instant codées en dur dans `const.py` et ne sont pas exposées dans le Config Flow.
 
 ---
 
