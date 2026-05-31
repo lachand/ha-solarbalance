@@ -67,17 +67,21 @@ Le `SolarBalanceCoordinator` (sous-classe de `DataUpdateCoordinator`) pilote une
 │     └─ watchdog (entités critiques stales) → mode DEGRADED                  │
 │                                                                             │
 │  3. Storm mode logic                                                        │
-│     ├─ weather_warning → activer STORM                                      │
-│     └─ warning cleared + hysteresis → retour NORMAL                        │
+│     ├─ weather_warning + _storm_manual=False → activer STORM               │
+│     ├─ timer expiré → NORMAL ; _storm_manual=True (supprime re-entry)      │
+│     ├─ warning cleared + _storm_manual=False → retour NORMAL               │
+│     └─ warning cleared + _storm_manual=True → reset flag (réarme trigger)  │
 │                                                                             │
 │  4. Tariff resolution → Snapshot enrichi (prix import/export)               │
 │                                                                             │
 │  5a. [MANUAL_OVERRIDE] → Decision forcée (charge/décharge)                  │
-│  5b. [autres modes]                                                         │
-│       └─ Arbiter.run(snapshot) → ArbitrationResult                         │
+│  5b. [STORM] → charge à DEFAULT_STORM_TARGET_SOC_PCT (95 %)                │
+│         si target atteint → fallback Arbiter.run()                         │
+│  5c. [autres modes] → Arbiter.run(snapshot) → ArbitrationResult            │
 │                                                                             │
 │  6. ZeroInjectionController.step() → correction_w                          │
 │     (mono-phase ou tri-phase selon config)                                  │
+│     [DEGRADED ou STORM] → correction_w = 0, PI non exécuté                 │
 │                                                                             │
 │  7. BalancingController.allocate(preferred_w + zi_correction_w) → setpoints │
 │                                                                             │
@@ -583,7 +587,13 @@ Vérifie la fraîcheur des entités (via `state.last_updated`). Timeout par déf
 
 ### 11.2 Mode STORM
 
-Déclenché automatiquement si `weather_warning_active = True` dans le Snapshot. Cible `DEFAULT_STORM_TARGET_SOC_PCT = 95 %` avec une avance de `DEFAULT_STORM_LEAD_TIME_H = 6 h`. Le mode persiste jusqu'à disparition de l'alerte + délai d'hystérésis configurable.
+Déclenché **automatiquement** si `weather_warning_active = True` et `_storm_manual = False`. Cible `DEFAULT_STORM_TARGET_SOC_PCT = 95 %`. Peut aussi être activé **manuellement** via le service `activate_storm_mode(duration_h=…)`.
+
+**Comportement du timer** : quand `duration_h` est fourni, l'expiration du timer fait passer le mode en NORMAL **sans réinitialiser** `_storm_manual`. Le flag reste à `True`, bloquant toute re-entrée automatique immédiate même si la vigilance météo est encore active. Dès que la vigilance se dissipe, `_storm_manual` est remis à `False`, permettant aux alertes futures de re-déclencher le mode automatiquement.
+
+**Régulation ZI désactivée** : le correcteur PI zéro-injection est suspendu pendant le mode STORM (correction = 0 W). Une correction négative générée par une pointe d'export momentanée contrecarrerait le chargement d'urgence.
+
+**Target atteint** : dès que toutes les batteries disponibles atteignent `DEFAULT_STORM_TARGET_SOC_PCT`, le mode tombe en fallback sur `Arbiter.run()` (stratégies normales) tout en restant en mode STORM — pas de basculement de mode automatique.
 
 ### 11.3 Mode DEGRADED
 

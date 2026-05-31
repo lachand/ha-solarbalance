@@ -305,7 +305,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if self._mode is HemsMode.MANUAL_OVERRIDE and self._battery_override is not None:
             result: ArbitrationResult = self._build_override_result(snapshot)
         elif self._mode is HemsMode.STORM:
-            result = self._build_storm_result()
+            result = self._build_storm_result(snapshot)
         else:
             result = self._arbiter.run(snapshot)
 
@@ -412,8 +412,21 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
     # ------------------------------------------------------------------ helpers
 
-    def _build_storm_result(self) -> ArbitrationResult:
-        """Build an ArbitrationResult that charges all batteries to the storm SoC target."""
+    def _build_storm_result(self, snapshot: Snapshot) -> ArbitrationResult:
+        """Build an ArbitrationResult that charges all batteries to the storm SoC target.
+
+        Falls back to normal arbitration once all available batteries have
+        reached DEFAULT_STORM_TARGET_SOC_PCT, so the system stops trying to
+        push past the target when there is nothing left to charge.
+        """
+        available = [b for b in snapshot.batteries if b.available]
+        if available and all(b.soc_pct >= DEFAULT_STORM_TARGET_SOC_PCT for b in available):
+            _LOGGER.info(
+                "Storm preparation complete — all batteries at ≥%.0f%% SoC",
+                DEFAULT_STORM_TARGET_SOC_PCT,
+            )
+            return self._arbiter.run(snapshot)
+
         targets: dict[str, BatteryTarget] = {}
         for device in self._devices:
             if device.battery is None:
