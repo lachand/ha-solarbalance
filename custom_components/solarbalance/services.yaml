@@ -71,14 +71,6 @@ activate_storm_mode:
   name: Activate storm mode
   description: Manually trigger storm preparation.
   fields:
-    target_soc_pct:
-      name: Target SoC (%)
-      required: false
-      selector:
-        number:
-          min: 0
-          max: 100
-          unit_of_measurement: "%"
     duration_h:
       name: Duration (hours)
       required: false

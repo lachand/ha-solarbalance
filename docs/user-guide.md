@@ -144,7 +144,7 @@ devices:
 | `power_entity` | ✓* | — | Sensor puissance batterie en W (*ou charge+décharge séparés) |
 | `charge_power_entity` | ✓* | — | Sensor puissance de charge uniquement |
 | `discharge_power_entity` | ✓* | — | Sensor puissance de décharge uniquement |
-| `power_sign_convention` | — | `discharge_positive` | `charge_positive` ou `discharge_positive` |
+| `power_sign_convention` | — | `charge_positive` | `charge_positive` ou `discharge_positive` |
 | `chemistry` | — | `lifepo4` | `lifepo4`, `nmc`, `leadacid`, `other` |
 | `soc_min_pct` | — | `10` | SoC minimum autorisé (%) |
 | `soc_max_pct` | — | `95` | SoC maximum autorisé (%) |
