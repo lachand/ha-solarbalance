@@ -9,7 +9,7 @@ This module also provides:
 - `TempoTariff`: EDF Tempo three-colour tariff (blue/white/red days + HC/HP slots).
 - `EpexSpotTariff`: Day-ahead spot price pass-through with configurable markup.
 
-See SPECIFICATIONS §8 — Configuration tarifaire générique multi-plages.
+See SPECIFICATIONS §7.3 — Configuration tarifaire générique multi-plages.
 """
 
 from collections.abc import Callable, Sequence

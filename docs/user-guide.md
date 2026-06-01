@@ -398,8 +398,8 @@ SolarBalance crée automatiquement les entités suivantes après ajout de l'int�
 
 | Entité | Unité | Description |
 |---|---|---|
-| `sensor.solarbalance_{device}_setpoint_charge_w` | W | Consigne de charge recommandée |
-| `sensor.solarbalance_{device}_setpoint_discharge_w` | W | Consigne de décharge recommandée |
+| `sensor.solarbalance_{device}_setpoint_charge` | W | Consigne de charge recommandée |
+| `sensor.solarbalance_{device}_setpoint_discharge` | W | Consigne de décharge recommandée |
 
 ### 8.2 Binary Sensors
 
@@ -437,7 +437,7 @@ Changer le mode directement depuis une automatisation.
 ```yaml
 service: solarbalance.set_mode
 data:
-  mode: vacation   # normal | storm | vacation
+  mode: vacation   # normal | storm | vacation | paused
 ```
 
 ### `solarbalance.force_charge`
@@ -544,13 +544,13 @@ automation:
   alias: "Appliquer consigne charge Ecoflow"
   trigger:
     - platform: state
-      entity_id: sensor.solarbalance_ecoflow_salon_setpoint_charge_w
+      entity_id: sensor.solarbalance_ecoflow_salon_setpoint_charge
   action:
     - service: number.set_value
       target:
         entity_id: number.ecoflow_salon_charge_power
       data:
-        value: "{{ states('sensor.solarbalance_ecoflow_salon_setpoint_charge_w') | float }}"
+        value: "{{ states('sensor.solarbalance_ecoflow_salon_setpoint_charge') | float }}"
 ```
 
 ---

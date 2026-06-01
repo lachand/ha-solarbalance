@@ -13,8 +13,8 @@ Sensors published:
 - ``sensor.solarbalance_battery_soc_avg``    — average SoC across batteries (%)
 - ``sensor.solarbalance_pv_energy_today``    — daily PV energy (kWh, optional)
 - ``sensor.solarbalance_grid_import_today``  — daily grid import (kWh, optional)
-- ``sensor.solarbalance_{device}_setpoint_charge_w``   — per-battery charge setpoint (W)
-- ``sensor.solarbalance_{device}_setpoint_discharge_w`` — per-battery discharge setpoint (W)
+- ``sensor.solarbalance_{device}_setpoint_charge``   — per-battery charge setpoint (W)
+- ``sensor.solarbalance_{device}_setpoint_discharge`` — per-battery discharge setpoint (W)
 """
 
 import logging

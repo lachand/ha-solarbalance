@@ -12,7 +12,7 @@ The planner is pure Python — no HA imports, no IO. It receives:
 It returns the optimal sequence of battery power setpoints (W) that minimises
 total electricity cost over the planning horizon.
 
-See SPECIFICATIONS §9 — Optimisation prédictive multi-horaire.
+See SPECIFICATIONS §11 (roadmap v2.0) — Optimisation prédictive multi-horaire.
 """
 
 import math

@@ -8,7 +8,7 @@ V2 active control layer, gated by the ``active_control_enabled`` config flag
 When enabled, `ActiveControlCommand` instances are produced by strategies and
 published by the `ActiveControlPublisher` adapter (HA layer, not in core/).
 
-See SPECIFICATIONS §10 — Pilotage actif (V2).
+See SPECIFICATIONS §11 (roadmap v2.0) — Pilotage actif.
 """
 
 from dataclasses import dataclass
