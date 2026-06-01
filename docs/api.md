@@ -18,8 +18,6 @@ This page documents all **entities** exposed by SolarBalance and all **services*
 | `sensor.solarbalance_pv_power`                    | W     | Total PV production (sum of all available MPPT roles)                                                |
 | `sensor.solarbalance_battery_power`               | W     | Net battery power (positive = aggregate charging, negative = discharging)                            |
 | `sensor.solarbalance_baseline_consumption`        | W     | Deduced background consumption (see [SPECIFICATIONS §3.4](SPECIFICATIONS.md))                        |
-| `sensor.solarbalance_current_import_price`        | €/kWh | Current grid import price resolved from the active tariff configuration                              |
-| `sensor.solarbalance_current_export_price`        | €/kWh | Current grid export price                                                                            |
 | `sensor.solarbalance_setpoint_charge_<device>`    | W     | Calculated charge setpoint for `<device>` — read-only in v1                                          |
 | `sensor.solarbalance_setpoint_discharge_<device>` | W     | Calculated discharge setpoint for `<device>` — read-only in v1                                       |
 

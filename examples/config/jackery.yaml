@@ -39,5 +39,4 @@ solarbalance:
       kind: pdl
       phases: 1
       power_entity: sensor.shelly_1pm_power
-      power_sign_convention: import_positive
       daily_import_energy_entity: sensor.shelly_1pm_energy

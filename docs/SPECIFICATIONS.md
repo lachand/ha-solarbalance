@@ -417,9 +417,9 @@ L'**arbitrer** combine les décisions des stratégies actives selon l'ordre déc
 
 - **`battery_targets`** : la stratégie de plus haute priorité fixe la cible centrale. Les stratégies suivantes ne peuvent que **resserrer la fenêtre** (ex : `backup` impose un plancher SoC même si `cost_min` voudrait décharger plus bas). Une stratégie ne peut jamais élargir une fenêtre établie par une priorité supérieure.
 - **`grid_constraint`** : **intersection** des contraintes de toutes les stratégies — la plus restrictive l'emporte (équivalent d'un AND logique sur les autorisations).
-- **`load_priorities`** : moyenne pondérée avec décroissance exponentielle (priorité 1 → poids 1.0, priorité 2 → poids 0.5, priorité 3 → poids 0.25, …). Une stratégie n'exprimant pas d'opinion sur un load (valeur `None`) est exclue de la moyenne pour ce load.
+- **`load_priorities`** : **première opinion gagne** (*first-wins*) — pour chaque charge, la stratégie de plus haute priorité qui exprime une opinion (valeur non-`None`) remporte la décision. Les stratégies suivantes ne peuvent pas surpasser ni affiner cet avis. Une stratégie n'exprimant pas d'opinion sur une charge (valeur `None`) est simplement ignorée pour cette charge.
 
-Le résultat de l'arbitrage est lui-même publié sous forme d'attributs lisibles (`sensor.solarbalance_dominant_priority`, `sensor.solarbalance_arbitration_log`) pour transparence et debug.
+Le résultat de l'arbitrage est lui-même publié sous forme d'attributs lisibles (`sensor.solarbalance_dominant_strategy`, `sensor.solarbalance_arbitration_log`) pour transparence et debug.
 
 | Stratégie          | Logique principale                                                                    |
 | ------------------ | ------------------------------------------------------------------------------------- |
@@ -771,31 +771,31 @@ Ces dépendances sont **recommandées et documentées comme telles dans le READM
 
 **Sensors** :
 - `sensor.solarbalance_mode` — mode actif
-- `sensor.solarbalance_dominant_priority` — priorité actuellement dominante
-- `sensor.solarbalance_pv_total` — production PV agrégée
+- `sensor.solarbalance_dominant_strategy` — stratégie dominante au dernier tick d'arbitrage
+- `sensor.solarbalance_pv_power` — production PV agrégée
 - `sensor.solarbalance_battery_soc_avg` — SoC moyen pondéré (par capacité utilisable)
-- `sensor.solarbalance_battery_power_total` — puissance batterie nette (signe = charge_positive)
+- `sensor.solarbalance_battery_power` — puissance batterie nette (signe = charge_positive)
 - `sensor.solarbalance_grid_power` — relais du PDL
 - `sensor.solarbalance_baseline_consumption` — consommation de fond déduite (§3.4)
+- `sensor.solarbalance_pv_energy_today` — énergie PV produite sur la journée (Wh)
+- `sensor.solarbalance_grid_import_today` — énergie soutirée sur la journée (Wh)
 - `sensor.solarbalance_setpoint_charge_<device>` — consigne charge calculée
 - `sensor.solarbalance_setpoint_discharge_<device>` — consigne décharge calculée
-- `sensor.solarbalance_setpoint_load_<load>` — consigne par load
-- `sensor.solarbalance_zero_injection_error` — écart entre mesure et consigne ZI
-- `sensor.solarbalance_arbitration_log` — dernier rationale de l'arbitrer (texte court)
-- `sensor.solarbalance_current_import_price` — prix d'import courant (selon `tariff_config`)
-- `sensor.solarbalance_current_export_price` — prix d'export courant
+- `sensor.solarbalance_setpoint_load_<load>` — consigne par load *(v1.0)*
+- `sensor.solarbalance_zero_injection_error` — écart entre mesure et consigne ZI *(v1.0)*
+- `sensor.solarbalance_arbitration_log` — dernier rationale de l'arbitrer (texte court) *(v1.0)*
 
 **Binary sensors** :
 - `binary_sensor.solarbalance_storm_mode`
+- `binary_sensor.solarbalance_weather_warning`
 - `binary_sensor.solarbalance_degraded`
-- `binary_sensor.solarbalance_zero_injection_active`
-- `binary_sensor.solarbalance_zi_degraded` — ZI active mais incapable d'écrêter (cas batteries pleines, §6.3)
+- `binary_sensor.solarbalance_zero_injection_active` *(v1.0)*
+- `binary_sensor.solarbalance_zi_degraded` — ZI active mais incapable d'écrêter (cas batteries pleines, §6.3) *(v1.0)*
 
 **Selects / Numbers / Switches** :
 - `select.solarbalance_mode` (normal, storm, vacation, paused)
-- `number.solarbalance_balancing_alpha` (réglage hybride 0–1)
-- `number.solarbalance_zero_injection_setpoint_w`
-- `number.solarbalance_zero_injection_hysteresis_w`
+- `number.solarbalance_zi_setpoint`
+- `number.solarbalance_zi_hysteresis`
 - `switch.solarbalance_zero_injection`
 
 ---
@@ -873,7 +873,7 @@ Ces dépendances sont **recommandées et documentées comme telles dans le READM
 
 ### 12.3 Qualité de code
 
-- Python ≥ 3.11 (alignement HA core)
+- Python ≥ 3.14 (alignement HA core)
 - **Typage strict** sur le cœur (`mypy --strict` sur `core/`)
 - **Linting** : ruff
 - **Formatting** : ruff format (équivalent black)

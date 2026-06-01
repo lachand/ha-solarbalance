@@ -66,6 +66,7 @@ set_mode:
             - normal
             - storm
             - vacation
+            - paused
 
 activate_storm_mode:
   name: Activate storm mode
