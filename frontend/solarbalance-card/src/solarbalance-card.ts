@@ -52,6 +52,9 @@ function fmtW(watts: number): string {
 /** Map HEMS mode key to a display label. */
 function modeLabel(mode: string): string {
   const MAP: Record<string, string> = {
+    normal: "Normal",
+    storm: "Tempête",
+    vacation: "Vacances",
     self_consumption: "Auto-conso",
     cost_min: "Coût min",
     revenue_max: "Revenu max",
