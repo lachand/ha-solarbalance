@@ -38,7 +38,7 @@ priorities:
 
 **When batteries are full** and PV keeps producing, export becomes unavoidable unless production itself is curtailed. The ZI controller handles this in three steps, in preference order ([SPECIFICATIONS §6.3](SPECIFICATIONS.md)):
 
-1. **MPPT/micro-inverter with `power_set_entity`** — if the role declares a controllable power-limit entity (e.g. a Hoymiles or Enphase micro-inverter exposed via an HA integration), the ZI controller calculates a curtailment setpoint. In **v1** this is published as a read-only sensor (`sensor.solarbalance_setpoint_mppt_<device>`); actual writing is **v2 (F14)**. You can already wire the sensor to your own automation.
+1. **MPPT/micro-inverter with `power_set_entity`** — if the role declares a controllable power-limit entity (e.g. a Hoymiles or Enphase micro-inverter exposed via an HA integration), the ZI controller calculates a curtailment setpoint. In **v1** this is published as a read-only sensor (`sensor.solarbalance_<device>_setpoint_mppt`); actual writing is **v2 (F14)**. You can already wire the sensor to your own automation.
 2. **Inverter production regulation** — via a dedicated entity on the `inverter` role (v2+).
 3. **No curtailment available** — the ZI controller enters `degraded_zi` mode and emits a persistent notification.
 

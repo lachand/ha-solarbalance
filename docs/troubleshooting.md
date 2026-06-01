@@ -68,7 +68,7 @@ is driven by your entity mappings. A wrong sign convention on any measured entit
 
 **If the battery is full and PV keeps exporting**: this is the _saturation_ case, not a tuning problem. Hysteresis and Kp/Ki adjustments will not help. You need a curtailment path:
 
-- Declare `power_set_entity` on your MPPT or micro-inverter's device role. In v1, SolarBalance will publish a `sensor.solarbalance_setpoint_mppt_<device>` you can use in an automation. Direct writing is v2 (F14).
+- Declare `power_set_entity` on your MPPT or micro-inverter's device role. In v1, SolarBalance will publish a `sensor.solarbalance_<device>_setpoint_mppt` you can use in an automation. Direct writing is v2 (F14).
 - If curtailment is impossible (e.g. no controllable entity), the ZI controller enters `degraded_zi` mode and logs a persistent notification.
 
 **Fixes for genuine oscillation**:

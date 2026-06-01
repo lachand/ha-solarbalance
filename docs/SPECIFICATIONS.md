@@ -781,7 +781,7 @@ Ces dépendances sont **recommandées et documentées comme telles dans le READM
 - `sensor.solarbalance_grid_import_today` — énergie soutirée sur la journée (kWh)
 - `sensor.solarbalance_<device>_setpoint_charge` — consigne charge calculée
 - `sensor.solarbalance_<device>_setpoint_discharge` — consigne décharge calculée
-- `sensor.solarbalance_setpoint_load_<load>` — consigne par load *(v1.0)*
+- `sensor.solarbalance_<load>_setpoint_load` — consigne par load *(v1.0)*
 - `sensor.solarbalance_zero_injection_error` — écart entre mesure et consigne ZI *(v1.0)*
 - `sensor.solarbalance_arbitration_log` — dernier rationale de l'arbitrer (texte court) *(v1.0)*
 
