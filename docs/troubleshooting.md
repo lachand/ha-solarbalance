@@ -138,7 +138,7 @@ Or use the **Resume** button in the dashboard if you deployed the [example dashb
 
 **Cause**: Default entity IDs assume the device names used in your YAML are mapped to the standard suffixes.
 
-**Fix**: Per-device sensors (setpoint charge/discharge) use the device `name` as a slug. If you named your battery `EcoFlow Delta`, the entity will be `sensor.solarbalance_setpoint_charge_ecoflow_delta`. Update the dashboard YAML accordingly, or use the entity picker in the card editor to find the real IDs.
+**Fix**: Per-device sensors (setpoint charge/discharge) use the device `name` as a slug. If you named your battery `EcoFlow Delta`, the entity will be `sensor.solarbalance_ecoflow_delta_setpoint_charge`. Update the dashboard YAML accordingly, or use the entity picker in the card editor to find the real IDs.
 
 ---
 

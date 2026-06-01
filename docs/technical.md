@@ -541,7 +541,7 @@ setpoint_charge_per_battery_w     # dict[str, float], positif — tiré de Balan
 setpoint_discharge_per_battery_w  # dict[str, float], positif (stocké négatif) — idem
 ```
 
-Ces valeurs alimentent les sensors `sensor.solarbalance_{device}_setpoint_charge_w`. Elles reflètent la puissance **réellement allouée** après correction ZI, clampage grid et algorithme de balancement — et non la simple intention (`preferred_power_w`) des stratégies. En l'absence d'un résultat de balancement (démarrage, mode PAUSED), le fallback utilise `preferred_power_w`.
+Ces valeurs alimentent les sensors `sensor.solarbalance_{device}_setpoint_charge`. Elles reflètent la puissance **réellement allouée** après correction ZI, clampage grid et algorithme de balancement — et non la simple intention (`preferred_power_w`) des stratégies. En l'absence d'un résultat de balancement (démarrage, mode PAUSED), le fallback utilise `preferred_power_w`.
 
 ### 10.3 Lecture prévision et vigilance météo
 

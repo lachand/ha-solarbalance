@@ -76,8 +76,8 @@ You'll be asked for global parameters:
 
 After setup, SolarBalance starts publishing read-only **calculated setpoints** as sensors:
 
-- `sensor.solarbalance_setpoint_charge_my_station` — what it would charge
-- `sensor.solarbalance_setpoint_discharge_my_station` — what it would discharge
+- `sensor.solarbalance_my_station_setpoint_charge` — what it would charge
+- `sensor.solarbalance_my_station_setpoint_discharge` — what it would discharge
 
 **v0.1 does not write to your hardware.** This is intentional: observe the published setpoints and confirm they match your intuition before activating direct control (planned for v2). You can also wire your own automations on these sensors today.
 

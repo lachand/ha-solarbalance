@@ -79,19 +79,19 @@ cards:
       - entity: binary_sensor.solarbalance_weather_warning
       - entity: binary_sensor.solarbalance_degraded
       # Per-device setpoints:
-      - entity: sensor.solarbalance_setpoint_charge_stream_ultra_2
-      - entity: sensor.solarbalance_setpoint_discharge_stream_ultra_2
-      - entity: sensor.solarbalance_setpoint_charge_stream_tiny
-      - entity: sensor.solarbalance_setpoint_discharge_stream_tiny
-      - entity: sensor.solarbalance_setpoint_charge_jackery_chaudiere
-      - entity: sensor.solarbalance_setpoint_discharge_jackery_chaudiere
+      - entity: sensor.solarbalance_stream_ultra_2_setpoint_charge
+      - entity: sensor.solarbalance_stream_ultra_2_setpoint_discharge
+      - entity: sensor.solarbalance_stream_tiny_setpoint_charge
+      - entity: sensor.solarbalance_stream_tiny_setpoint_discharge
+      - entity: sensor.solarbalance_jackery_chaudiere_setpoint_charge
+      - entity: sensor.solarbalance_jackery_chaudiere_setpoint_discharge
 
   # ----- Overrides -----------------------------------------------------------
   - type: vertical-stack
     title: Controls & overrides
     cards:
       - type: custom:mushroom-select-card
-        entity: select.solarbalance_mode
+        entity: select.solarbalance_hems_mode
 
       - type: horizontal-stack
         cards:

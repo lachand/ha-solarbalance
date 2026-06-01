@@ -777,10 +777,10 @@ Ces dépendances sont **recommandées et documentées comme telles dans le READM
 - `sensor.solarbalance_battery_power` — puissance batterie nette (signe = charge_positive)
 - `sensor.solarbalance_grid_power` — relais du PDL
 - `sensor.solarbalance_baseline_consumption` — consommation de fond déduite (§3.4)
-- `sensor.solarbalance_pv_energy_today` — énergie PV produite sur la journée (Wh)
-- `sensor.solarbalance_grid_import_today` — énergie soutirée sur la journée (Wh)
-- `sensor.solarbalance_setpoint_charge_<device>` — consigne charge calculée
-- `sensor.solarbalance_setpoint_discharge_<device>` — consigne décharge calculée
+- `sensor.solarbalance_pv_energy_today` — énergie PV produite sur la journée (kWh)
+- `sensor.solarbalance_grid_import_today` — énergie soutirée sur la journée (kWh)
+- `sensor.solarbalance_<device>_setpoint_charge` — consigne charge calculée
+- `sensor.solarbalance_<device>_setpoint_discharge` — consigne décharge calculée
 - `sensor.solarbalance_setpoint_load_<load>` — consigne par load *(v1.0)*
 - `sensor.solarbalance_zero_injection_error` — écart entre mesure et consigne ZI *(v1.0)*
 - `sensor.solarbalance_arbitration_log` — dernier rationale de l'arbitrer (texte court) *(v1.0)*
@@ -793,7 +793,7 @@ Ces dépendances sont **recommandées et documentées comme telles dans le READM
 - `binary_sensor.solarbalance_zi_degraded` — ZI active mais incapable d'écrêter (cas batteries pleines, §6.3) *(v1.0)*
 
 **Selects / Numbers / Switches** :
-- `select.solarbalance_mode` (normal, storm, vacation, paused)
+- `select.solarbalance_hems_mode` (normal, storm, vacation, paused)
 - `number.solarbalance_zi_setpoint`
 - `number.solarbalance_zi_hysteresis`
 - `switch.solarbalance_zero_injection`
