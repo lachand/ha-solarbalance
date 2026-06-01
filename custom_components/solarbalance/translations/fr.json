@@ -44,7 +44,17 @@
   },
   "entity": {
     "sensor": {
-      "mode": { "name": "Mode HEMS" },
+      "mode": {
+        "name": "Mode HEMS",
+        "state": {
+          "normal": "Normal",
+          "storm": "Tempête",
+          "vacation": "Vacances",
+          "paused": "En pause",
+          "degraded": "Dégradé",
+          "manual_override": "Override manuel"
+        }
+      },
       "dominant_strategy": {
         "name": "Stratégie active",
         "state": {
@@ -76,6 +86,7 @@
           "storm": "Tempête",
           "vacation": "Vacances",
           "paused": "En pause",
+          "degraded": "Dégradé",
           "manual_override": "Override manuel"
         }
       }
