@@ -63,6 +63,9 @@ _BATTERY_SCHEMA = vol.Schema(
             "power_sign_convention", default=PowerSignConvention.CHARGE_POSITIVE.value
         ): _SIGN_CONVENTION,
         vol.Optional("usable_capacity_kwh"): vol.Coerce(float),
+        vol.Optional("controllable", default=True): bool,
+        vol.Optional("active_control_enabled", default=False): bool,
+        vol.Optional("discharge_power_setpoint_entity"): str,
     }
 )
 
@@ -193,6 +196,9 @@ def _build_battery_role(raw: Mapping[str, Any]) -> BatteryRole:
         chemistry=Chemistry(raw["chemistry"]),
         power_sign_convention=PowerSignConvention(raw["power_sign_convention"]),
         usable_capacity_kwh=raw.get("usable_capacity_kwh"),
+        controllable=raw["controllable"],
+        active_control_enabled=raw["active_control_enabled"],
+        discharge_power_setpoint_entity=raw.get("discharge_power_setpoint_entity"),
     )
 
 

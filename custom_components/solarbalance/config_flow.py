@@ -8,9 +8,14 @@ from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFl
 from homeassistant.core import callback
 
 from .const import (
+    CONF_ACTIVE_CONTROL_ENABLED,
     CONF_PHASES,
     CONF_PRIORITIES,
     CONF_PV_FORECAST_ENTITY,
+    CONF_SOC_EQUALISER_DEADBAND_PCT,
+    CONF_SOC_EQUALISER_ENABLED,
+    CONF_SOC_EQUALISER_KP_W_PER_PCT,
+    CONF_SOC_EQUALISER_MAX_W,
     CONF_SUBSCRIBED_POWER_KVA,
     CONF_TICK_INTERVAL_S,
     CONF_WEATHER_WARNING_ENTITY,
@@ -18,6 +23,9 @@ from .const import (
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_SETPOINT_W,
     DEFAULT_PHASES,
+    DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
+    DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
+    DEFAULT_SOC_EQUALISER_MAX_W,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DOMAIN,
@@ -72,6 +80,30 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_WEATHER_WARNING_ENTITY,
                 default=d.get(CONF_WEATHER_WARNING_ENTITY, ""),
             ): str,
+            vol.Optional(
+                CONF_ACTIVE_CONTROL_ENABLED,
+                default=d.get(CONF_ACTIVE_CONTROL_ENABLED, False),
+            ): bool,
+            vol.Optional(
+                CONF_SOC_EQUALISER_ENABLED,
+                default=d.get(CONF_SOC_EQUALISER_ENABLED, True),
+            ): bool,
+            vol.Optional(
+                CONF_SOC_EQUALISER_MAX_W,
+                default=d.get(CONF_SOC_EQUALISER_MAX_W, DEFAULT_SOC_EQUALISER_MAX_W),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Optional(
+                CONF_SOC_EQUALISER_KP_W_PER_PCT,
+                default=d.get(
+                    CONF_SOC_EQUALISER_KP_W_PER_PCT, DEFAULT_SOC_EQUALISER_KP_W_PER_PCT
+                ),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+            vol.Optional(
+                CONF_SOC_EQUALISER_DEADBAND_PCT,
+                default=d.get(
+                    CONF_SOC_EQUALISER_DEADBAND_PCT, DEFAULT_SOC_EQUALISER_DEADBAND_PCT
+                ),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
         }
     )
 

@@ -14,12 +14,20 @@ CONF_PHASES: Final = "phases"
 CONF_SUBSCRIBED_POWER_KVA: Final = "subscribed_power_kva"
 CONF_PV_FORECAST_ENTITY: Final = "pv_forecast_entity"
 CONF_WEATHER_WARNING_ENTITY: Final = "weather_warning_entity"
+CONF_SOC_EQUALISER_ENABLED: Final = "soc_equaliser_enabled"
+CONF_SOC_EQUALISER_MAX_W: Final = "soc_equaliser_max_w"
+CONF_SOC_EQUALISER_KP_W_PER_PCT: Final = "soc_equaliser_kp_w_per_pct"
+CONF_SOC_EQUALISER_DEADBAND_PCT: Final = "soc_equaliser_deadband_pct"
+CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10
 DEFAULT_ZERO_INJECTION_HYSTERESIS_W: Final = 50
 DEFAULT_PHASES: Final = 1
 DEFAULT_BALANCING_ALPHA: Final = 0.6
+DEFAULT_SOC_EQUALISER_MAX_W: Final = 1500
+DEFAULT_SOC_EQUALISER_KP_W_PER_PCT: Final = 80.0
+DEFAULT_SOC_EQUALISER_DEADBAND_PCT: Final = 2.0
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1

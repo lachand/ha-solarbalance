@@ -9,11 +9,9 @@ from custom_components.solarbalance.core.models import (
     BatteryState,
     Chemistry,
     Device,
-    InverterRole,
     Load,
     LoadControlType,
     LoadStep,
-    MpptRole,
     MpptState,
     PowerSignConvention,
     Snapshot,
@@ -62,6 +60,30 @@ class TestBatteryRole:
                 max_charge_power_w=100,
                 max_discharge_power_w=100,
                 soc_entity="sensor.s",
+            )
+
+    def test_active_control_requires_controllable(self) -> None:
+        with pytest.raises(ValueError, match="controllable"):
+            BatteryRole(
+                capacity_kwh=1.0,
+                max_charge_power_w=100,
+                max_discharge_power_w=100,
+                soc_entity="sensor.s",
+                power_entity="sensor.p",
+                controllable=False,
+                active_control_enabled=True,
+                discharge_power_setpoint_entity="number.dis",
+            )
+
+    def test_active_control_requires_discharge_setpoint_entity(self) -> None:
+        with pytest.raises(ValueError, match="discharge_power_setpoint_entity"):
+            BatteryRole(
+                capacity_kwh=1.0,
+                max_charge_power_w=100,
+                max_discharge_power_w=100,
+                soc_entity="sensor.s",
+                power_entity="sensor.p",
+                active_control_enabled=True,
             )
 
     def test_separate_charge_discharge_entities_accepted(self) -> None:

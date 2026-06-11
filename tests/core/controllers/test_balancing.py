@@ -1,5 +1,7 @@
 """Tests for the hybrid balancing controller."""
 
+from dataclasses import replace
+
 import pytest
 
 from custom_components.solarbalance.core.controllers.balancing import BalancingController
@@ -24,6 +26,25 @@ class TestBalancingController:
         )
         assert result.unallocated_w == 500.0
         assert result.per_battery_w == {}
+
+    def test_non_controllable_battery_excluded_from_allocation(
+        self, ecoflow_device: Device, jackery_device: Device
+    ) -> None:
+        """A battery flagged controllable=false never receives an allocation."""
+        assert jackery_device.battery is not None
+        auto = replace(
+            jackery_device, battery=replace(jackery_device.battery, controllable=False)
+        )
+        controller = BalancingController([ecoflow_device, auto], alpha=1.0)
+        result = controller.allocate(
+            total_power_w=1000.0,
+            states={
+                "ecoflow_living_room": _state("ecoflow_living_room", 50.0),
+                "jackery_garage": _state("jackery_garage", 50.0),
+            },
+        )
+        assert "jackery_garage" not in result.per_battery_w
+        assert result.per_battery_w["ecoflow_living_room"] == pytest.approx(1000.0, abs=2.0)
 
     def test_two_batteries_balanced_charge(
         self, ecoflow_device: Device, jackery_device: Device

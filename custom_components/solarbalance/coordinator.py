@@ -1,6 +1,7 @@
 """DataUpdateCoordinator for SolarBalance."""
 
 import logging
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
@@ -8,11 +9,17 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
+from .adapters.active_control_publisher import ActiveControlPublisher
 from .adapters.decision_publisher import DecisionPublisher
 from .adapters.entity_reader import EntityReader
 from .adapters.watchdog import EntityWatchdog
 from .const import (
+    CONF_ACTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
+    CONF_SOC_EQUALISER_DEADBAND_PCT,
+    CONF_SOC_EQUALISER_ENABLED,
+    CONF_SOC_EQUALISER_KP_W_PER_PCT,
+    CONF_SOC_EQUALISER_MAX_W,
     CONF_SUBSCRIBED_POWER_KVA,
     CONF_TICK_INTERVAL_S,
     CONF_ZERO_INJECTION_ENABLED,
@@ -22,6 +29,9 @@ from .const import (
     DEFAULT_BALANCING_ALPHA,
     DEFAULT_COST_MIN_CHEAP_THRESHOLD,
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
+    DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
+    DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
+    DEFAULT_SOC_EQUALISER_MAX_W,
     DEFAULT_STORM_TARGET_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
@@ -30,6 +40,7 @@ from .const import (
 from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.controllers.balancing import BalancingController
 from .core.controllers.load_dispatch import LoadDispatchController
+from .core.controllers.soc_equaliser import SocEqualiserController
 from .core.controllers.zero_injection import (
     PerPhaseZeroInjectionController,
     PerPhaseZeroInjectionState,
@@ -122,6 +133,38 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._publisher = DecisionPublisher()
         self._balancing = BalancingController(devices, alpha=DEFAULT_BALANCING_ALPHA)
         self._load_dispatch = LoadDispatchController(loads)
+
+        # Indirect SoC equaliser — only meaningful when at least one battery is
+        # declared non-controllable (reports state but cannot be commanded).
+        self._controllable_battery_names = frozenset(
+            d.name for d in devices if d.battery is not None and d.battery.controllable
+        )
+        uncontrollable = [
+            (d.name, d.battery)
+            for d in devices
+            if d.battery is not None and not d.battery.controllable
+        ]
+        self._soc_equaliser: SocEqualiserController | None = None
+        if uncontrollable and bool(cfg.get(CONF_SOC_EQUALISER_ENABLED, True)):
+            self._soc_equaliser = SocEqualiserController(
+                uncontrollable,
+                kp_w_per_pct=float(
+                    cfg.get(CONF_SOC_EQUALISER_KP_W_PER_PCT, DEFAULT_SOC_EQUALISER_KP_W_PER_PCT)
+                ),
+                max_steering_w=float(
+                    cfg.get(CONF_SOC_EQUALISER_MAX_W, DEFAULT_SOC_EQUALISER_MAX_W)
+                ),
+                soc_deadband_pct=float(
+                    cfg.get(CONF_SOC_EQUALISER_DEADBAND_PCT, DEFAULT_SOC_EQUALISER_DEADBAND_PCT)
+                ),
+            )
+
+        # Active control — entity writes to user equipment (V2). Off by default;
+        # the publisher is a no-op unless the global flag is on and at least one
+        # device declares a discharge setpoint entity.
+        self._active_control_enabled = bool(cfg.get(CONF_ACTIVE_CONTROL_ENABLED, False))
+        self._active_control = ActiveControlPublisher(hass, devices)
+        self._active_control_suspended = False
 
         zi_enabled = bool(cfg.get(CONF_ZERO_INJECTION_ENABLED, True))
         self._zi_enabled = zi_enabled
@@ -366,12 +409,42 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         self._zi_setpoint_w,
                     )
 
+        # Indirect SoC equaliser: bias the controllable fleet to steer the
+        # automatic (non-controllable) battery toward the fleet mean SoC. Skipped
+        # in modes that drive batteries with their own logic (storm / override).
+        steering_w = 0.0
+        if self._soc_equaliser is not None and self._mode not in {
+            HemsMode.DEGRADED,
+            HemsMode.STORM,
+            HemsMode.MANUAL_OVERRIDE,
+        }:
+            controllable_states = [
+                b for b in snapshot.batteries if b.device_name in self._controllable_battery_names
+            ]
+            uncontrollable_states = {
+                b.device_name: b
+                for b in snapshot.batteries
+                if b.device_name not in self._controllable_battery_names
+            }
+            eq_result = self._soc_equaliser.step(
+                controllable_states=controllable_states,
+                uncontrollable_states=uncontrollable_states,
+            )
+            steering_w = eq_result.steering_w
+            if not eq_result.in_deadband:
+                _LOGGER.debug(
+                    "SoC equaliser steering %.0fW (fleet target=%.1f%%)",
+                    steering_w,
+                    eq_result.target_soc_pct,
+                )
+
         # Apply grid constraints: clamp the aggregate battery target so the
         # projected grid exchange honours max_import_w and max_export_w.
         # Projection: new_grid ≈ current_grid + (target_battery - current_battery)
         total_power_w = (
             sum(t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values())
             + zi_correction_w
+            + steering_w
         )
         gc = result.decision.grid_constraint
         current_battery_w = snapshot.battery_power_total_w
@@ -408,9 +481,26 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
 
         self._publisher.publish(result, balancing_result=balancing_result)
+        await self._apply_active_control(balancing_result.per_battery_w)
         return snapshot
 
     # ------------------------------------------------------------------ helpers
+
+    async def _apply_active_control(self, per_battery_w: Mapping[str, float]) -> None:
+        """Write discharge setpoints to equipment when active control is enabled.
+
+        Suspended in DEGRADED mode (stale entities): managed setpoints are reset
+        to 0 W once, then left untouched until the entities recover.
+        """
+        if not (self._active_control_enabled and self._active_control.enabled):
+            return
+        if self._mode is HemsMode.DEGRADED:
+            if not self._active_control_suspended:
+                await self._active_control.reset()
+                self._active_control_suspended = True
+            return
+        self._active_control_suspended = False
+        await self._active_control.apply(per_battery_w)
 
     def _build_storm_result(self, snapshot: Snapshot) -> ArbitrationResult:
         """Build an ArbitrationResult that charges all batteries to the storm SoC target.

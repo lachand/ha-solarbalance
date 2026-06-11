@@ -64,7 +64,9 @@ class BalancingController:
         if not 0.0 <= alpha <= 1.0:
             raise ValueError("alpha must be in [0, 1]")
         self._batteries: tuple[tuple[str, BatteryRole], ...] = tuple(
-            (d.name, d.battery) for d in devices if d.battery is not None
+            (d.name, d.battery)
+            for d in devices
+            if d.battery is not None and d.battery.controllable
         )
         self._alpha = alpha
         self._min_dwell_s = min_dwell_s

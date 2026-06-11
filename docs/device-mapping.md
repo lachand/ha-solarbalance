@@ -117,6 +117,74 @@ battery:
 
 SolarBalance will compute `power = charge_power - discharge_power` internally.
 
+## Recipe — Battery you can monitor but not control
+
+Some batteries expose their SoC and power over Home Assistant but offer **no way
+to command charge/discharge** — the only option is to leave them in their own
+"automatic" mode. Declare such a battery with `controllable: false`:
+
+```yaml
+- name: battery_auto
+  roles:
+    battery:
+      capacity_kwh: 5.0
+      max_charge_power_w: 2500
+      max_discharge_power_w: 2500
+      soc_entity: sensor.batauto_soc
+      power_entity: sensor.batauto_power
+      controllable: false      # stats reported, but never commanded by the HEMS
+```
+
+With this flag:
+
+- The battery still feeds the snapshot (its SoC/power count toward
+  `baseline_consumption` and the grid balance), so the HEMS reacts correctly
+  around it.
+- It is **excluded from the balancing controller** — it never receives a
+  setpoint, and never appears in `setpoint_charge/discharge_per_battery_w`.
+- An **indirect SoC equaliser** steers it toward the mean SoC of your
+  controllable batteries: to charge it, the HEMS makes the controllable
+  batteries discharge (creating an AC surplus the automatic battery absorbs); to
+  discharge it, it makes them charge. This only works while the automatic battery
+  cooperates and is bounded so it never forces grid import/export. It is enabled
+  automatically when a non-controllable battery is declared; disable it with the
+  global `soc_equaliser_enabled: false` option, and cap its authority with
+  `soc_equaliser_max_w` (default 1500 W).
+
+Note that indirect steering shuffles energy through two extra conversions, so it
+trades a little round-trip efficiency for SoC homogeneity across the fleet.
+
+### Actively controlling the discharge of your controllable batteries (v2)
+
+The steering above only changes SolarBalance's *published* setpoints. To make it
+actually drive your hardware, enable active control. The first step is
+**discharge-only** — steering the controllable batteries' discharge is what
+charges the automatic battery over the AC bus, so discharge is the only lever
+needed:
+
+```yaml
+- name: battery_main          # a controllable battery
+  roles:
+    battery:
+      capacity_kwh: 5.0
+      max_charge_power_w: 2500
+      max_discharge_power_w: 2500
+      soc_entity: sensor.main_soc
+      power_entity: sensor.main_power
+      active_control_enabled: true
+      discharge_power_setpoint_entity: number.main_discharge_setpoint  # W, written by SolarBalance
+```
+
+Then turn on the global **`active_control_enabled`** option in the Config Flow
+(off by default — it is the only thing that lets SolarBalance write to your
+equipment). With both on, the discharge power computed by the balancing
+controller is written to `discharge_power_setpoint_entity` every tick
+(`number.set_value` / `input_number.set_value`); a battery that is charging or
+idle is commanded to 0 W discharge. Writes are suspended in degraded mode.
+
+`active_control_enabled` requires `controllable: true` and a
+`discharge_power_setpoint_entity` — it is rejected at load time otherwise.
+
 ## Verifying your mapping
 
 After applying the YAML and reloading SolarBalance, check `sensor.solarbalance_baseline_consumption`:

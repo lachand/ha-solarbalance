@@ -390,6 +390,11 @@ solarbalance:
 - `subscribed_power_kva` (int) — puissance souscrite, sert au peak shaving
 - `pv_forecast_entity` (entity_id, optionnel)
 - `weather_warning_entity` (entity_id, optionnel)
+- `active_control_enabled` (bool, défaut false) — autorise l'écriture de consignes vers le matériel (v2). Voir §6.6.
+- `soc_equaliser_enabled` (bool, défaut true) — pilotage indirect des batteries `controllable: false`. Voir §6.6.
+- `soc_equaliser_max_w` (int, défaut 1500) — biais de puissance maximal appliqué au parc pilotable
+- `soc_equaliser_kp_w_per_pct` (float, défaut 80.0) — gain proportionnel (W par % d'écart de SoC)
+- `soc_equaliser_deadband_pct` (float, défaut 2.0) — demi-largeur de la bande morte de SoC
 - `tariff_config` (sous-section, voir §7.3)
 
 > Les constantes `storm_mode_target_soc_pct` (défaut 95 %) et `storm_mode_lead_time_h` (défaut 6 h) sont
@@ -552,6 +557,21 @@ Chaque entrée mappe vers une entité Météo-France distincte (résolue automat
 - Charges pilotables non critiques : différées si soutirage nécessaire.
 
 **Sortie du mode tempête (hystérésis)** : à la levée de la vigilance, le mode tempête reste actif pendant `storm_mode_release_hysteresis_h` (défaut 1 h) avant de revenir au mode normal. Évite les oscillations sur des vigilances qui clignotent à la limite du seuil.
+
+### 6.6 Batteries non pilotables et équilibrage indirect
+
+Certaines batteries remontent leur état (SoC, puissance) mais n'offrent **aucun moyen de commander** leur charge/décharge via Home Assistant — le seul mode possible est leur automatisme interne. On les déclare `controllable: false` (voir `docs/device-mapping.md`).
+
+**Lecture seule, exclusion du pilotage** : une telle batterie alimente normalement le snapshot (son SoC/puissance comptent dans `baseline_consumption` et l'équilibre réseau), mais elle est **exclue du `BalancingController`** : elle ne reçoit jamais de consigne et n'apparaît pas dans `setpoint_charge/discharge_per_battery_w`.
+
+**Équilibreur de SoC indirect** (`core/controllers/soc_equaliser.py`) : un correcteur proportionnel amène le SoC de la batterie automatique vers le SoC moyen du parc pilotable, en ajoutant un **biais** au `total_power_w` distribué par le `BalancingController` :
+
+- biais < 0 → le parc pilotable décharge davantage → surplus AC → la batterie automatique charge ;
+- biais > 0 → le parc pilotable charge davantage → déficit AC → la batterie automatique décharge.
+
+`biais = clamp(-kp × (soc_cible − soc_auto), ±soc_equaliser_max_w)`, avec bande morte `soc_equaliser_deadband_pct` et garde sur les bornes SoC propres de la batterie automatique. **Sûreté** : les boucles zéro-injection / autoconsommation du même tick maintiennent le réseau à sa consigne, donc toute puissance non absorbée par la batterie automatique est reprise au tick suivant — le biais n'agit que dans la mesure où la batterie automatique coopère, et sature naturellement sur la capacité/les limites SoC du parc pilotable. Ce transfert paie deux conversions supplémentaires : compromis rendement ↔ homogénéité des SoC.
+
+**Pilotage actif (v2, première étape — décharge seule)** : lorsque `active_control_enabled` est vrai globalement et au niveau d'un appareil (`active_control_enabled: true` + `discharge_power_setpoint_entity`), l'adapter `ActiveControlPublisher` écrit les consignes de **décharge** issues du `BalancingController` vers les entités `number`/`input_number` déclarées. Seule la décharge est pilotée pour l'instant : c'est la décharge du parc pilotable qui, via le bus AC, contrôle indirectement la charge de la batterie automatique. L'écriture est suspendue en mode dégradé (les consignes gérées sont remises à 0 W). C'est le **seul** composant autorisé à écrire vers le matériel utilisateur.
 
 ---
 

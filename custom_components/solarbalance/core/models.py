@@ -108,6 +108,21 @@ class BatteryRole:
     chemistry: Chemistry = Chemistry.LIFEPO4
     power_sign_convention: PowerSignConvention = PowerSignConvention.CHARGE_POSITIVE
     usable_capacity_kwh: float | None = None
+    controllable: bool = True
+    """When False, the battery reports its state but cannot be commanded
+    charge/discharge over HA. It is excluded from the balancing controller and
+    steered indirectly by the SoC equaliser (see core/controllers/soc_equaliser).
+    """
+    active_control_enabled: bool = False
+    """When True (and global active control is on), the adapter writes computed
+    setpoints to this device's setpoint entities. Requires a controllable battery.
+    """
+    discharge_power_setpoint_entity: str | None = None
+    """HA entity (number/input_number) receiving the discharge power setpoint (W).
+
+    First active-control step is discharge-only: steering the controllable fleet's
+    discharge indirectly drives the automatic battery's charge.
+    """
 
     def __post_init__(self) -> None:
         if self.power_entity is None and (
@@ -117,6 +132,15 @@ class BatteryRole:
                 "BatteryRole requires either power_entity or both "
                 "charge_power_entity and discharge_power_entity"
             )
+        if self.active_control_enabled:
+            if not self.controllable:
+                raise ValueError(
+                    "active_control_enabled requires controllable=true"
+                )
+            if self.discharge_power_setpoint_entity is None:
+                raise ValueError(
+                    "active_control_enabled requires discharge_power_setpoint_entity"
+                )
 
     @property
     def effective_usable_capacity_kwh(self) -> float:
