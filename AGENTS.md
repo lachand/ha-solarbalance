@@ -54,8 +54,9 @@ When proposing code, **respect this layering**. A change to `core/` that imports
 ### Decision flow
 
 - All algorithmic decisions are produced by `core/strategies/` and combined by `core/arbitrer.py`. Strategies must produce a `Decision` dataclass — never write directly to HA entities.
-- The `DecisionPublisher` adapter is the **only** component that converts `Decision` instances into HA entity state updates. Do not bypass it.
-- In v1, **no entity write** to user-mapped equipment occurs. The component publishes computed setpoints as its own sensor entities for observability. Pull requests adding entity writes to user equipment must be tagged for v2 milestone.
+- The `DecisionPublisher` adapter is the **only** component that converts `Decision` instances into observability sensor states. Do not bypass it.
+- The component **always** publishes computed setpoints as its own sensor entities for observability, regardless of active control.
+- **Active control (v2):** writing setpoints to user-mapped equipment is allowed, but only through the `ActiveControlPublisher` adapter — the **single** component permitted to write to user equipment. It is gated by the global `active_control_enabled` option (default off) plus the per-device `active_control_enabled` flag. Do not add equipment writes anywhere else. (First step is discharge-only — see `docs/SPECIFICATIONS.md` §6.6.)
 
 ### Configuration
 
