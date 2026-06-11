@@ -21,6 +21,7 @@ CONF_SOC_EQUALISER_DEADBAND_PCT: Final = "soc_equaliser_deadband_pct"
 CONF_SOC_EQUALISER_PROBE_STEP_W: Final = "soc_equaliser_probe_step_w"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"
+CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10
@@ -36,6 +37,9 @@ DEFAULT_SOC_EQUALISER_PROBE_STEP_W: Final = 150.0
 # Max change of the aggregate battery target per tick (W). Caps regulation
 # swings; 0 disables the limit. See docs/SPECIFICATIONS.md §6.3.
 DEFAULT_MAX_RAMP_W: Final = 800
+# Rolling-median window (ticks) on the grid reading fed to the regulator.
+# Rejects single-tick sensor glitches and brief load steps; 1 disables it.
+DEFAULT_GRID_FILTER_SAMPLES: Final = 3
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1

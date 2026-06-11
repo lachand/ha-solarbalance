@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from .adapters.active_control_publisher import ActiveControlPublisher
 from .adapters.decision_publisher import DecisionPublisher
@@ -15,6 +16,7 @@ from .adapters.entity_reader import EntityReader
 from .adapters.watchdog import EntityWatchdog
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_GRID_FILTER_SAMPLES,
     CONF_MAX_RAMP_W,
     CONF_PRIORITIES,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
@@ -31,6 +33,7 @@ from .const import (
     DEFAULT_BALANCING_ALPHA,
     DEFAULT_COST_MIN_CHEAP_THRESHOLD,
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
+    DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
@@ -52,6 +55,8 @@ from .core.controllers.zero_injection import (
     ZeroInjectionController,
     ZeroInjectionState,
 )
+from .core.energy import DailyEnergyAccumulator
+from .core.filters import RollingMedian
 from .core.models import (
     BatteryTarget,
     Decision,
@@ -195,6 +200,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._zi_setpoint_w = float(cfg.get(CONF_ZERO_INJECTION_SETPOINT_W, 0))
         self._tick_s = tick
 
+        # Rolling-median filter on the grid reading fed to the regulator (B):
+        # rejects single-tick sensor glitches and brief load steps. The displayed
+        # grid sensor keeps the raw value.
+        grid_samples = int(cfg.get(CONF_GRID_FILTER_SAMPLES, DEFAULT_GRID_FILTER_SAMPLES))
+        self._grid_filter = RollingMedian(grid_samples)
+        self._grid_filter_l1 = RollingMedian(grid_samples)
+        self._grid_filter_l2 = RollingMedian(grid_samples)
+        self._grid_filter_l3 = RollingMedian(grid_samples)
+
+        # Daily energy integration (fallback when no vendor daily_energy_entity).
+        self._energy = DailyEnergyAccumulator()
+
         # Watchdog — entity lists built from config
         self._critical_entity_ids, self._monitored_entity_ids = self._collect_entity_ids(
             devices, meters
@@ -229,10 +246,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
     @property
     def daily_pv_energy_kwh(self) -> float | None:
-        """Sum of today's PV energy across all MPPT devices with daily_energy_entity.
+        """Today's PV energy (kWh).
 
-        Returns None when no device declares daily_energy_entity.
-        Source entities are expected to be in kWh (standard HA energy unit).
+        Prefers a declared ``daily_energy_entity``; otherwise falls back to the
+        value integrated from the PV power sensors by this integration.
         """
         total = 0.0
         found = False
@@ -245,14 +262,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         found = True
                     except (ValueError, TypeError):
                         pass
-        return round(total, 3) if found else None
+        return round(total, 3) if found else round(self._energy.pv_kwh, 3)
 
     @property
     def daily_grid_import_kwh(self) -> float | None:
-        """Grid energy imported today from the PDL meter daily_import_energy_entity.
+        """Today's grid import energy (kWh).
 
-        Returns None when the PDL meter does not declare daily_import_energy_entity.
-        Source entity is expected to be in kWh.
+        Prefers the PDL meter's ``daily_import_energy_entity``; otherwise falls
+        back to the value integrated from the grid power sensor.
         """
         for meter in self._meters:
             if meter.kind is MeterKind.PDL and meter.daily_import_energy_entity:
@@ -262,7 +279,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         return round(float(state.state), 3)
                     except (ValueError, TypeError):
                         pass
-        return None
+        return round(self._energy.grid_import_kwh, 3)
 
     def set_force_override(
         self,
@@ -310,6 +327,33 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         # --- Baseline sanity check: negative baseline signals a mapping error ---
         self._check_baseline(snapshot)
+
+        # --- Daily energy integration (fallback when no vendor daily entity) ---
+        self._energy.update(
+            now=snapshot.timestamp,
+            local_date=dt_util.as_local(snapshot.timestamp).date(),
+            pv_w=snapshot.pv_total_w,
+            grid_w=snapshot.grid_power_w,
+        )
+
+        # --- Grid median filter (B): clean the value handed to the regulator;
+        # the displayed grid sensor keeps snapshot.grid_power_w (raw). ---
+        grid_filtered_w = self._grid_filter.update(snapshot.grid_power_w)
+        grid_l1_filtered = (
+            self._grid_filter_l1.update(snapshot.grid_power_l1_w)
+            if snapshot.grid_power_l1_w is not None
+            else None
+        )
+        grid_l2_filtered = (
+            self._grid_filter_l2.update(snapshot.grid_power_l2_w)
+            if snapshot.grid_power_l2_w is not None
+            else None
+        )
+        grid_l3_filtered = (
+            self._grid_filter_l3.update(snapshot.grid_power_l3_w)
+            if snapshot.grid_power_l3_w is not None
+            else None
+        )
 
         # --- Watchdog: detect stale critical entities ---
         wd = self._watchdog.check(self._critical_entity_ids, self._monitored_entity_ids)
@@ -375,9 +419,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 and isinstance(self._zi_state, PerPhaseZeroInjectionState)
             ):
                 # Per-phase correction requires all three phase readings.
-                l1 = snapshot.grid_power_l1_w
-                l2 = snapshot.grid_power_l2_w
-                l3 = snapshot.grid_power_l3_w
+                l1 = grid_l1_filtered
+                l2 = grid_l2_filtered
+                l3 = grid_l3_filtered
                 if l1 is not None and l2 is not None and l3 is not None:
                     sp = self._zi_setpoint_w / 3.0
                     zi_result = self._zi_controller.step(
@@ -408,7 +452,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 assert isinstance(self._zi_controller, ZeroInjectionController)
                 assert isinstance(self._zi_state, ZeroInjectionState)
                 zi_result = self._zi_controller.step(
-                    grid_power_w=snapshot.grid_power_w,
+                    grid_power_w=grid_filtered_w,
                     setpoint_w=self._zi_setpoint_w,
                     dt_s=float(self._tick_s),
                     state=self._zi_state,
@@ -417,9 +461,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 zi_correction_w = zi_result.correction_w
                 if not zi_result.in_deadband:
                     _LOGGER.debug(
-                        "ZI correction %.0fW (grid=%.0fW, setpoint=%.0fW)",
+                        "ZI correction %.0fW (grid=%.0fW filtered, setpoint=%.0fW)",
                         zi_result.correction_w,
-                        snapshot.grid_power_w,
+                        grid_filtered_w,
                         self._zi_setpoint_w,
                     )
 
@@ -515,12 +559,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
 
         self._publisher.publish(result, balancing_result=balancing_result)
-        await self._apply_active_control(balancing_result.per_battery_w)
+        soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}
+        await self._apply_active_control(balancing_result.per_battery_w, soc_by_device)
         return snapshot
 
     # ------------------------------------------------------------------ helpers
 
-    async def _apply_active_control(self, per_battery_w: Mapping[str, float]) -> None:
+    async def _apply_active_control(
+        self,
+        per_battery_w: Mapping[str, float],
+        soc_by_device: Mapping[str, float],
+    ) -> None:
         """Write discharge setpoints to equipment when active control is enabled.
 
         Suspended in DEGRADED mode (stale entities): managed setpoints are reset
@@ -534,7 +583,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 self._active_control_suspended = True
             return
         self._active_control_suspended = False
-        await self._active_control.apply(per_battery_w)
+        await self._active_control.apply(per_battery_w, soc_by_device)
 
     def _build_storm_result(self, snapshot: Snapshot) -> ArbitrationResult:
         """Build an ArbitrationResult that charges all batteries to the storm SoC target.

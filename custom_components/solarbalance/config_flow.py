@@ -9,6 +9,7 @@ from homeassistant.core import callback
 
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_GRID_FILTER_SAMPLES,
     CONF_MAX_RAMP_W,
     CONF_PHASES,
     CONF_PRIORITIES,
@@ -24,6 +25,7 @@ from .const import (
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_SETPOINT_W,
+    DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_PHASES,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
@@ -73,6 +75,10 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_MAX_RAMP_W,
                 default=d.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W),
             ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Optional(
+                CONF_GRID_FILTER_SAMPLES,
+                default=d.get(CONF_GRID_FILTER_SAMPLES, DEFAULT_GRID_FILTER_SAMPLES),
+            ): vol.All(vol.Coerce(int), vol.Range(min=1)),
             vol.Optional(
                 CONF_PHASES, default=d.get(CONF_PHASES, DEFAULT_PHASES)
             ): vol.In([1, 3]),

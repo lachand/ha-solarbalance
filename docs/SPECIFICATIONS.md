@@ -387,6 +387,7 @@ solarbalance:
 - `zero_injection_setpoint_w` (int, défaut 0) — cible (peut être négative pour marge de sécurité)
 - `zero_injection_hysteresis_w` (int, défaut 50)
 - `max_ramp_w` (int, défaut 800) — variation max de la cible batterie agrégée par tick (0 = désactivé). Voir §6.3.
+- `grid_filter_samples` (int ≥ 1, défaut 3) — fenêtre de médiane glissante (en ticks) sur la mesure réseau **envoyée au régulateur** ; rejette les glitches capteur 1-échantillon et les marches de charge brèves. `1` = désactivé. Le capteur réseau affiché reste la valeur brute.
 - `phases` (1 ou 3, défaut 1)
 - `subscribed_power_kva` (int) — puissance souscrite, sert au peak shaving
 - `pv_forecast_entity` (entity_id, optionnel)
