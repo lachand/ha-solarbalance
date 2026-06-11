@@ -9,6 +9,7 @@ from homeassistant.core import callback
 
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_MAX_RAMP_W,
     CONF_PHASES,
     CONF_PRIORITIES,
     CONF_PV_FORECAST_ENTITY,
@@ -22,6 +23,7 @@ from .const import (
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_SETPOINT_W,
+    DEFAULT_MAX_RAMP_W,
     DEFAULT_PHASES,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
@@ -65,6 +67,10 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                     CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W
                 ),
             ): vol.All(int, vol.Range(min=0)),
+            vol.Optional(
+                CONF_MAX_RAMP_W,
+                default=d.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
             vol.Optional(
                 CONF_PHASES, default=d.get(CONF_PHASES, DEFAULT_PHASES)
             ): vol.In([1, 3]),

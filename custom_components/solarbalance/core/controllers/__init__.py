@@ -1,6 +1,7 @@
 """Controllers translate aggregated intents into per-device setpoints."""
 
 from .balancing import BalancingController, BalancingResult
+from .regulation import apply_slew_limit, resolve_fleet_target_w
 from .soc_equaliser import SocEqualiserController, SocEqualiserResult
 from .zero_injection import ZeroInjectionController, ZeroInjectionState
 
@@ -11,4 +12,6 @@ __all__ = [
     "SocEqualiserResult",
     "ZeroInjectionController",
     "ZeroInjectionState",
+    "apply_slew_limit",
+    "resolve_fleet_target_w",
 ]

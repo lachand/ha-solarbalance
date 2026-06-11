@@ -386,6 +386,7 @@ solarbalance:
 - `zero_injection_enabled` (bool, défaut false)
 - `zero_injection_setpoint_w` (int, défaut 0) — cible (peut être négative pour marge de sécurité)
 - `zero_injection_hysteresis_w` (int, défaut 50)
+- `max_ramp_w` (int, défaut 800) — variation max de la cible batterie agrégée par tick (0 = désactivé). Voir §6.3.
 - `phases` (1 ou 3, défaut 1)
 - `subscribed_power_kva` (int) — puissance souscrite, sert au peak shaving
 - `pv_forecast_entity` (entity_id, optionnel)
@@ -486,9 +487,11 @@ P_charge_total = max(0, P_charge_actuelle + correction)
 
 Cette correction de puissance globale est ensuite répartie selon §6.2.
 
-**Hystérésis** : zone morte autour de `consigne_zi ± hysteresis_w`. Pas d'action si la mesure y reste.
+**Régulateur unique (important)** : quand la zéro-injection est active, c'est **elle seule** qui régule le réseau — la cible agrégée vaut `P_parc_pilotable_actuelle + correction`. Les stratégies (`self_consumption`…) n'apportent alors qu'une **direction**/des fenêtres SoC, jamais une seconde annulation absolue de l'écart réseau. Sommer la cible absolue de `self_consumption` (`−net_grid`, gain ≈ 1) avec le delta PI (Kp) donnait un gain proportionnel cumulé > 1 et, combiné au **retard d'actionnement d'un tick**, un cycle limite à la fréquence du tick. Quand la ZI est désactivée (ou en mode tempête/override), c'est la cible absolue des stratégies qui pilote.
 
-**Limites pratiques (v1, lecture seule)** : la consigne calculée est publiée mais non appliquée. La carte Lovelace montrera l'écart entre consigne théorique et réalité observée pour valider le tuning.
+**Limite de pente (anti cycle-limite)** : la cible agrégée ne peut varier de plus de `max_ramp_w` (défaut 800 W) par tick. Garde-fou matériel contre les emballements quels que soient les gains ; `0` désactive la limite.
+
+**Hystérésis** : zone morte autour de `consigne_zi ± hysteresis_w`. Pas d'action si la mesure y reste.
 
 **Anti-windup** : intégrale bornée `±I_max` pour éviter l'accumulation pendant les périodes où une saturation matérielle empêche la correction.
 
@@ -496,6 +499,7 @@ Cette correction de puissance globale est ensuite répartie selon §6.2.
 - `Kp = 0.6`, `Ki = 0.05` (à valider expérimentalement)
 - `tick = 10 s`
 - Hystérésis = 50 W
+- `max_ramp_w = 800 W/tick`
 
 **Cas batteries pleines (saturation amont)** : si toutes les batteries sont au plafond et que du PV continue d'arriver, l'injection devient inévitable sans écrêtage. Trois scénarios par ordre de préférence :
 

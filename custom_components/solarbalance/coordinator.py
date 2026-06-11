@@ -15,6 +15,7 @@ from .adapters.entity_reader import EntityReader
 from .adapters.watchdog import EntityWatchdog
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_MAX_RAMP_W,
     CONF_PRIORITIES,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
@@ -29,6 +30,7 @@ from .const import (
     DEFAULT_BALANCING_ALPHA,
     DEFAULT_COST_MIN_CHEAP_THRESHOLD,
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
+    DEFAULT_MAX_RAMP_W,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
@@ -40,6 +42,7 @@ from .const import (
 from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.controllers.balancing import BalancingController
 from .core.controllers.load_dispatch import LoadDispatchController
+from .core.controllers.regulation import apply_slew_limit, resolve_fleet_target_w
 from .core.controllers.soc_equaliser import SocEqualiserController
 from .core.controllers.zero_injection import (
     PerPhaseZeroInjectionController,
@@ -165,6 +168,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._active_control_enabled = bool(cfg.get(CONF_ACTIVE_CONTROL_ENABLED, False))
         self._active_control = ActiveControlPublisher(hass, devices)
         self._active_control_suspended = False
+
+        # Slew-rate limit on the aggregate battery target (anti limit-cycle).
+        self._max_ramp_w = float(cfg.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W))
+        self._last_total_power_w: float | None = None
 
         zi_enabled = bool(cfg.get(CONF_ZERO_INJECTION_ENABLED, True))
         self._zi_enabled = zi_enabled
@@ -352,9 +359,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         else:
             result = self._arbiter.run(snapshot)
 
-        # Apply zero-injection correction if enabled and not degraded or storm
+        # Apply zero-injection correction when it owns regulation: only in NORMAL
+        # mode (storm/override/degraded drive batteries with explicit intent).
         zi_correction_w = 0.0
-        if self._zi_enabled and self._mode not in {HemsMode.DEGRADED, HemsMode.STORM}:
+        zi_regulating = self._zi_enabled and self._mode is HemsMode.NORMAL
+        if zi_regulating:
             if (
                 self._per_phase_zi
                 and isinstance(self._zi_controller, PerPhaseZeroInjectionController)
@@ -438,14 +447,29 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     eq_result.target_soc_pct,
                 )
 
+        # Resolve a single aggregate target. When zero-injection regulates, it
+        # owns the grid loop (target = current fleet power + PI delta); otherwise
+        # the strategies' absolute target drives the fleet. Summing both is what
+        # caused the tick-frequency limit cycle. See core/controllers/regulation.
+        current_fleet_w = sum(
+            b.power_w
+            for b in snapshot.batteries
+            if b.available and b.device_name in self._controllable_battery_names
+        )
+        absolute_target_w = sum(
+            t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values()
+        )
+        total_power_w = resolve_fleet_target_w(
+            zi_regulating=zi_regulating,
+            current_fleet_w=current_fleet_w,
+            zi_correction_w=zi_correction_w,
+            absolute_target_w=absolute_target_w,
+            steering_w=steering_w,
+        )
+
         # Apply grid constraints: clamp the aggregate battery target so the
         # projected grid exchange honours max_import_w and max_export_w.
         # Projection: new_grid ≈ current_grid + (target_battery - current_battery)
-        total_power_w = (
-            sum(t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values())
-            + zi_correction_w
-            + steering_w
-        )
         gc = result.decision.grid_constraint
         current_battery_w = snapshot.battery_power_total_w
         if gc.max_import_w is not None:
@@ -460,6 +484,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 total_power_w,
                 -gc.max_export_w - snapshot.grid_power_w + current_battery_w,
             )
+
+        # Slew-rate limit: cap how far the command may move per tick. Hard safety
+        # belt against limit cycles given the battery's actuation lag.
+        total_power_w = apply_slew_limit(total_power_w, self._last_total_power_w, self._max_ramp_w)
+        self._last_total_power_w = total_power_w
 
         # Dispatch loads using the unallocated surplus
         battery_states = {b.device_name: b for b in snapshot.batteries}

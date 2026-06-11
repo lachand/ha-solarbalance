@@ -19,6 +19,7 @@ CONF_SOC_EQUALISER_MAX_W: Final = "soc_equaliser_max_w"
 CONF_SOC_EQUALISER_KP_W_PER_PCT: Final = "soc_equaliser_kp_w_per_pct"
 CONF_SOC_EQUALISER_DEADBAND_PCT: Final = "soc_equaliser_deadband_pct"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
+CONF_MAX_RAMP_W: Final = "max_ramp_w"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10
@@ -28,6 +29,9 @@ DEFAULT_BALANCING_ALPHA: Final = 0.6
 DEFAULT_SOC_EQUALISER_MAX_W: Final = 1500
 DEFAULT_SOC_EQUALISER_KP_W_PER_PCT: Final = 80.0
 DEFAULT_SOC_EQUALISER_DEADBAND_PCT: Final = 2.0
+# Max change of the aggregate battery target per tick (W). Caps regulation
+# swings; 0 disables the limit. See docs/SPECIFICATIONS.md §6.3.
+DEFAULT_MAX_RAMP_W: Final = 800
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1
