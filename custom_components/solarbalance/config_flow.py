@@ -17,6 +17,7 @@ from .const import (
     CONF_SOC_EQUALISER_ENABLED,
     CONF_SOC_EQUALISER_KP_W_PER_PCT,
     CONF_SOC_EQUALISER_MAX_W,
+    CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SUBSCRIBED_POWER_KVA,
     CONF_TICK_INTERVAL_S,
     CONF_WEATHER_WARNING_ENTITY,
@@ -28,6 +29,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
+    DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DOMAIN,
@@ -110,6 +112,12 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                     CONF_SOC_EQUALISER_DEADBAND_PCT, DEFAULT_SOC_EQUALISER_DEADBAND_PCT
                 ),
             ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+            vol.Optional(
+                CONF_SOC_EQUALISER_PROBE_STEP_W,
+                default=d.get(
+                    CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W
+                ),
+            ): vol.All(vol.Coerce(float), vol.Range(min=1)),
         }
     )
 

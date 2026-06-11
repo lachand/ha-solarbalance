@@ -21,6 +21,7 @@ from .const import (
     CONF_SOC_EQUALISER_ENABLED,
     CONF_SOC_EQUALISER_KP_W_PER_PCT,
     CONF_SOC_EQUALISER_MAX_W,
+    CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SUBSCRIBED_POWER_KVA,
     CONF_TICK_INTERVAL_S,
     CONF_ZERO_INJECTION_ENABLED,
@@ -34,6 +35,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
+    DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_STORM_TARGET_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
@@ -159,6 +161,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 ),
                 soc_deadband_pct=float(
                     cfg.get(CONF_SOC_EQUALISER_DEADBAND_PCT, DEFAULT_SOC_EQUALISER_DEADBAND_PCT)
+                ),
+                probe_step_w=float(
+                    cfg.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W)
                 ),
             )
 

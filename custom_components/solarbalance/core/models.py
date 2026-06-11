@@ -117,6 +117,14 @@ class BatteryRole:
     """When True (and global active control is on), the adapter writes computed
     setpoints to this device's setpoint entities. Requires a controllable battery.
     """
+    ac_charge_limit_w: int | None = None
+    """Max power this battery can absorb from the AC bus (W).
+
+    Used by the SoC equaliser to bound how hard the controllable fleet may
+    discharge to charge this (non-controllable) battery — never push more than it
+    can take, or the excess spills to the grid. Defaults to ``max_charge_power_w``
+    when unset (correct for an AC-only battery with no DC/solar input).
+    """
     discharge_power_setpoint_entity: str | None = None
     """HA entity (number/input_number) receiving the discharge power setpoint (W).
 

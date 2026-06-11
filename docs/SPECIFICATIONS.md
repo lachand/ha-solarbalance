@@ -396,6 +396,7 @@ solarbalance:
 - `soc_equaliser_max_w` (int, défaut 1500) — biais de puissance maximal appliqué au parc pilotable
 - `soc_equaliser_kp_w_per_pct` (float, défaut 80.0) — gain proportionnel (W par % d'écart de SoC)
 - `soc_equaliser_deadband_pct` (float, défaut 2.0) — demi-largeur de la bande morte de SoC
+- `soc_equaliser_probe_step_w` (float, défaut 150.0) — pas de steering initial ; croît géométriquement tant que la batterie auto suit (voir §6.6)
 - `tariff_config` (sous-section, voir §7.3)
 
 > Les constantes `storm_mode_target_soc_pct` (défaut 95 %) et `storm_mode_lead_time_h` (défaut 6 h) sont
@@ -573,7 +574,13 @@ Certaines batteries remontent leur état (SoC, puissance) mais n'offrent **aucun
 - biais < 0 → le parc pilotable décharge davantage → surplus AC → la batterie automatique charge ;
 - biais > 0 → le parc pilotable charge davantage → déficit AC → la batterie automatique décharge.
 
-`biais = clamp(-kp × (soc_cible − soc_auto), ±soc_equaliser_max_w)`, avec bande morte `soc_equaliser_deadband_pct` et garde sur les bornes SoC propres de la batterie automatique. **Sûreté** : les boucles zéro-injection / autoconsommation du même tick maintiennent le réseau à sa consigne, donc toute puissance non absorbée par la batterie automatique est reprise au tick suivant — le biais n'agit que dans la mesure où la batterie automatique coopère, et sature naturellement sur la capacité/les limites SoC du parc pilotable. Ce transfert paie deux conversions supplémentaires : compromis rendement ↔ homogénéité des SoC.
+Le biais vise `-kp × (soc_cible − soc_auto)` (bande morte `soc_equaliser_deadband_pct`, garde sur les bornes SoC propres de la batterie auto), mais il est borné par **trois limites imbriquées** pour ne jamais pousser plus que la batterie auto ne peut encaisser (sinon l'excédent part au réseau et fait osciller la zéro-injection) :
+
+1. **Capacité AC** : `ac_charge_limit_w` (défaut = `max_charge_power_w`) en charge, `max_discharge_power_w` en décharge. Plafond physique.
+2. **Autorisation adaptative** : démarre à `soc_equaliser_probe_step_w` (petit pas) et croît géométriquement (×1.5/tick) tant que le steering garde sa direction — petits pas d'abord, de plus en plus grands —, plafonnée par la capacité AC.
+3. **Repli sur mesure** : si la batterie auto bouge **à contre-sens** de la demande (lu sur `power_entity`), l'autorisation est réinitialisée au petit pas (on ne force pas une batterie qui fait autre chose).
+
+L'agrégat est ensuite borné à `±soc_equaliser_max_w`. **Sûreté** : les boucles zéro-injection / autoconsommation du même tick maintiennent le réseau à sa consigne ; combiné aux trois bornes ci-dessus, le biais ne crée pas d'excédent vers le réseau. Ce transfert paie deux conversions supplémentaires : compromis rendement ↔ homogénéité des SoC.
 
 **Pilotage actif (v2, première étape — décharge seule)** : lorsque `active_control_enabled` est vrai globalement et au niveau d'un appareil (`active_control_enabled: true` + `discharge_power_setpoint_entity`), l'adapter `ActiveControlPublisher` écrit les consignes de **décharge** issues du `BalancingController` vers les entités `number`/`input_number` déclarées. Seule la décharge est pilotée pour l'instant : c'est la décharge du parc pilotable qui, via le bus AC, contrôle indirectement la charge de la batterie automatique. L'écriture est suspendue en mode dégradé (les consignes gérées sont remises à 0 W). C'est le **seul** composant autorisé à écrire vers le matériel utilisateur.
 

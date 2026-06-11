@@ -18,6 +18,7 @@ CONF_SOC_EQUALISER_ENABLED: Final = "soc_equaliser_enabled"
 CONF_SOC_EQUALISER_MAX_W: Final = "soc_equaliser_max_w"
 CONF_SOC_EQUALISER_KP_W_PER_PCT: Final = "soc_equaliser_kp_w_per_pct"
 CONF_SOC_EQUALISER_DEADBAND_PCT: Final = "soc_equaliser_deadband_pct"
+CONF_SOC_EQUALISER_PROBE_STEP_W: Final = "soc_equaliser_probe_step_w"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"
 
@@ -29,6 +30,9 @@ DEFAULT_BALANCING_ALPHA: Final = 0.6
 DEFAULT_SOC_EQUALISER_MAX_W: Final = 1500
 DEFAULT_SOC_EQUALISER_KP_W_PER_PCT: Final = 80.0
 DEFAULT_SOC_EQUALISER_DEADBAND_PCT: Final = 2.0
+# Initial steering step (W); grows geometrically per tick while the automatic
+# battery follows, capped by its AC absorption capacity. See SPECIFICATIONS §6.6.
+DEFAULT_SOC_EQUALISER_PROBE_STEP_W: Final = 150.0
 # Max change of the aggregate battery target per tick (W). Caps regulation
 # swings; 0 disables the limit. See docs/SPECIFICATIONS.md §6.3.
 DEFAULT_MAX_RAMP_W: Final = 800

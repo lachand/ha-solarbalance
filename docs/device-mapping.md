@@ -133,6 +133,10 @@ to command charge/discharge** — the only option is to leave them in their own
       soc_entity: sensor.batauto_soc
       power_entity: sensor.batauto_power
       controllable: false      # stats reported, but never commanded by the HEMS
+      # ac_charge_limit_w: 800  # optional: max it can absorb from AC (defaults to
+      #                         # max_charge_power_w). Bounds how hard the fleet
+      #                         # discharges to charge it — keep it from spilling
+      #                         # the surplus to the grid.
 ```
 
 With this flag:
@@ -145,11 +149,14 @@ With this flag:
 - An **indirect SoC equaliser** steers it toward the mean SoC of your
   controllable batteries: to charge it, the HEMS makes the controllable
   batteries discharge (creating an AC surplus the automatic battery absorbs); to
-  discharge it, it makes them charge. This only works while the automatic battery
-  cooperates and is bounded so it never forces grid import/export. It is enabled
-  automatically when a non-controllable battery is declared; disable it with the
-  global `soc_equaliser_enabled: false` option, and cap its authority with
-  `soc_equaliser_max_w` (default 1500 W).
+  discharge it, it makes them charge. The steering starts with a small step
+  (`soc_equaliser_probe_step_w`, default 150 W), grows only while the battery
+  actually follows, backs off if it moves the wrong way, and is hard-capped by
+  the battery's AC capacity (`ac_charge_limit_w` / `max_discharge_power_w`) — so
+  it never pushes more than the battery can take and never spills to the grid. It
+  is enabled automatically when a non-controllable battery is declared; disable it
+  with the global `soc_equaliser_enabled: false` option, and cap its overall
+  authority with `soc_equaliser_max_w` (default 1500 W).
 
 Note that indirect steering shuffles energy through two extra conversions, so it
 trades a little round-trip efficiency for SoC homogeneity across the fleet.
