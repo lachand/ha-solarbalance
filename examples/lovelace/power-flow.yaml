@@ -11,22 +11,24 @@ display_zero_lines:
   transparency: 50
 use_new_flow_rate_model: true
 
-grid:
-  entity: sensor.solarbalance_grid_power
-  name: Réseau
+# power-flow-card-plus exige que les sources soient sous `entities:`.
+entities:
+  grid:
+    entity: sensor.solarbalance_grid_power
+    name: Réseau
 
-solar:
-  entity: sensor.solarbalance_pv_power
-  display_zero_state: true
-  name: Solaire
+  solar:
+    entity: sensor.solarbalance_pv_power
+    display_zero_state: true
+    name: Solaire
 
-battery:
-  entity: sensor.solarbalance_battery_power
-  state_of_charge: sensor.solarbalance_battery_soc_avg
-  name: Batteries
-  invert_state: false              # SolarBalance publie en charge_positive
+  battery:
+    entity: sensor.solarbalance_battery_power
+    state_of_charge: sensor.solarbalance_battery_soc_avg
+    name: Batteries
+    invert_state: false              # SolarBalance publie en charge_positive
 
-home:
-  entity: sensor.solarbalance_baseline_consumption
-  override_state: true
-  name: Maison
+  home:
+    entity: sensor.solarbalance_baseline_consumption
+    override_state: true
+    name: Maison

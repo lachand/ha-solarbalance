@@ -44,21 +44,22 @@ cards:
     title: Flux énergétique
     clickable_entities: true
     use_new_flow_rate_model: true
-    grid:
-      entity: sensor.solarbalance_grid_power
-      name: Réseau
-    solar:
-      entity: sensor.solarbalance_pv_power
-      display_zero_state: true
-      name: Solaire
-    battery:
-      entity: sensor.solarbalance_battery_power
-      state_of_charge: sensor.solarbalance_battery_soc_avg
-      name: Batteries
-    home:
-      entity: sensor.solarbalance_baseline_consumption
-      override_state: true
-      name: Maison
+    entities:
+      grid:
+        entity: sensor.solarbalance_grid_power
+        name: Réseau
+      solar:
+        entity: sensor.solarbalance_pv_power
+        display_zero_state: true
+        name: Solaire
+      battery:
+        entity: sensor.solarbalance_battery_power
+        state_of_charge: sensor.solarbalance_battery_soc_avg
+        name: Batteries
+      home:
+        entity: sensor.solarbalance_baseline_consumption
+        override_state: true
+        name: Maison
 
   # ----- Aujourd'hui ---------------------------------------------------------
   - type: horizontal-stack
