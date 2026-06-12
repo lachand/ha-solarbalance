@@ -6,8 +6,6 @@
  * per-device battery sensors. Themed via HA CSS variables.
  */
 
-const AGG_BLOCKLIST = new Set(["grid", "pv", "battery", "baseline"]);
-
 class SolarBalancePanel extends HTMLElement {
   constructor() {
     super();
@@ -72,23 +70,33 @@ class SolarBalancePanel extends HTMLElement {
     return n.toFixed(digits) + (unit ? " " + unit : "");
   }
 
+  _deviceName(deviceId) {
+    const d = this._hass && this._hass.devices && this._hass.devices[deviceId];
+    return (d && (d.name_by_user || d.name)) || deviceId;
+  }
+
+  /**
+   * Group per-battery sensors by their HA device (one sub-device per battery),
+   * identifying each metric by translation_key — fully language-agnostic.
+   */
   _devices() {
     const out = {};
     const h = this._hass;
-    if (!h) return out;
-    const re = /^sensor\.solarbalance_(.+)_(soc|power|temperature|setpoint_charge|setpoint_discharge)$/;
-    for (const id in h.states) {
-      const m = id.match(re);
-      if (m && !AGG_BLOCKLIST.has(m[1])) {
-        (out[m[1]] ||= {})[m[2]] = id;
-      }
-    }
-    // Keep only real devices (those exposing a SoC or a setpoint).
-    for (const dev of Object.keys(out)) {
-      const k = out[dev];
-      if (!("soc" in k) && !("setpoint_charge" in k) && !("setpoint_discharge" in k)) {
-        delete out[dev];
-      }
+    if (!h || !h.entities) return out;
+    const METRIC = {
+      batt_soc: "soc",
+      batt_power: "power",
+      batt_temperature: "temperature",
+      battery_setpoint_charge: "setpoint_charge",
+      battery_setpoint_discharge: "setpoint_discharge",
+    };
+    for (const eid in h.entities) {
+      const e = h.entities[eid];
+      if (!e || e.platform !== "solarbalance" || !e.device_id || !e.translation_key) continue;
+      const metric = METRIC[e.translation_key];
+      if (!metric) continue;
+      const dev = (out[e.device_id] ||= { name: this._deviceName(e.device_id) });
+      dev[metric] = eid;
     }
     return out;
   }
@@ -124,6 +132,13 @@ class SolarBalancePanel extends HTMLElement {
       storm: id("storm_mode", "binary_sensor.solarbalance_storm_mode"),
       weather: id("weather_warning", "binary_sensor.solarbalance_weather_warning"),
       degraded: id("degraded", "binary_sensor.solarbalance_degraded"),
+      gridFiltered: id("grid_filtered", "sensor.solarbalance_grid_power_filtered"),
+      target: id("regulation_target", "sensor.solarbalance_regulation_target"),
+      ziCorr: id("zi_correction", "sensor.solarbalance_zero_injection_correction"),
+      eqOffer: id("equaliser_offer", "sensor.solarbalance_soc_equaliser_offer"),
+      pvLimit: id("pv_output_limit", "sensor.solarbalance_pv_output_limit"),
+      planPower: id("planner_recommended_power", "sensor.solarbalance_planner_recommended_power_advisory"),
+      planCost: id("planner_expected_cost", "sensor.solarbalance_planner_expected_cost_advisory"),
     };
     const mode = this._state(E.mode) || "—";
     const strat = this._state(E.strat) || "—";
@@ -139,11 +154,9 @@ class SolarBalancePanel extends HTMLElement {
     if (this._badge(E.weather)) chips.push("⚠️ Vigilance");
     if (this._badge(E.degraded)) chips.push("🛑 Dégradé");
 
-    const devs = this._devices();
-    const devCards = Object.keys(devs)
-      .sort()
-      .map((dev) => {
-        const k = devs[dev];
+    const devCards = Object.values(this._devices())
+      .sort((a, b) => (a.name > b.name ? 1 : -1))
+      .map((k) => {
         const rows = [];
         if (k.soc) rows.push(this._row("SoC", this._fmt(k.soc, 0, "%")));
         if (k.power) rows.push(this._row("Puissance", this._fmt(k.power, 0, "W")));
@@ -151,8 +164,7 @@ class SolarBalancePanel extends HTMLElement {
         if (k.setpoint_charge) rows.push(this._row("Consigne charge", this._fmt(k.setpoint_charge, 0, "W")));
         if (k.setpoint_discharge)
           rows.push(this._row("Consigne décharge", this._fmt(k.setpoint_discharge, 0, "W")));
-        const title = dev.replace(/_/g, " ");
-        return `<div class="card"><h3>${title}</h3>${rows.join("")}</div>`;
+        return `<div class="card"><h3>${k.name}</h3>${rows.join("")}</div>`;
       })
       .join("");
 
@@ -183,17 +195,17 @@ class SolarBalancePanel extends HTMLElement {
 
           <div class="card">
             <h3>Régulation</h3>
-            ${this._row("Réseau (filtré)", this._fmt("sensor.solarbalance_grid_power_filtered", 0, "W"))}
-            ${this._row("Cible parc", this._fmt("sensor.solarbalance_regulation_target", 0, "W"))}
-            ${this._row("Correction zéro-injection", this._fmt("sensor.solarbalance_zero_injection_correction", 0, "W"))}
-            ${this._row("Offre équaliseur SoC", this._fmt("sensor.solarbalance_soc_equaliser_offer", 0, "W"))}
-            ${this._row("Limite de sortie PV", this._fmt("sensor.solarbalance_pv_output_limit", 0, "W"))}
+            ${this._row("Réseau (filtré)", this._fmt(E.gridFiltered, 0, "W"))}
+            ${this._row("Cible parc", this._fmt(E.target, 0, "W"))}
+            ${this._row("Correction zéro-injection", this._fmt(E.ziCorr, 0, "W"))}
+            ${this._row("Offre équaliseur SoC", this._fmt(E.eqOffer, 0, "W"))}
+            ${this._row("Limite de sortie PV", this._fmt(E.pvLimit, 0, "W"))}
           </div>
 
           <div class="card">
             <h3>Plan prédictif (advisory)</h3>
-            ${this._row("Puissance recommandée", this._fmt("sensor.solarbalance_planner_recommended_power_advisory", 0, "W"))}
-            ${this._row("Coût attendu (24 h)", this._fmt("sensor.solarbalance_planner_expected_cost_advisory", 2, "€"))}
+            ${this._row("Puissance recommandée", this._fmt(E.planPower, 0, "W"))}
+            ${this._row("Coût attendu (24 h)", this._fmt(E.planCost, 2, "€"))}
           </div>
         </section>
 

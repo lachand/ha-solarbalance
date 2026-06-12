@@ -82,26 +82,22 @@ async def async_setup_entry(
     # Regulation diagnostics (help tune the loop; entity-category diagnostic)
     entities += [
         SolarBalanceRegulationDiagnosticSensor(
-            coordinator, entry, "fleet_target_w", "Regulation target", "mdi:target"
+            coordinator, entry, "fleet_target_w", "regulation_target", "mdi:target"
         ),
         SolarBalanceRegulationDiagnosticSensor(
-            coordinator,
-            entry,
-            "zero_injection_correction_w",
-            "Zero-injection correction",
-            "mdi:sine-wave",
+            coordinator, entry, "zero_injection_correction_w", "zi_correction", "mdi:sine-wave"
         ),
         SolarBalanceRegulationDiagnosticSensor(
-            coordinator, entry, "equaliser_offer_w", "SoC equaliser offer", "mdi:scale-balance"
+            coordinator, entry, "equaliser_offer_w", "equaliser_offer", "mdi:scale-balance"
         ),
         SolarBalanceRegulationDiagnosticSensor(
-            coordinator, entry, "grid_filtered_w", "Grid power (filtered)", "mdi:filter-variant"
+            coordinator, entry, "grid_filtered_w", "grid_filtered", "mdi:filter-variant"
         ),
     ]
     if coordinator._curtailment is not None:
         entities.append(
             SolarBalanceRegulationDiagnosticSensor(
-                coordinator, entry, "pv_limit_w", "PV output limit", "mdi:solar-power-variant"
+                coordinator, entry, "pv_limit_w", "pv_output_limit", "mdi:solar-power-variant"
             )
         )
 
@@ -127,6 +123,16 @@ _DEVICE_INFO = DeviceInfo(
 )
 
 
+def _battery_device_info(entry: ConfigEntry, device_name: str) -> DeviceInfo:
+    """A per-battery sub-device so its sensors group together (language-agnostic)."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{entry.entry_id}_battery_{device_name}")},
+        name=device_name,
+        manufacturer="SolarBalance",
+        via_device=(DOMAIN, DOMAIN),
+    )
+
+
 class _SolarBalanceSensor(CoordinatorEntity[SolarBalanceCoordinator], SensorEntity):
     """Base sensor for SolarBalance."""
 
@@ -137,10 +143,12 @@ class _SolarBalanceSensor(CoordinatorEntity[SolarBalanceCoordinator], SensorEnti
         coordinator: SolarBalanceCoordinator,
         entry: ConfigEntry,
         unique_suffix: str,
+        *,
+        device_info: DeviceInfo | None = None,
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_{unique_suffix}"
-        self._attr_device_info = _DEVICE_INFO
+        self._attr_device_info = device_info or _DEVICE_INFO
 
 
 # ---------------------------------------------------------------------------
@@ -335,11 +343,12 @@ class SolarBalanceBatterySetpointSensor(_SolarBalanceSensor):
         direction: str,  # "charge" or "discharge"
     ) -> None:
         suffix = f"{device_name}_{direction}"
-        super().__init__(coordinator, entry, suffix)
+        super().__init__(
+            coordinator, entry, suffix, device_info=_battery_device_info(entry, device_name)
+        )
         self._device_name = device_name
         self._direction = direction
         self._attr_translation_key = f"battery_setpoint_{direction}"
-        self._attr_translation_placeholders = {"device": device_name}
         self._attr_icon = (
             "mdi:battery-arrow-up" if direction == "charge" else "mdi:battery-arrow-down"
         )
@@ -364,10 +373,10 @@ class SolarBalanceBatterySetpointSensor(_SolarBalanceSensor):
         return round(max(0.0, -pw), 1)
 
 
-_BATTERY_METRIC_META: dict[str, tuple[str, str, SensorDeviceClass]] = {
-    "soc": ("SoC", PERCENTAGE, SensorDeviceClass.BATTERY),
-    "power": ("power", UnitOfPower.WATT, SensorDeviceClass.POWER),
-    "temperature": ("temperature", UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE),
+_BATTERY_METRIC_META: dict[str, tuple[str, SensorDeviceClass]] = {
+    "soc": (PERCENTAGE, SensorDeviceClass.BATTERY),
+    "power": (UnitOfPower.WATT, SensorDeviceClass.POWER),
+    "temperature": (UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE),
 }
 
 
@@ -383,11 +392,16 @@ class SolarBalanceBatteryMetricSensor(_SolarBalanceSensor):
         device_name: str,
         metric: str,  # "soc" | "power" | "temperature"
     ) -> None:
-        super().__init__(coordinator, entry, f"{device_name}_{metric}")
+        super().__init__(
+            coordinator,
+            entry,
+            f"{device_name}_{metric}",
+            device_info=_battery_device_info(entry, device_name),
+        )
         self._device_name = device_name
         self._metric = metric
-        label, unit, device_class = _BATTERY_METRIC_META[metric]
-        self._attr_name = f"{device_name} {label}"
+        unit, device_class = _BATTERY_METRIC_META[metric]
+        self._attr_translation_key = f"batt_{metric}"
         self._attr_native_unit_of_measurement = unit
         self._attr_device_class = device_class
 
@@ -424,12 +438,12 @@ class SolarBalanceRegulationDiagnosticSensor(_SolarBalanceSensor):
         coordinator: SolarBalanceCoordinator,
         entry: ConfigEntry,
         attr: str,
-        name: str,
+        translation_key: str,
         icon: str,
     ) -> None:
         super().__init__(coordinator, entry, f"diag_{attr}")
         self._diag_attr = attr
-        self._attr_name = name
+        self._attr_translation_key = translation_key
         self._attr_icon = icon
 
     @property
@@ -451,9 +465,10 @@ class SolarBalancePlannerRecommendedPowerSensor(_SolarBalanceSensor):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:chart-timeline-variant"
 
+    _attr_translation_key = "planner_recommended_power"
+
     def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry, "planner_recommended_power")
-        self._attr_name = "Planner recommended power (advisory)"
 
     @property
     def native_value(self) -> float | None:
@@ -469,10 +484,10 @@ class SolarBalancePlannerExpectedCostSensor(_SolarBalanceSensor):
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:cash"
     _attr_suggested_display_precision = 2
+    _attr_translation_key = "planner_expected_cost"
 
     def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
         super().__init__(coordinator, entry, "planner_expected_cost")
-        self._attr_name = "Planner expected cost (advisory)"
 
     @property
     def native_value(self) -> float | None:

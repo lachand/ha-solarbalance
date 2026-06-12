@@ -75,8 +75,18 @@
       "battery_soc_avg": { "name": "SoC moyen batteries" },
       "pv_energy_today": { "name": "Énergie PV aujourd'hui" },
       "grid_import_today": { "name": "Soutirage réseau aujourd'hui" },
-      "battery_setpoint_charge": { "name": "Consigne charge {device}" },
-      "battery_setpoint_discharge": { "name": "Consigne décharge {device}" }
+      "battery_setpoint_charge": { "name": "Consigne de charge" },
+      "battery_setpoint_discharge": { "name": "Consigne de décharge" },
+      "batt_soc": { "name": "SoC" },
+      "batt_power": { "name": "Puissance" },
+      "batt_temperature": { "name": "Température" },
+      "regulation_target": { "name": "Cible de régulation" },
+      "zi_correction": { "name": "Correction zéro-injection" },
+      "equaliser_offer": { "name": "Offre équaliseur SoC" },
+      "grid_filtered": { "name": "Puissance réseau (filtrée)" },
+      "pv_output_limit": { "name": "Limite de sortie PV" },
+      "planner_recommended_power": { "name": "Puissance recommandée (advisory)" },
+      "planner_expected_cost": { "name": "Coût attendu (advisory)" }
     },
     "select": {
       "hems_mode": {
