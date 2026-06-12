@@ -386,6 +386,7 @@ solarbalance:
 - `zero_injection_enabled` (bool, défaut false)
 - `zero_injection_setpoint_w` (int, défaut 0) — cible (peut être négative pour marge de sécurité)
 - `zero_injection_hysteresis_w` (int, défaut 50)
+- `zero_injection_kp` (float 0–2, défaut 0.6) — gain proportionnel de la zéro-injection (Ki forcé à 0, voir §6.3). Baisser pour batterie lente.
 - `max_ramp_w` (int, défaut 800) — variation max de la cible batterie agrégée par tick (0 = désactivé). Voir §6.3.
 - `grid_filter_samples` (int ≥ 1, défaut 3) — fenêtre de médiane glissante (en ticks) sur la mesure réseau **envoyée au régulateur** ; rejette les glitches capteur 1-échantillon et les marches de charge brèves. `1` = désactivé. Le capteur réseau affiché reste la valeur brute.
 - `phases` (1 ou 3, défaut 1)
@@ -491,15 +492,15 @@ Cette correction de puissance globale est ensuite répartie selon §6.2.
 
 **Régulateur unique (important)** : quand la zéro-injection est active, c'est **elle seule** qui régule le réseau — la cible agrégée vaut `P_parc_pilotable_actuelle + correction`. Les stratégies (`self_consumption`…) n'apportent alors qu'une **direction**/des fenêtres SoC, jamais une seconde annulation absolue de l'écart réseau. Sommer la cible absolue de `self_consumption` (`−net_grid`, gain ≈ 1) avec le delta PI (Kp) donnait un gain proportionnel cumulé > 1 et, combiné au **retard d'actionnement d'un tick**, un cycle limite à la fréquence du tick. Quand la ZI est désactivée (ou en mode tempête/override), c'est la cible absolue des stratégies qui pilote.
 
+**Pas de second intégrateur (important)** : la cible vaut `P_parc_mesurée + correction`, donc la **récurrence sur la puissance mesurée intègre déjà** l'erreur (`F(k+1) = F(k) − Kp·e(k)` ⟹ `e=0` en régime permanent **sans** intégral). Ajouter le terme intégral `Ki` de la ZI met **deux intégrateurs en série** → 180° de déphasage → cycle limite (aggravé par le retard d'actionnement). On force donc **`Ki = 0`** (P seul). Pour les batteries lentes/cloud, baisser `zero_injection_kp` (0,3–0,4) augmente la marge de stabilité.
+
 **Limite de pente (anti cycle-limite)** : la cible agrégée ne peut varier de plus de `max_ramp_w` (défaut 800 W) par tick. Garde-fou matériel contre les emballements quels que soient les gains ; `0` désactive la limite.
 
 **Hystérésis** : zone morte autour de `consigne_zi ± hysteresis_w`. Pas d'action si la mesure y reste.
 
-**Anti-windup** : intégrale bornée `±I_max` pour éviter l'accumulation pendant les périodes où une saturation matérielle empêche la correction.
-
 **Tuning par défaut** :
-- `Kp = 0.6`, `Ki = 0.05` (à valider expérimentalement)
-- `tick = 10 s`
+- `zero_injection_kp = 0.6` (configurable ; baisser pour matériel lent), `Ki = 0` (forcé)
+- `tick = 10 s` (≥ temps de réponse de la batterie ; pour du cloud, 10–15 s)
 - Hystérésis = 50 W
 - `max_ramp_w = 800 W/tick`
 

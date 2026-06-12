@@ -24,6 +24,7 @@ from .const import (
     CONF_WEATHER_WARNING_ENTITY,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
+    CONF_ZERO_INJECTION_KP,
     CONF_ZERO_INJECTION_SETPOINT_W,
     DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_MAX_RAMP_W,
@@ -34,6 +35,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
+    DEFAULT_ZERO_INJECTION_KP,
     DOMAIN,
 )
 from .core.models import StrategyKind
@@ -79,6 +81,10 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_GRID_FILTER_SAMPLES,
                 default=d.get(CONF_GRID_FILTER_SAMPLES, DEFAULT_GRID_FILTER_SAMPLES),
             ): vol.All(vol.Coerce(int), vol.Range(min=1)),
+            vol.Optional(
+                CONF_ZERO_INJECTION_KP,
+                default=d.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
             vol.Optional(
                 CONF_PHASES, default=d.get(CONF_PHASES, DEFAULT_PHASES)
             ): vol.In([1, 3]),

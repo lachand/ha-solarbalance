@@ -30,6 +30,7 @@ from .const import (
     CONF_TICK_INTERVAL_S,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
+    CONF_ZERO_INJECTION_KP,
     CONF_ZERO_INJECTION_SETPOINT_W,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BALANCING_ALPHA,
@@ -44,6 +45,7 @@ from .const import (
     DEFAULT_STORM_TARGET_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
+    DEFAULT_ZERO_INJECTION_KP,
     DOMAIN,
     STORE_KEY,
     STORE_VERSION,
@@ -229,13 +231,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         hysteresis = float(
             cfg.get(CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W)
         )
+        # ki=0: the fleet-power recursion (target = measured fleet + correction)
+        # already integrates the error. A second integrator would double-count and
+        # oscillate — the source of the residual limit cycle.
+        zi_kp = float(cfg.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP))
         if self._per_phase_zi:
             self._zi_controller: ZeroInjectionController | PerPhaseZeroInjectionController = (
-                PerPhaseZeroInjectionController(hysteresis_w=hysteresis)
+                PerPhaseZeroInjectionController(kp=zi_kp, ki=0.0, hysteresis_w=hysteresis)
             )
             self._zi_state = PerPhaseZeroInjectionState()
         else:
-            self._zi_controller = ZeroInjectionController(hysteresis_w=hysteresis)
+            self._zi_controller = ZeroInjectionController(kp=zi_kp, ki=0.0, hysteresis_w=hysteresis)
         self._zi_setpoint_w = float(cfg.get(CONF_ZERO_INJECTION_SETPOINT_W, 0))
         self._tick_s = tick
 

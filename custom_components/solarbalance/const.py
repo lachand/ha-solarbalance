@@ -10,6 +10,7 @@ CONF_TICK_INTERVAL_S: Final = "tick_interval_s"
 CONF_ZERO_INJECTION_ENABLED: Final = "zero_injection_enabled"
 CONF_ZERO_INJECTION_SETPOINT_W: Final = "zero_injection_setpoint_w"
 CONF_ZERO_INJECTION_HYSTERESIS_W: Final = "zero_injection_hysteresis_w"
+CONF_ZERO_INJECTION_KP: Final = "zero_injection_kp"
 CONF_PHASES: Final = "phases"
 CONF_SUBSCRIBED_POWER_KVA: Final = "subscribed_power_kva"
 CONF_PV_FORECAST_ENTITY: Final = "pv_forecast_entity"
@@ -26,6 +27,11 @@ CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10
 DEFAULT_ZERO_INJECTION_HYSTERESIS_W: Final = 50
+# Proportional gain of the zero-injection loop. The integral is disabled (ki=0):
+# the fleet-power recursion (target = measured fleet + correction) already
+# integrates, so a second integrator would double-count and oscillate. Lower kp
+# (0.3–0.4) for slow/cloud batteries with actuation lag. See SPECIFICATIONS §6.3.
+DEFAULT_ZERO_INJECTION_KP: Final = 0.6
 DEFAULT_PHASES: Final = 1
 DEFAULT_BALANCING_ALPHA: Final = 0.6
 DEFAULT_SOC_EQUALISER_MAX_W: Final = 1500
