@@ -4,7 +4,7 @@
 # Drop this into a Lovelace dashboard view.
 
 type: custom:power-flow-card-plus
-title: SolarBalance — Energy flow
+title: SolarBalance — Flux énergétique
 clickable_entities: true
 display_zero_lines:
   mode: show
@@ -13,17 +13,20 @@ use_new_flow_rate_model: true
 
 grid:
   entity: sensor.solarbalance_grid_power
-  name: Grid
+  name: Réseau
 
 solar:
   entity: sensor.solarbalance_pv_power
   display_zero_state: true
+  name: Solaire
 
 battery:
   entity: sensor.solarbalance_battery_power
   state_of_charge: sensor.solarbalance_battery_soc_avg
-  invert_state: false              # SolarBalance publishes charge_positive
+  name: Batteries
+  invert_state: false              # SolarBalance publie en charge_positive
 
 home:
   entity: sensor.solarbalance_baseline_consumption
   override_state: true
+  name: Maison

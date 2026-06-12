@@ -1,70 +1,70 @@
-# SolarBalance — regulation supervision & tuning view.
+# SolarBalance — vue de supervision & réglage de la régulation.
 #
-# Uses only built-in Lovelace cards (no HACS needed). Drop this as a new view in
-# your dashboard. The diagnostic/advisory entities are entity-category
-# "diagnostic"; if an entity_id below does not match, check the exact id in
-# Developer Tools → States (filter: solarbalance). Names slugify, e.g.
-# "Grid power (filtered)" → sensor.solarbalance_grid_power_filtered.
+# Cartes natives uniquement (aucun HACS). Ajoute-la comme nouvelle vue. Les
+# entités diagnostic/advisory sont de catégorie « diagnostic » ; si un entity_id
+# ne correspond pas, vérifie-le dans Outils de développement → États (filtre :
+# solarbalance). Les noms sont slugifiés, ex. « Grid power (filtered) » →
+# sensor.solarbalance_grid_power_filtered.
 
 title: SolarBalance — Supervision
 icon: mdi:tune-variant
 path: solarbalance-supervision
 
 cards:
-  # ----- Live regulation loop (watch for sign flips = oscillation) -----------
+  # ----- Boucle de régulation (un changement de signe = oscillation) --------
   - type: history-graph
-    title: Regulation loop (last 1 h)
+    title: Boucle de régulation (1 h)
     hours_to_show: 1
     refresh_interval: 10
     entities:
       - entity: sensor.solarbalance_grid_power
-        name: Grid (raw)
+        name: Réseau (brut)
       - entity: sensor.solarbalance_grid_power_filtered
-        name: Grid (filtered → regulator)
+        name: Réseau (filtré → régulateur)
       - entity: sensor.solarbalance_regulation_target
-        name: Fleet target
+        name: Cible parc
       - entity: sensor.solarbalance_battery_power
-        name: Battery (measured)
+        name: Batterie (mesurée)
 
-  # ----- Regulation internals (tuning) --------------------------------------
+  # ----- Internes de régulation (réglage) -----------------------------------
   - type: entities
-    title: Regulation internals
+    title: Internes de régulation
     state_color: false
     entities:
       - entity: sensor.solarbalance_zero_injection_correction
-        name: Zero-injection correction
+        name: Correction zéro-injection
         secondary_info: last-changed
       - entity: sensor.solarbalance_soc_equaliser_offer
-        name: SoC equaliser offer
+        name: Offre équaliseur SoC
       - entity: sensor.solarbalance_pv_output_limit
-        name: PV output limit (curtailment)
+        name: Limite de sortie PV (écrêtage)
       - entity: sensor.solarbalance_baseline_consumption
-        name: Baseline consumption
+        name: Consommation de fond
       - entity: sensor.solarbalance_battery_soc_avg
-        name: Fleet SoC (avg)
+        name: SoC moyen du parc
 
-  # ----- Advisory predictive plan (observation only) ------------------------
+  # ----- Plan prédictif (observation seule) ---------------------------------
   - type: entities
-    title: Predictive plan (advisory)
+    title: Plan prédictif (advisory)
     entities:
       - entity: sensor.solarbalance_planner_recommended_power_advisory
-        name: Recommended battery power
+        name: Puissance batterie recommandée
       - entity: sensor.solarbalance_planner_expected_cost_advisory
-        name: Expected cost (24 h)
+        name: Coût attendu (24 h)
 
-  # ----- Tuning cheatsheet --------------------------------------------------
+  # ----- Antisèche de réglage -----------------------------------------------
   - type: markdown
-    title: Tuning cheatsheet
+    title: Antisèche de réglage
     content: >
-      **Yoyo on the grid?** Watch *Zero-injection correction*: if it flips sign
-      every tick, lower `zero_injection_kp` (0.3–0.4) and/or raise
-      `grid_filter_samples` (5).
+      **Yoyo sur le réseau ?** Regarde *Correction zéro-injection* : si elle
+      change de signe à chaque tick, baisse `zero_injection_kp` (0.3–0.4) et/ou
+      monte `grid_filter_samples` (5).
 
 
-      **Grid sits off 0 W?** Check *SoC equaliser offer* (the equaliser shifts the
-      target on purpose) and `zero_injection_setpoint_w`; tighten with a smaller
-      `zero_injection_hysteresis_w`.
+      **Réseau décalé de 0 W ?** Vérifie *Offre équaliseur SoC* (l'équaliseur
+      décale la cible volontairement) et `zero_injection_setpoint_w` ; resserre
+      avec un `zero_injection_hysteresis_w` plus petit.
 
 
-      **Curtailing too much/little?** Watch *PV output limit* vs PV power when the
-      batteries are full.
+      **Écrêtage trop/pas assez ?** Compare *Limite de sortie PV* à la puissance
+      PV quand les batteries sont pleines.

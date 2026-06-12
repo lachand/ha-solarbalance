@@ -1,54 +1,91 @@
-# Complete Lovelace view for SolarBalance.
-# Requires HACS cards: power-flow-card-plus, apexcharts-card, mushroom.
+# Tableau de bord SolarBalance (français).
 #
-# Optional: add sensor.solcast_pv_forecast_forecast_today to the PV chart if
-# you have the Solcast integration installed.
-# Optional: uncomment tariff chart if you have configured tariff_config.
+# Cartes HACS requises :
+#   - mushroom            (https://github.com/piitaya/lovelace-mushroom)
+#   - power-flow-card-plus (https://github.com/flixlix/power-flow-card-plus)
+#   - apexcharts-card     (https://github.com/RomRider/apexcharts-card)
+#
+# Les capteurs « par appareil » (consignes) dépendent de TES devices déclarés en
+# YAML : adapte les entity_id `sensor.solarbalance_<device>_setpoint_*` plus bas.
+# La vue de réglage/diagnostic est dans supervision.yaml (cartes natives).
 
 title: SolarBalance
 icon: mdi:solar-power-variant
 path: solarbalance
 
 cards:
-  # ----- Top row: status + flow ----------------------------------------------
-  - type: horizontal-stack
-    cards:
-      - type: custom:mushroom-template-card
-        primary: "{{ states('sensor.solarbalance_mode') | title }}"
-        secondary: "Priority: {{ states('sensor.solarbalance_dominant_strategy') }}"
-        icon: mdi:home-battery
-        icon_color: |-
-          {% set m = states('sensor.solarbalance_mode') %}
-          {% if m == 'storm' %}red
-          {% elif m == 'degraded' %}orange
-          {% elif m == 'paused' %}grey
-          {% elif m == 'manual_override' %}yellow
-          {% else %}green{% endif %}
+  # ----- État du HEMS --------------------------------------------------------
+  - type: custom:mushroom-template-card
+    primary: "{{ states('sensor.solarbalance_mode') | title }}"
+    secondary: "Stratégie : {{ states('sensor.solarbalance_dominant_strategy') }}"
+    icon: mdi:home-battery
+    icon_color: |-
+      {% set m = states('sensor.solarbalance_mode') %}
+      {% if m == 'storm' %}red
+      {% elif m == 'degraded' %}orange
+      {% elif m == 'paused' %}grey
+      {% elif m == 'manual_override' %}yellow
+      {% else %}green{% endif %}
 
-      - type: custom:mushroom-entity-card
+  - type: custom:mushroom-chips-card
+    chips:
+      - type: entity
         entity: binary_sensor.solarbalance_storm_mode
         icon: mdi:weather-lightning
-        name: Storm mode
-
-      - type: custom:mushroom-entity-card
+      - type: entity
+        entity: binary_sensor.solarbalance_weather_warning
+        icon: mdi:weather-cloudy-alert
+      - type: entity
         entity: binary_sensor.solarbalance_degraded
         icon: mdi:alert-circle
-        name: Degraded
 
+  # ----- Flux énergétique ----------------------------------------------------
   - type: custom:power-flow-card-plus
-    title: Energy flow
-    entities:
-      grid:
-        entity: sensor.solarbalance_grid_power
-      solar:
-        entity: sensor.solarbalance_pv_power
-      battery:
-        entity: sensor.solarbalance_battery_power
-      home:
-        entity: sensor.solarbalance_baseline_consumption
-        override_state: true
+    title: Flux énergétique
+    clickable_entities: true
+    use_new_flow_rate_model: true
+    grid:
+      entity: sensor.solarbalance_grid_power
+      name: Réseau
+    solar:
+      entity: sensor.solarbalance_pv_power
+      display_zero_state: true
+      name: Solaire
+    battery:
+      entity: sensor.solarbalance_battery_power
+      state_of_charge: sensor.solarbalance_battery_soc_avg
+      name: Batteries
+    home:
+      entity: sensor.solarbalance_baseline_consumption
+      override_state: true
+      name: Maison
 
-  # ----- PV production (last 24 h) ------------------------------------------
+  # ----- Aujourd'hui ---------------------------------------------------------
+  - type: horizontal-stack
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: sensor.solarbalance_pv_energy_today
+        name: Production PV (jour)
+        icon: mdi:solar-power
+        icon_color: amber
+      - type: custom:mushroom-entity-card
+        entity: sensor.solarbalance_grid_import_today
+        name: Soutirage réseau (jour)
+        icon: mdi:transmission-tower-import
+        icon_color: blue
+
+  - type: gauge
+    name: SoC moyen du parc
+    entity: sensor.solarbalance_battery_soc_avg
+    min: 0
+    max: 100
+    needle: true
+    severity:
+      green: 50
+      yellow: 20
+      red: 0
+
+  # ----- Production PV sur 24 h ----------------------------------------------
   - type: custom:apexcharts-card
     header:
       show: true
@@ -58,88 +95,103 @@ cards:
       start: hour
     series:
       - entity: sensor.solarbalance_pv_power
-        name: PV power
+        name: Puissance PV
         type: area
-      # Uncomment to add Solcast forecast:
-      # - entity: sensor.solcast_pv_forecast_forecast_today
-      #   name: Forecast (Solcast)
-      #   type: line
-
-  # ----- Decisions log -------------------------------------------------------
-  - type: entities
-    title: Latest arbitration
-    entities:
-      - entity: sensor.solarbalance_mode
-      - entity: sensor.solarbalance_dominant_strategy
       - entity: sensor.solarbalance_grid_power
-      - entity: sensor.solarbalance_pv_power
-      - entity: sensor.solarbalance_battery_power
-      - entity: sensor.solarbalance_baseline_consumption
-      - entity: binary_sensor.solarbalance_storm_mode
-      - entity: binary_sensor.solarbalance_weather_warning
-      - entity: binary_sensor.solarbalance_degraded
-      # Per-device setpoints:
+        name: Réseau
+        type: line
+
+  # ----- Régulation (synthèse) — historique dans supervision.yaml -----------
+  - type: entities
+    title: Régulation (instantané)
+    entities:
+      - entity: sensor.solarbalance_grid_power_filtered
+        name: Réseau (filtré → régulateur)
+      - entity: sensor.solarbalance_regulation_target
+        name: Cible parc
+      - entity: sensor.solarbalance_zero_injection_correction
+        name: Correction zéro-injection
+      - entity: sensor.solarbalance_soc_equaliser_offer
+        name: Offre équaliseur SoC
+      - entity: sensor.solarbalance_pv_output_limit
+        name: Limite de sortie PV
+
+  # ----- Plan prédictif (advisory, observation seule) ------------------------
+  - type: entities
+    title: Plan prédictif (advisory)
+    entities:
+      - entity: sensor.solarbalance_planner_recommended_power_advisory
+        name: Puissance batterie recommandée
+      - entity: sensor.solarbalance_planner_expected_cost_advisory
+        name: Coût attendu (24 h)
+
+  # ----- Consignes par appareil (ADAPTE les entity_id à tes devices) --------
+  - type: entities
+    title: Consignes par appareil
+    entities:
       - entity: sensor.solarbalance_stream_ultra_2_setpoint_charge
+        name: Stream Ultra 2 — charge
       - entity: sensor.solarbalance_stream_ultra_2_setpoint_discharge
+        name: Stream Ultra 2 — décharge
       - entity: sensor.solarbalance_stream_tiny_setpoint_charge
+        name: Stream Tiny — charge
       - entity: sensor.solarbalance_stream_tiny_setpoint_discharge
-      - entity: sensor.solarbalance_jackery_chaudiere_setpoint_charge
-      - entity: sensor.solarbalance_jackery_chaudiere_setpoint_discharge
+        name: Stream Tiny — décharge
 
-  # ----- Overrides -----------------------------------------------------------
-  - type: vertical-stack
-    title: Controls & overrides
+  # ----- Contrôles & overrides ----------------------------------------------
+  - type: custom:mushroom-select-card
+    entity: select.solarbalance_hems_mode
+    name: Mode HEMS
+
+  - type: horizontal-stack
     cards:
-      - type: custom:mushroom-select-card
-        entity: select.solarbalance_hems_mode
+      - type: button
+        name: Mode tempête
+        icon: mdi:weather-lightning
+        tap_action:
+          action: call-service
+          service: solarbalance.activate_storm_mode
+          data:
+            duration_h: 24
+      - type: button
+        name: Charge forcée 100 %
+        icon: mdi:battery-charging-100
+        tap_action:
+          action: call-service
+          service: solarbalance.force_charge
+          data:
+            target_soc_pct: 100
+      - type: button
+        name: Décharge forcée 20 %
+        icon: mdi:battery-20
+        tap_action:
+          action: call-service
+          service: solarbalance.force_discharge
+          data:
+            target_soc_pct: 20
 
-      - type: horizontal-stack
-        cards:
-          - type: button
-            name: Storm mode
-            icon: mdi:weather-lightning
-            tap_action:
-              action: call-service
-              service: solarbalance.activate_storm_mode
-              data:
-                target_soc_pct: 95
-                duration_h: 24
+  - type: horizontal-stack
+    cards:
+      - type: button
+        name: Pause
+        icon: mdi:pause-circle
+        tap_action:
+          action: call-service
+          service: solarbalance.pause
+      - type: button
+        name: Reprendre
+        icon: mdi:play-circle
+        tap_action:
+          action: call-service
+          service: solarbalance.resume
 
-          - type: button
-            name: Force charge 100%
-            icon: mdi:battery-charging-100
-            tap_action:
-              action: call-service
-              service: solarbalance.force_charge
-              data:
-                target_soc_pct: 100
-
-          - type: button
-            name: Force discharge 20%
-            icon: mdi:battery-20
-            tap_action:
-              action: call-service
-              service: solarbalance.force_discharge
-              data:
-                target_soc_pct: 20
-
-          - type: button
-            name: Pause
-            icon: mdi:pause-circle
-            tap_action:
-              action: call-service
-              service: solarbalance.pause
-
-          - type: button
-            name: Resume
-            icon: mdi:play-circle
-            tap_action:
-              action: call-service
-              service: solarbalance.resume
-
-      - type: entities
-        title: Zero-injection settings
-        entities:
-          - entity: switch.solarbalance_zero_injection
-          - entity: number.solarbalance_zi_setpoint
-          - entity: number.solarbalance_zi_hysteresis
+  # ----- Réglages zéro-injection --------------------------------------------
+  - type: entities
+    title: Réglages zéro-injection
+    entities:
+      - entity: switch.solarbalance_zero_injection
+        name: Zéro-injection
+      - entity: number.solarbalance_zi_setpoint
+        name: Consigne (W)
+      - entity: number.solarbalance_zi_hysteresis
+        name: Hystérésis (W)
