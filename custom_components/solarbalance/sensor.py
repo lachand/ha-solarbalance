@@ -87,6 +87,13 @@ async def async_setup_entry(
         ),
     ]
 
+    # Advisory predictive plan (observation only) — when a controllable fleet exists.
+    if coordinator._scheduler is not None:
+        entities += [
+            SolarBalancePlannerRecommendedPowerSensor(coordinator, entry),
+            SolarBalancePlannerExpectedCostSensor(coordinator, entry),
+        ]
+
     async_add_entities(entities)
 
 
@@ -368,3 +375,46 @@ class SolarBalanceRegulationDiagnosticSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float:
         return round(float(getattr(self.coordinator.diagnostics, self._diag_attr)), 1)
+
+
+# ---------------------------------------------------------------------------
+# Advisory predictive plan (observation only)
+# ---------------------------------------------------------------------------
+
+
+class SolarBalancePlannerRecommendedPowerSensor(_SolarBalanceSensor):
+    """Battery power the advisory planner recommends for the current slot (W)."""
+
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:chart-timeline-variant"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "planner_recommended_power")
+        self._attr_name = "Planner recommended power (advisory)"
+
+    @property
+    def native_value(self) -> float | None:
+        plan = self.coordinator.advisory_plan
+        return round(plan.first_setpoint_w, 1) if plan is not None else None
+
+
+class SolarBalancePlannerExpectedCostSensor(_SolarBalanceSensor):
+    """Expected electricity cost over the planning horizon (EUR; negative = revenue)."""
+
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:cash"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "planner_expected_cost")
+        self._attr_name = "Planner expected cost (advisory)"
+
+    @property
+    def native_value(self) -> float | None:
+        plan = self.coordinator.advisory_plan
+        return round(plan.total_cost_eur, 2) if plan is not None else None

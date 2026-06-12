@@ -61,6 +61,7 @@ from .core.controllers.zero_injection import (
 )
 from .core.energy import DailyEnergyAccumulator
 from .core.filters import RollingMedian
+from .core.forecast import aggregate_battery_constraints, build_forecast_slots
 from .core.models import (
     BatteryTarget,
     Decision,
@@ -72,6 +73,7 @@ from .core.models import (
     Snapshot,
     StrategyKind,
 )
+from .core.planner import BatteryConstraints, PlanningResult, PredictiveScheduler
 from .core.strategies.backup import BackupStrategy
 from .core.strategies.cost_min import CostMinStrategy
 from .core.strategies.longevity import LongevityStrategy
@@ -85,6 +87,12 @@ _LOGGER = logging.getLogger(__name__)
 # Debounce persisted-state writes; the daily counters change every tick but we
 # don't need to hit disk that often. Store also flushes on HA shutdown.
 _STORE_SAVE_DELAY_S = 60.0
+
+# Advisory predictive plan re-run cadence (in ticks). The plan changes slowly and
+# the DP is cheap; ~15 min at the default 10 s tick is plenty.
+_PLAN_EVERY_TICKS = 90
+# Smoothing factor of the background-load estimate fed to the advisory planner.
+_BASELINE_EMA_ALPHA = 0.05
 
 _STRATEGY_CLASSES = {
     StrategyKind.SELF_CONSUMPTION.value: SelfConsumptionStrategy,
@@ -233,6 +241,26 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         self._diagnostics = RegulationDiagnostics()
 
+        # Advisory predictive planner (V2, no control): aggregates the controllable
+        # fleet into one equivalent battery and plans a 24 h cost-optimal schedule
+        # for observation only. Built once; re-run on a slow cadence in the tick.
+        fleet = [
+            BatteryConstraints(
+                capacity_kwh=d.battery.effective_usable_capacity_kwh,
+                max_charge_w=float(d.battery.max_charge_power_w),
+                max_discharge_w=float(d.battery.max_discharge_power_w),
+                soc_min_pct=float(d.battery.soc_min_pct),
+                soc_max_pct=float(d.battery.soc_max_pct),
+            )
+            for d in devices
+            if d.battery is not None and d.battery.controllable
+        ]
+        aggregate = aggregate_battery_constraints(fleet)
+        self._scheduler = PredictiveScheduler(aggregate) if aggregate is not None else None
+        self._plan: PlanningResult | None = None
+        self._plan_tick = 0
+        self._baseline_ema_w: float | None = None
+
         # Watchdog — entity lists built from config
         self._critical_entity_ids, self._monitored_entity_ids = self._collect_entity_ids(
             devices, meters
@@ -264,6 +292,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def diagnostics(self) -> RegulationDiagnostics:
         """Last-tick internal regulation values for diagnostic sensors."""
         return self._diagnostics
+
+    @property
+    def advisory_plan(self) -> PlanningResult | None:
+        """Latest advisory predictive plan (observation only, no control)."""
+        return self._plan
 
     @property
     def is_degraded(self) -> bool:
@@ -391,6 +424,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             grid_w=snapshot.grid_power_w,
         )
         self._store.async_delay_save(self._persisted_state, _STORE_SAVE_DELAY_S)
+        self._run_advisory_plan(snapshot)
 
         # --- Grid median filter (B): clean the value handed to the regulator;
         # the displayed grid sensor keeps snapshot.grid_power_w (raw). ---
@@ -605,6 +639,42 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return snapshot
 
     # ------------------------------------------------------------------ helpers
+
+    def _run_advisory_plan(self, snapshot: Snapshot) -> None:
+        """Re-run the advisory predictive plan (observation only, no control).
+
+        Maintains a slow background-load estimate and re-runs the DP planner on a
+        coarse cadence. The plan is published via :attr:`advisory_plan` but never
+        fed into the control loop. It is meaningful only once a real hourly PV
+        forecast series is available (currently a flat estimate).
+        """
+        if self._scheduler is None:
+            return
+        baseline = snapshot.baseline_consumption_w
+        self._baseline_ema_w = (
+            baseline
+            if self._baseline_ema_w is None
+            else _BASELINE_EMA_ALPHA * baseline + (1 - _BASELINE_EMA_ALPHA) * self._baseline_ema_w
+        )
+        self._plan_tick += 1
+        if self._plan is not None and self._plan_tick % _PLAN_EVERY_TICKS != 0:
+            return
+        controllable_soc = [
+            b.soc_pct
+            for b in snapshot.batteries
+            if b.available and b.device_name in self._controllable_battery_names
+        ]
+        if not controllable_soc:
+            return
+        pv_by_hour = [snapshot.pv_forecast_now_w] if snapshot.pv_forecast_now_w is not None else []
+        slots = build_forecast_slots(
+            start=snapshot.timestamp,
+            n_hours=24,
+            pv_w_by_hour=pv_by_hour,
+            baseline_w=max(0.0, self._baseline_ema_w),
+            tariff=self._tariff,
+        )
+        self._plan = self._scheduler.plan(slots, sum(controllable_soc) / len(controllable_soc))
 
     def _equaliser_bias(self, snapshot: Snapshot, grid_w: float) -> float:
         """Grid-setpoint offer from the SoC equaliser (0 W when inactive).

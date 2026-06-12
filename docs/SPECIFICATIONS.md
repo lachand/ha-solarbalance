@@ -586,6 +586,12 @@ Certaines batteries remontent leur état (SoC, puissance) mais n'offrent **aucun
 
 **Pilotage actif (v2)** : lorsque `active_control_enabled` est vrai globalement et au niveau d'un appareil, l'adapter `ActiveControlPublisher` écrit les consignes issues du `BalancingController` vers les entités déclarées : **décharge** (`discharge_power_setpoint_entity`), **charge** (`charge_power_setpoint_entity`) et/ou **mode** (`mode_setpoint_entity` : `charge`/`discharge`/`idle`). Une batterie au plancher de SoC n'est jamais sollicitée en décharge (`soc_min_pct + 0,5`), au plafond jamais en charge (`soc_max_pct − 0,5`). L'écriture des puissances est suspendue en mode dégradé (consignes remises à 0 W). C'est le **seul** composant autorisé à écrire vers le matériel utilisateur.
 
+### 6.7 Optimiseur prédictif (advisory, observation seule)
+
+Le `PredictiveScheduler` (programmation dynamique sur une grille de SoC) calcule un planning 24 h coût-optimal pour le **parc pilotable agrégé** (capacités/puissances sommées, bornes SoC les plus restrictives). Il tourne sur cadence lente (~15 min) et **ne pilote rien** : son résultat est publié à titre indicatif via les capteurs diagnostic `planner_recommended_power (advisory)` (W) et `planner_expected_cost (advisory)` (€).
+
+Entrées : prix par créneau depuis le tarif, charge de fond estimée (EMA de `baseline_consumption`), et une série PV. **Limite actuelle** : faute de série de prévision PV horaire, le PV est tenu plat (valeur instantanée) → le plan n'est qu'une démonstration du pipeline. L'ingestion d'une vraie prévision horaire (attributs Solcast/Forecast.Solar) est l'étape suivante avant tout passage en pilotage.
+
 ---
 
 ## 7. Sources externes
