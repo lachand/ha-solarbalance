@@ -342,7 +342,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 pv_kwh=float(energy["pv_kwh"]),
                 grid_import_kwh=float(energy["grid_import_kwh"]),
             )
-        except KeyError, ValueError, TypeError:
+        except (KeyError, ValueError, TypeError):
             _LOGGER.warning("SolarBalance: could not restore persisted daily energy")
 
     def _persisted_state(self) -> dict[str, Any]:
@@ -371,7 +371,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     try:
                         total += float(state.state)
                         found = True
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         pass
         return round(total, 3) if found else round(self._energy.pv_kwh, 3)
 
@@ -388,7 +388,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 if state and state.state not in {"unavailable", "unknown", ""}:
                     try:
                         return round(float(state.state), 3)
-                    except ValueError, TypeError:
+                    except (ValueError, TypeError):
                         pass
         return round(self._energy.grid_import_kwh, 3)
 

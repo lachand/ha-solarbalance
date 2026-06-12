@@ -45,7 +45,10 @@ packages = ["custom_components/solarbalance"]
 # Ruff — single source of truth for linting and formatting
 # ----------------------------------------------------------------------
 [tool.ruff]
-target-version = "py314"
+# Home Assistant 2026.6 still ships Python 3.13, so target 3.13 to avoid emitting
+# 3.14-only syntax (e.g. PEP 758 unparenthesised `except A, B:`) that breaks at
+# runtime on the user's HA.
+target-version = "py313"
 line-length = 100
 
 [tool.ruff.lint]

@@ -16,9 +16,9 @@ When proposing code, **respect this layering**. A change to `core/` that imports
 
 ## Python syntax and language features
 
-- Python 3.14 is the **minimum supported version**. Do not flag syntax or features requiring 3.14 as issues, and do not suggest workarounds for older Python versions.
-- Python 3.14 explicitly allows `except TypeA, TypeB:` without parentheses. Never flag this as an issue.
-- Python 3.14 evaluates annotations lazily (PEP 649). Forward references in annotations do **not** need to be quoted, and `from __future__ import annotations` is **not** required. Do not flag unquoted forward references as issues.
+- **Runtime reality: Home Assistant 2026.6 still ships Python 3.13.** Code must run on 3.13, so do **not** use 3.14-only *syntax* even though the project aspires to 3.14. In particular **always parenthesise multi-type excepts** — `except (TypeA, TypeB):` — because PEP 758's unparenthesised form (`except TypeA, TypeB:`) is a `SyntaxError` on 3.13 and breaks setup. `ruff` `target-version` is pinned to `py313` to stop it rewriting to the 3.14 form.
+- Annotations: prefer forms valid on 3.13. `X | None` unions are fine; if you rely on unquoted forward references in runtime-evaluated annotations, add `from __future__ import annotations`.
+- Type annotations are **mandatory** on all public functions and methods, and on test parameters.
 - Type annotations are **mandatory** on all public functions and methods, and on test parameters.
 
 ## Code quality
