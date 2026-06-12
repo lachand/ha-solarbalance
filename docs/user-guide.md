@@ -83,7 +83,7 @@ Le Config Flow HA configure les **paramètres globaux**. Les équipements (batte
 | **Équaliseur — puissance max** (`soc_equaliser_max_w`) | 1500 W | Biais de steering agrégé maximal appliqué au parc pilotable. |
 | **Équaliseur — gain** (`soc_equaliser_kp_w_per_pct`) | 80 | Gain proportionnel en W par % d'écart de SoC. |
 | **Équaliseur — bande morte** (`soc_equaliser_deadband_pct`) | 2,0 | Demi-largeur de la zone morte de SoC (%) ; en deçà, pas de steering. |
-| **Équaliseur — pas initial** (`soc_equaliser_probe_step_w`) | 150 W | Pas de steering de départ ; croît géométriquement tant que la batterie auto suit (voir §6.6 des SPECIFICATIONS). |
+| **Équaliseur — pas** (`soc_equaliser_probe_step_w`) | 150 W | Variation max de l'offre de surplus par tick (vitesse de rampe et de repli). Voir §6.6 des SPECIFICATIONS. |
 | **Stratégies / priorités** | self_consumption en premier | Ordre des stratégies actives, de la plus prioritaire à la moins prioritaire. |
 
 ### Modifier les paramètres après installation
@@ -359,7 +359,7 @@ Certaines batteries **remontent leur état** (SoC, puissance) mais ne peuvent **
 
 Conséquences :
 - Elle alimente normalement le `baseline` et l'équilibre réseau (le HEMS réagit autour d'elle), mais est **exclue du pilotage** : aucune consigne, aucune apparition dans les setpoints publiés.
-- Si l'**équaliseur SoC** est activé (option globale), le HEMS la pilote **indirectement** : pour la charger, il fait décharger les batteries pilotables (surplus AC qu'elle absorbe) ; pour la décharger, il les fait charger. Le steering démarre petit, croît tant qu'elle suit, recule si elle part dans le mauvais sens, et est **plafonné par `ac_charge_limit_w`** pour ne jamais déborder sur le réseau.
+- Si l'**équaliseur SoC** est activé (option globale, **off par défaut**, et **requiert la zéro-injection**), le HEMS la pilote **indirectement** : il décale le setpoint de zéro-injection pour offrir un surplus (la batterie auto charge) ou un déficit (elle décharge). L'offre est lente, fermée sur la **puissance mesurée** de la batterie auto, plafonnée par `ac_charge_limit_w` / `soc_equaliser_max_w`, et **recule** si le surplus part au réseau — elle ne force jamais d'échange réseau. Voir SPECIFICATIONS §6.6.
 
 Voir SPECIFICATIONS §6.6 pour l'algorithme détaillé, et `docs/device-mapping.md` pour les recettes par marque.
 

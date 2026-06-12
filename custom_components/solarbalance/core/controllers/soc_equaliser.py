@@ -1,36 +1,31 @@
-"""Indirect SoC equaliser for non-controllable batteries.
+"""Indirect SoC equaliser for non-controllable batteries (cascaded).
 
 Some batteries report their state (SoC, power) but cannot be commanded
 charge/discharge over Home Assistant — the user can only leave them in their own
-"automatic" mode. This controller steers such a battery *indirectly*: by biasing
-the aggregate charge/discharge demand of the controllable batteries it shifts the
-AC-bus power balance, which the automatic battery then absorbs (charges) or
-covers (discharges) on its own logic.
+"automatic" mode. This controller steers such a battery *indirectly* by shifting
+the AC-bus balance through the zero-injection regulator.
 
-The control objective is SoC equalisation — drive each non-controllable
-battery's SoC toward the mean SoC of the controllable fleet. The output is a
-single *steering bias* (W) added to the aggregate ``total_power_w`` handed to the
-BalancingController:
+**Why a cascade (and not a fleet-power bias).** An earlier version added a fleet
+*power* bias to the aggregate target every tick. Because the target is
+``current_fleet_power + bias``, the bias was re-added on top of a position that
+already contained it → it integrated, ramped to the battery's AC limit, then
+spilled to the grid and fought zero-injection (a tick-frequency limit cycle).
 
-- ``steering_w < 0`` → controllable batteries discharge more → AC surplus →
-  the automatic battery charges.
-- ``steering_w > 0`` → controllable batteries charge more → AC deficit →
-  the automatic battery discharges.
+This version is a slow **outer loop**: it holds a bounded *grid-setpoint offer*
+and drives it so the automatic battery's **measured** charge power reaches a
+SoC-derived target. The single zero-injection inner loop then regulates the grid
+to ``setpoint - offer`` -- only one integrator acts on the fleet, so there is no
+runaway.
 
-To avoid pushing more than the automatic battery can absorb (the excess would
-spill to the grid and fight zero-injection → oscillation), the per-battery bias
-is bounded by three nested limits:
+- ``grid_setpoint_bias_w > 0`` → offer surplus (ZI targets a slight export) →
+  controllable fleet discharges → automatic battery charges.
+- ``grid_setpoint_bias_w < 0`` → offer deficit → fleet charges → automatic
+  battery discharges.
 
-1. **AC capacity** (``ac_charge_limit_w`` / ``max_discharge_power_w``) — never
-   command more than the battery's physical AC input/output rate.
-2. **Adaptive allowance** — start from a small ``probe_step_w`` and grow it
-   geometrically each tick while steering holds its direction (small steps first,
-   progressively larger), capped by the AC capacity.
-3. **Measured-response back-off** — if the automatic battery moves *against* the
-   requested direction, reset the allowance to the small probe (don't fight a
-   battery that is doing its own thing).
-
-Finally the aggregate is clamped to ``max_steering_w``.
+**Anti-windup / safety.** If the offered surplus/deficit reaches the *grid*
+instead of the automatic battery (the battery is not absorbing it), the offer is
+backed off rather than grown — so it never forces grid import/export. The offer
+is also hard-clamped to ``max_offer_w``. Requires zero-injection enabled.
 
 Pure module — no Home Assistant imports.
 """
@@ -40,11 +35,9 @@ from dataclasses import dataclass
 
 from ..models import BatteryRole, BatteryState
 
-# Geometric growth factor of the adaptive allowance per sustained tick.
-_ALLOWANCE_GROWTH = 1.5
-# Measured power (W, charge-positive) beyond which the battery counts as moving
-# against the requested direction — back off below this noise floor.
-_WRONG_WAY_EPS_W = 50.0
+# Grid power (W) beyond the deadband above which the offered surplus/deficit is
+# deemed to be hitting the grid (not absorbed by the automatic battery).
+_LEAK_W = 100.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -52,15 +45,14 @@ class SocEqualiserResult:
     """Output of one equaliser tick.
 
     Attributes:
-        steering_w: Bias to add to the aggregate ``total_power_w`` (negative
-            charges the automatic battery, positive discharges it).
-        target_soc_pct: Mean SoC of the controllable fleet used as the target,
-            or ``None`` when no controllable battery is available.
-        in_deadband: True when no battery is outside its SoC deadband, i.e. the
-            steering is zero this tick.
+        grid_setpoint_bias_w: Offer to subtract from the zero-injection setpoint
+            (positive offers surplus → charges the automatic battery; negative
+            offers a deficit → discharges it).
+        target_soc_pct: Mean SoC of the controllable fleet, or ``None``.
+        in_deadband: True when no battery is being steered this tick.
     """
 
-    steering_w: float
+    grid_setpoint_bias_w: float
     target_soc_pct: float | None
     in_deadband: bool
 
@@ -69,15 +61,11 @@ class SocEqualiserController:
     """Drive non-controllable batteries' SoC toward the controllable fleet mean.
 
     Args:
-        uncontrollable: ``(device_name, BatteryRole)`` pairs of the batteries to
-            steer indirectly (those declared ``controllable: false``).
-        kp_w_per_pct: Proportional gain — watts of steering demand per percent of
-            SoC error. Bounds the steady-state demand near the target.
-        max_steering_w: Hard cap on the absolute aggregate steering bias.
-        soc_deadband_pct: Half-width of the SoC deadband; a battery within this
-            band of the target contributes no steering (avoids hunting).
-        probe_step_w: Initial steering step; the per-battery allowance starts here
-            and grows geometrically while the battery follows the request.
+        uncontrollable: ``(device_name, BatteryRole)`` pairs to steer indirectly.
+        kp_w_per_pct: Gain mapping SoC error (%) to a target auto-battery power.
+        max_offer_w: Hard clamp on the grid-setpoint offer.
+        soc_deadband_pct: SoC deadband half-width; within it, no steering.
+        step_w: Max change of the offer per tick (slow ramp / back-off rate).
     """
 
     def __init__(
@@ -85,100 +73,95 @@ class SocEqualiserController:
         uncontrollable: Sequence[tuple[str, BatteryRole]],
         *,
         kp_w_per_pct: float = 80.0,
-        max_steering_w: float = 1500.0,
+        max_offer_w: float = 1500.0,
         soc_deadband_pct: float = 2.0,
-        probe_step_w: float = 150.0,
+        step_w: float = 150.0,
     ) -> None:
         if kp_w_per_pct < 0:
             raise ValueError("kp_w_per_pct must be non-negative")
-        if max_steering_w < 0:
-            raise ValueError("max_steering_w must be non-negative")
+        if max_offer_w < 0:
+            raise ValueError("max_offer_w must be non-negative")
         if soc_deadband_pct < 0:
             raise ValueError("soc_deadband_pct must be non-negative")
-        if probe_step_w <= 0:
-            raise ValueError("probe_step_w must be strictly positive")
+        if step_w <= 0:
+            raise ValueError("step_w must be strictly positive")
         self._uncontrollable = tuple(uncontrollable)
         self._kp = kp_w_per_pct
-        self._max_steering_w = max_steering_w
+        self._max_offer_w = max_offer_w
         self._deadband = soc_deadband_pct
-        self._probe_step_w = probe_step_w
-        self._allowance: dict[str, float] = {}
-        self._last_dir: dict[str, int] = {}
+        self._step_w = step_w
+        self._offer_w = 0.0
 
     def step(
         self,
         *,
         controllable_states: Sequence[BatteryState],
         uncontrollable_states: Mapping[str, BatteryState],
+        grid_w: float,
     ) -> SocEqualiserResult:
-        """Compute the steering bias for one tick.
+        """Update the offer for one tick and return it.
 
         Args:
-            controllable_states: States of the controllable batteries; their mean
-                available SoC defines the equalisation target.
-            uncontrollable_states: States of the steered batteries, keyed by
-                device name.
+            controllable_states: Controllable battery states; their mean available
+                SoC is the equalisation target.
+            uncontrollable_states: Steered battery states, keyed by device name.
+            grid_w: Current (filtered) grid power, positive = import. Used to
+                detect when the offer is leaking to the grid.
         """
         available = [s for s in controllable_states if s.available]
         if not available or not self._uncontrollable:
-            return SocEqualiserResult(steering_w=0.0, target_soc_pct=None, in_deadband=True)
+            self._offer_w = 0.0
+            return SocEqualiserResult(0.0, None, True)
 
         target = sum(s.soc_pct for s in available) / len(available)
 
-        steering_w = 0.0
-        any_active = False
+        fa_target = 0.0  # desired aggregate auto-battery power (+ = charge)
+        fa_meas = 0.0  # measured aggregate auto-battery power
+        active = False
         for name, role in self._uncontrollable:
             state = uncontrollable_states.get(name)
             if state is None or not state.available:
-                self._reset(name)
                 continue
             error = target - state.soc_pct  # > 0 → below target → wants to charge
             if abs(error) <= self._deadband:
-                self._reset(name)
                 continue
-            # Don't steer past the automatic battery's own SoC bounds — it would
-            # refuse anyway and we'd only push power to the grid.
             if error > 0 and state.soc_pct >= role.soc_max_pct:
-                self._reset(name)
                 continue
             if error < 0 and state.soc_pct <= role.soc_min_pct:
-                self._reset(name)
                 continue
-
-            desired_dir = 1 if error > 0 else -1  # +1 charge the auto, -1 discharge it
-            ac_cap = self._ac_capacity_w(role, desired_dir)
-            going_wrong = (desired_dir > 0 and state.power_w < -_WRONG_WAY_EPS_W) or (
-                desired_dir < 0 and state.power_w > _WRONG_WAY_EPS_W
+            cap_charge = float(
+                role.ac_charge_limit_w if role.ac_charge_limit_w is not None
+                else role.max_charge_power_w
             )
+            fa = self._kp * error
+            fa = max(-float(role.max_discharge_power_w), min(cap_charge, fa))
+            fa_target += fa
+            fa_meas += state.power_w
+            active = True
 
-            if self._last_dir.get(name) != desired_dir or going_wrong:
-                allowance = self._probe_step_w
-            else:
-                allowance = self._allowance.get(name, self._probe_step_w) * _ALLOWANCE_GROWTH
-            allowance = min(allowance, ac_cap)
-            self._allowance[name] = allowance
-            self._last_dir[name] = desired_dir
+        if not active:
+            self._offer_w = self._decay(self._offer_w)
+            return SocEqualiserResult(self._offer_w, target, True)
 
-            demand_mag = min(abs(self._kp * error), allowance)
-            steering_w += -desired_dir * demand_mag
-            any_active = True
+        # Anti-windup: if the offered surplus/deficit is reaching the grid (the
+        # automatic battery is not absorbing it), back the offer off instead of
+        # growing it — never force grid export/import.
+        if self._offer_w > 0.0 and grid_w < -_LEAK_W:
+            self._offer_w = max(0.0, self._offer_w - self._step_w)
+        elif self._offer_w < 0.0 and grid_w > _LEAK_W:
+            self._offer_w = min(0.0, self._offer_w + self._step_w)
+        else:
+            # Move the offer (rate-limited) toward making the auto reach fa_target.
+            err = fa_target - fa_meas
+            self._offer_w += max(-self._step_w, min(self._step_w, err))
 
-        steering_w = max(-self._max_steering_w, min(self._max_steering_w, steering_w))
-        return SocEqualiserResult(
-            steering_w=steering_w,
-            target_soc_pct=target,
-            in_deadband=not any_active,
-        )
+        self._offer_w = max(-self._max_offer_w, min(self._max_offer_w, self._offer_w))
+        return SocEqualiserResult(self._offer_w, target, False)
 
-    @staticmethod
-    def _ac_capacity_w(role: BatteryRole, desired_dir: int) -> float:
-        """AC absorption (charge) or delivery (discharge) limit for ``role`` (W)."""
-        if desired_dir > 0:
-            limit = role.ac_charge_limit_w
-            return float(limit if limit is not None else role.max_charge_power_w)
-        return float(role.max_discharge_power_w)
-
-    def _reset(self, name: str) -> None:
-        """Forget the adaptive state for a battery that is idle/out of band."""
-        self._allowance.pop(name, None)
-        self._last_dir.pop(name, None)
+    def _decay(self, offer: float) -> float:
+        """Relax the offer toward zero by one step (no active steering)."""
+        if offer > 0.0:
+            return max(0.0, offer - self._step_w)
+        if offer < 0.0:
+            return min(0.0, offer + self._step_w)
+        return 0.0

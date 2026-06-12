@@ -161,13 +161,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 kp_w_per_pct=float(
                     cfg.get(CONF_SOC_EQUALISER_KP_W_PER_PCT, DEFAULT_SOC_EQUALISER_KP_W_PER_PCT)
                 ),
-                max_steering_w=float(
-                    cfg.get(CONF_SOC_EQUALISER_MAX_W, DEFAULT_SOC_EQUALISER_MAX_W)
-                ),
+                max_offer_w=float(cfg.get(CONF_SOC_EQUALISER_MAX_W, DEFAULT_SOC_EQUALISER_MAX_W)),
                 soc_deadband_pct=float(
                     cfg.get(CONF_SOC_EQUALISER_DEADBAND_PCT, DEFAULT_SOC_EQUALISER_DEADBAND_PCT)
                 ),
-                probe_step_w=float(
+                step_w=float(
                     cfg.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W)
                 ),
             )
@@ -413,6 +411,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         zi_correction_w = 0.0
         zi_regulating = self._zi_enabled and self._mode is HemsMode.NORMAL
         if zi_regulating:
+            # Indirect SoC equaliser (cascaded): offer a surplus/deficit by biasing
+            # the ZI setpoint, so the single ZI loop produces the extra fleet
+            # discharge/charge. 0 when the equaliser is off. Requires ZI.
+            eq_bias_w = self._equaliser_bias(snapshot, grid_filtered_w)
+            effective_setpoint_w = self._zi_setpoint_w - eq_bias_w
             if (
                 self._per_phase_zi
                 and isinstance(self._zi_controller, PerPhaseZeroInjectionController)
@@ -423,7 +426,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 l2 = grid_l2_filtered
                 l3 = grid_l3_filtered
                 if l1 is not None and l2 is not None and l3 is not None:
-                    sp = self._zi_setpoint_w / 3.0
+                    sp = effective_setpoint_w / 3.0
                     zi_result = self._zi_controller.step(
                         grid_l1_w=l1,
                         grid_l2_w=l2,
@@ -453,7 +456,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 assert isinstance(self._zi_state, ZeroInjectionState)
                 zi_result = self._zi_controller.step(
                     grid_power_w=grid_filtered_w,
-                    setpoint_w=self._zi_setpoint_w,
+                    setpoint_w=effective_setpoint_w,
                     dt_s=float(self._tick_s),
                     state=self._zi_state,
                 )
@@ -464,37 +467,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         "ZI correction %.0fW (grid=%.0fW filtered, setpoint=%.0fW)",
                         zi_result.correction_w,
                         grid_filtered_w,
-                        self._zi_setpoint_w,
+                        effective_setpoint_w,
                     )
-
-        # Indirect SoC equaliser: bias the controllable fleet to steer the
-        # automatic (non-controllable) battery toward the fleet mean SoC. Skipped
-        # in modes that drive batteries with their own logic (storm / override).
-        steering_w = 0.0
-        if self._soc_equaliser is not None and self._mode not in {
-            HemsMode.DEGRADED,
-            HemsMode.STORM,
-            HemsMode.MANUAL_OVERRIDE,
-        }:
-            controllable_states = [
-                b for b in snapshot.batteries if b.device_name in self._controllable_battery_names
-            ]
-            uncontrollable_states = {
-                b.device_name: b
-                for b in snapshot.batteries
-                if b.device_name not in self._controllable_battery_names
-            }
-            eq_result = self._soc_equaliser.step(
-                controllable_states=controllable_states,
-                uncontrollable_states=uncontrollable_states,
-            )
-            steering_w = eq_result.steering_w
-            if not eq_result.in_deadband:
-                _LOGGER.debug(
-                    "SoC equaliser steering %.0fW (fleet target=%.1f%%)",
-                    steering_w,
-                    eq_result.target_soc_pct,
-                )
 
         # Resolve a single aggregate target. When zero-injection regulates, it
         # owns the grid loop (target = current fleet power + PI delta); otherwise
@@ -513,7 +487,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             current_fleet_w=current_fleet_w,
             zi_correction_w=zi_correction_w,
             absolute_target_w=absolute_target_w,
-            steering_w=steering_w,
+            steering_w=0.0,  # equaliser now acts via the ZI setpoint, not a power bias
         )
 
         # Apply grid constraints: clamp the aggregate battery target so the
@@ -564,6 +538,35 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return snapshot
 
     # ------------------------------------------------------------------ helpers
+
+    def _equaliser_bias(self, snapshot: Snapshot, grid_w: float) -> float:
+        """Grid-setpoint offer from the SoC equaliser (0 W when inactive).
+
+        Positive offers a surplus (charges the automatic battery); negative offers
+        a deficit (discharges it). Subtracted from the ZI setpoint by the caller.
+        """
+        if self._soc_equaliser is None:
+            return 0.0
+        controllable = [
+            b for b in snapshot.batteries if b.device_name in self._controllable_battery_names
+        ]
+        uncontrollable = {
+            b.device_name: b
+            for b in snapshot.batteries
+            if b.device_name not in self._controllable_battery_names
+        }
+        result = self._soc_equaliser.step(
+            controllable_states=controllable,
+            uncontrollable_states=uncontrollable,
+            grid_w=grid_w,
+        )
+        if not result.in_deadband:
+            _LOGGER.debug(
+                "SoC equaliser offer %.0fW (fleet target=%.1f%%)",
+                result.grid_setpoint_bias_w,
+                result.target_soc_pct,
+            )
+        return result.grid_setpoint_bias_w
 
     async def _apply_active_control(
         self,

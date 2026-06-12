@@ -147,16 +147,17 @@ With this flag:
 - It is **excluded from the balancing controller** — it never receives a
   setpoint, and never appears in `setpoint_charge/discharge_per_battery_w`.
 - An **indirect SoC equaliser** steers it toward the mean SoC of your
-  controllable batteries: to charge it, the HEMS makes the controllable
-  batteries discharge (creating an AC surplus the automatic battery absorbs); to
-  discharge it, it makes them charge. The steering starts with a small step
-  (`soc_equaliser_probe_step_w`, default 150 W), grows only while the battery
-  actually follows, backs off if it moves the wrong way, and is hard-capped by
-  the battery's AC capacity (`ac_charge_limit_w` / `max_discharge_power_w`) — so
-  it never pushes more than the battery can take and never spills to the grid.
-  **Off by default** — enable it with the global `soc_equaliser_enabled` option
-  once validated (on slow/cloud batteries it can still induce grid oscillation),
-  and cap its overall authority with `soc_equaliser_max_w` (default 1500 W).
+  controllable batteries by offering a surplus/deficit through the zero-injection
+  setpoint: to charge it, the HEMS biases the grid setpoint so the controllable
+  fleet discharges (surplus the automatic battery absorbs); to discharge it, the
+  opposite. It closes the loop on the battery's **measured** power, ramps the
+  offer slowly (`soc_equaliser_probe_step_w`, default 150 W/tick), and **backs
+  off** if the surplus reaches the grid instead of the battery — so it never
+  forces grid export/import. The target charge rate is bounded by
+  `ac_charge_limit_w` (`/ max_discharge_power_w`) and the offer by
+  `soc_equaliser_max_w` (default 1500 W). **Requires `zero_injection_enabled`**
+  and is **off by default** — enable `soc_equaliser_enabled` once validated (on
+  slow/cloud batteries it can still hunt).
 
 Note that indirect steering shuffles energy through two extra conversions, so it
 trades a little round-trip efficiency for SoC homogeneity across the fleet.
