@@ -27,6 +27,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-cov>=5.0",
     "pytest-homeassistant-custom-component>=0.13",
+    "home-assistant-frontend",  # required so the frontend dependency sets up in integration tests
     "ruff>=0.7",
     "mypy>=1.13",
     "pre-commit>=4.0",
