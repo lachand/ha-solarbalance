@@ -25,7 +25,13 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfEnergy, UnitOfPower
+from homeassistant.const import (
+    PERCENTAGE,
+    EntityCategory,
+    UnitOfEnergy,
+    UnitOfPower,
+    UnitOfTemperature,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -59,13 +65,19 @@ async def async_setup_entry(
         SolarBalanceGridImportTodaySensor(coordinator, entry),
     ]
 
-    # Per-battery setpoint sensors
+    # Per-battery setpoint + state (SoC / power / temperature) sensors
     for device in coordinator._devices:
         if device.battery is not None:
             entities += [
                 SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "charge"),
                 SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "discharge"),
+                SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "soc"),
+                SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "power"),
             ]
+            if device.battery.temperature_entity is not None:
+                entities.append(
+                    SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "temperature")
+                )
 
     # Regulation diagnostics (help tune the loop; entity-category diagnostic)
     entities += [
@@ -350,6 +362,48 @@ class SolarBalanceBatterySetpointSensor(_SolarBalanceSensor):
         if self._direction == "charge":
             return round(max(0.0, pw), 1)
         return round(max(0.0, -pw), 1)
+
+
+_BATTERY_METRIC_META: dict[str, tuple[str, str, SensorDeviceClass]] = {
+    "soc": ("SoC", PERCENTAGE, SensorDeviceClass.BATTERY),
+    "power": ("power", UnitOfPower.WATT, SensorDeviceClass.POWER),
+    "temperature": ("temperature", UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE),
+}
+
+
+class SolarBalanceBatteryMetricSensor(_SolarBalanceSensor):
+    """Per-device battery state (SoC %, power W, or temperature °C)."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: SolarBalanceCoordinator,
+        entry: ConfigEntry,
+        device_name: str,
+        metric: str,  # "soc" | "power" | "temperature"
+    ) -> None:
+        super().__init__(coordinator, entry, f"{device_name}_{metric}")
+        self._device_name = device_name
+        self._metric = metric
+        label, unit, device_class = _BATTERY_METRIC_META[metric]
+        self._attr_name = f"{device_name} {label}"
+        self._attr_native_unit_of_measurement = unit
+        self._attr_device_class = device_class
+
+    @property
+    def native_value(self) -> float | None:
+        snap: Snapshot | None = self.coordinator.data
+        if snap is None:
+            return None
+        state = next((b for b in snap.batteries if b.device_name == self._device_name), None)
+        if state is None or not state.available:
+            return None
+        if self._metric == "soc":
+            return round(state.soc_pct, 1)
+        if self._metric == "power":
+            return round(state.power_w, 1)
+        return round(state.temperature_c, 1) if state.temperature_c is not None else None
 
 
 # ---------------------------------------------------------------------------

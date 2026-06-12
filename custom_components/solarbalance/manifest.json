@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "codeowners": ["@solarbalance"],
   "config_flow": true,
-  "dependencies": ["frontend"],
+  "dependencies": ["frontend", "http", "panel_custom"],
   "documentation": "https://github.com/solarbalance/ha-solarbalance",
   "integration_type": "service",
   "iot_class": "calculated",

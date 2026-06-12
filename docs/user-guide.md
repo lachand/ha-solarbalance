@@ -609,6 +609,16 @@ type: custom:solarbalance-card
 # Aucun paramètre obligatoire — la carte lit les entités solarbalance automatiquement
 ```
 
+### 10.4 Panneau plein écran (sidebar)
+
+Une page **« SolarBalance »** est aussi enregistrée automatiquement dans la **barre latérale** (panneau plein écran). Elle regroupe en 4 sections — flux & état, régulation/diagnostic, plan prédictif, et **détail par appareil** (SoC, puissance, température, consignes) — en lisant les capteurs `sensor.solarbalance_*` en temps réel. Rien à configurer ; si elle n'apparaît pas, redémarre HA et vide le cache du navigateur (Ctrl+Maj+R).
+
+Le détail par appareil s'appuie sur les capteurs `sensor.solarbalance_<device>_soc` / `_power` / `_temperature` (température seulement si `temperature_entity` est déclarée) et `_setpoint_charge` / `_setpoint_discharge`.
+
+### 10.5 Tableaux de bord d'exemple (HACS)
+
+`examples/lovelace/dashboard.yaml` (cartes HACS : mushroom, power-flow-card-plus, apexcharts) et `examples/lovelace/supervision.yaml` (cartes natives, réglage/diagnostic) sont des vues prêtes à copier.
+
 ---
 
 ## 11. Automatisations
