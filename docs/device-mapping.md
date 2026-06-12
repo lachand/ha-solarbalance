@@ -162,13 +162,12 @@ With this flag:
 Note that indirect steering shuffles energy through two extra conversions, so it
 trades a little round-trip efficiency for SoC homogeneity across the fleet.
 
-### Actively controlling the discharge of your controllable batteries (v2)
+### Actively controlling your controllable batteries (v2)
 
 The steering above only changes SolarBalance's *published* setpoints. To make it
-actually drive your hardware, enable active control. The first step is
-**discharge-only** — steering the controllable batteries' discharge is what
-charges the automatic battery over the AC bus, so discharge is the only lever
-needed:
+actually drive your hardware, enable active control and declare whichever
+setpoint entities your battery exposes — charge power, discharge power, and/or an
+operating mode:
 
 ```yaml
 - name: battery_main          # a controllable battery
@@ -180,18 +179,25 @@ needed:
       soc_entity: sensor.main_soc
       power_entity: sensor.main_power
       active_control_enabled: true
-      discharge_power_setpoint_entity: number.main_discharge_setpoint  # W, written by SolarBalance
+      discharge_power_setpoint_entity: number.main_discharge_setpoint  # W
+      charge_power_setpoint_entity: number.main_charge_setpoint        # W (optional)
+      mode_setpoint_entity: select.main_mode    # charge|discharge|idle (optional)
 ```
 
 Then turn on the global **`active_control_enabled`** option in the Config Flow
 (off by default — it is the only thing that lets SolarBalance write to your
-equipment). With both on, the discharge power computed by the balancing
-controller is written to `discharge_power_setpoint_entity` every tick
-(`number.set_value` / `input_number.set_value`); a battery that is charging or
-idle is commanded to 0 W discharge. Writes are suspended in degraded mode.
+equipment). With both on, every tick the balancing controller's per-battery
+power is written: charge power to `charge_power_setpoint_entity`, discharge power
+to `discharge_power_setpoint_entity` (`number.set_value` / `input_number.set_value`),
+and the mode (`charge` / `discharge` / `idle`) to `mode_setpoint_entity`
+(`select.select_option`). A battery at its SoC floor is never told to discharge,
+at its ceiling never to charge. Writes are suspended in degraded mode.
 
-`active_control_enabled` requires `controllable: true` and a
-`discharge_power_setpoint_entity` — it is rejected at load time otherwise.
+The **mode** strings are canonical (`charge`/`discharge`/`idle`); if your device's
+select uses different labels, bridge them with a `template select`.
+
+`active_control_enabled` requires `controllable: true` and at least one of the
+three setpoint entities — it is rejected at load time otherwise.
 
 ## Verifying your mapping
 

@@ -126,11 +126,11 @@ class BatteryRole:
     when unset (correct for an AC-only battery with no DC/solar input).
     """
     discharge_power_setpoint_entity: str | None = None
-    """HA entity (number/input_number) receiving the discharge power setpoint (W).
-
-    First active-control step is discharge-only: steering the controllable fleet's
-    discharge indirectly drives the automatic battery's charge.
-    """
+    """HA entity (number/input_number) receiving the discharge power setpoint (W)."""
+    charge_power_setpoint_entity: str | None = None
+    """HA entity (number/input_number) receiving the charge power setpoint (W)."""
+    mode_setpoint_entity: str | None = None
+    """HA select/input_select receiving the operating mode (charge/discharge/idle)."""
 
     def __post_init__(self) -> None:
         if self.power_entity is None and (
@@ -145,9 +145,15 @@ class BatteryRole:
                 raise ValueError(
                     "active_control_enabled requires controllable=true"
                 )
-            if self.discharge_power_setpoint_entity is None:
+            if (
+                self.discharge_power_setpoint_entity is None
+                and self.charge_power_setpoint_entity is None
+                and self.mode_setpoint_entity is None
+            ):
                 raise ValueError(
-                    "active_control_enabled requires discharge_power_setpoint_entity"
+                    "active_control_enabled requires at least one of "
+                    "discharge_power_setpoint_entity, charge_power_setpoint_entity, "
+                    "mode_setpoint_entity"
                 )
 
     @property

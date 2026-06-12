@@ -584,7 +584,7 @@ Certaines batteries remontent leur état (SoC, puissance) mais n'offrent **aucun
 
 **Requiert `zero_injection_enabled`** (l'équaliseur agit en biaisant son setpoint). Off par défaut. Ce transfert paie deux conversions supplémentaires : compromis rendement ↔ homogénéité des SoC.
 
-**Pilotage actif (v2, première étape — décharge seule)** : lorsque `active_control_enabled` est vrai globalement et au niveau d'un appareil (`active_control_enabled: true` + `discharge_power_setpoint_entity`), l'adapter `ActiveControlPublisher` écrit les consignes de **décharge** issues du `BalancingController` vers les entités `number`/`input_number` déclarées. Seule la décharge est pilotée pour l'instant : c'est la décharge du parc pilotable qui, via le bus AC, contrôle indirectement la charge de la batterie automatique. L'écriture est suspendue en mode dégradé (les consignes gérées sont remises à 0 W). C'est le **seul** composant autorisé à écrire vers le matériel utilisateur.
+**Pilotage actif (v2)** : lorsque `active_control_enabled` est vrai globalement et au niveau d'un appareil, l'adapter `ActiveControlPublisher` écrit les consignes issues du `BalancingController` vers les entités déclarées : **décharge** (`discharge_power_setpoint_entity`), **charge** (`charge_power_setpoint_entity`) et/ou **mode** (`mode_setpoint_entity` : `charge`/`discharge`/`idle`). Une batterie au plancher de SoC n'est jamais sollicitée en décharge (`soc_min_pct + 0,5`), au plafond jamais en charge (`soc_max_pct − 0,5`). L'écriture des puissances est suspendue en mode dégradé (consignes remises à 0 W). C'est le **seul** composant autorisé à écrire vers le matériel utilisateur.
 
 ---
 

@@ -160,8 +160,10 @@ devices:
 | `cycles_entity` | — | — | Sensor nombre de cycles |
 | `usable_capacity_kwh` | — | — | Capacité utile explicite en kWh (surcharge le ratio par chimie) |
 | `controllable` | — | `true` | `false` = batterie lue mais **jamais commandée** (laissée en automatique). Exclue du contrôleur d'équilibrage ; pilotée indirectement par l'équaliseur SoC. Voir §5.6. |
-| `active_control_enabled` | — | `false` | `true` = SolarBalance **écrit** la consigne de décharge sur cet appareil (v2). Requiert `controllable: true`, un `discharge_power_setpoint_entity`, **et** l'option globale `active_control_enabled`. |
-| `discharge_power_setpoint_entity` | — | — | Entité **inscriptible** (`number.` / `input_number.`) recevant la consigne de décharge en W. Obligatoire si `active_control_enabled: true`. |
+| `active_control_enabled` | — | `false` | `true` = SolarBalance **écrit** des consignes sur cet appareil (v2). Requiert `controllable: true`, **au moins une** entité de consigne (`discharge_power_setpoint_entity` / `charge_power_setpoint_entity` / `mode_setpoint_entity`), **et** l'option globale `active_control_enabled`. |
+| `discharge_power_setpoint_entity` | — | — | Entité **inscriptible** (`number.` / `input_number.`) recevant la consigne de décharge en W. |
+| `charge_power_setpoint_entity` | — | — | Entité **inscriptible** (`number.` / `input_number.`) recevant la consigne de charge en W. |
+| `mode_setpoint_entity` | — | — | `select.` / `input_select.` recevant le mode `charge` / `discharge` / `idle` (chaînes canoniques ; mappez vers les libellés de votre matériel via un `template select` si besoin). |
 | `ac_charge_limit_w` | — | = `max_charge_power_w` | Puissance max que la batterie peut **absorber depuis le bus AC** (W). Borne la décharge du parc quand l'équaliseur charge une batterie non-pilotable, pour ne pas déborder sur le réseau. |
 
 > **`power_sign_convention`** : la valeur la plus courante dépend de votre matériel. Ecoflow expose typiquement `charge_positive`, Victron expose souvent `discharge_positive`. Vérifiez dans les Outils de développement HA.

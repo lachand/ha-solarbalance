@@ -66,6 +66,8 @@ _BATTERY_SCHEMA = vol.Schema(
         vol.Optional("controllable", default=True): bool,
         vol.Optional("active_control_enabled", default=False): bool,
         vol.Optional("discharge_power_setpoint_entity"): str,
+        vol.Optional("charge_power_setpoint_entity"): str,
+        vol.Optional("mode_setpoint_entity"): str,
         vol.Optional("ac_charge_limit_w"): vol.Coerce(int),
     }
 )
@@ -200,6 +202,8 @@ def _build_battery_role(raw: Mapping[str, Any]) -> BatteryRole:
         controllable=raw["controllable"],
         active_control_enabled=raw["active_control_enabled"],
         discharge_power_setpoint_entity=raw.get("discharge_power_setpoint_entity"),
+        charge_power_setpoint_entity=raw.get("charge_power_setpoint_entity"),
+        mode_setpoint_entity=raw.get("mode_setpoint_entity"),
         ac_charge_limit_w=raw.get("ac_charge_limit_w"),
     )
 

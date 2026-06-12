@@ -1,4 +1,4 @@
-"""Tests for the discharge-only active control publisher."""
+"""Tests for the active control publisher (charge / discharge / mode)."""
 
 from unittest.mock import AsyncMock, MagicMock
 
@@ -13,8 +13,11 @@ def _device(
     *,
     active: bool = True,
     entity: str | None = "number.dis",
+    charge_entity: str | None = None,
+    mode_entity: str | None = None,
     controllable: bool = True,
     soc_min_pct: int = 10,
+    soc_max_pct: int = 95,
 ) -> Device:
     return Device(
         name=name,
@@ -25,9 +28,12 @@ def _device(
             soc_entity="sensor.soc",
             power_entity="sensor.power",
             soc_min_pct=soc_min_pct,
+            soc_max_pct=soc_max_pct,
             controllable=controllable,
             active_control_enabled=active,
             discharge_power_setpoint_entity=entity if active else None,
+            charge_power_setpoint_entity=charge_entity,
+            mode_setpoint_entity=mode_entity,
         ),
     )
 
@@ -116,6 +122,45 @@ async def test_only_active_control_devices_are_written() -> None:
     await pub.apply({"a": -300.0, "b": -300.0}, {"a": 50.0, "b": 50.0})
     written = {c[2]["entity_id"] for c in _calls(hass)}
     assert written == {"number.dis_a"}
+
+
+async def test_charge_setpoint_written_when_charging() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_device("a", entity=None, charge_entity="number.chg_a")])
+    await pub.apply({"a": 700.0}, {"a": 50.0})
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 700.0})]
+
+
+async def test_charge_cut_near_soc_ceiling() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(
+        hass, [_device("a", entity=None, charge_entity="number.chg_a", soc_max_pct=95)]
+    )
+    await pub.apply({"a": 700.0}, {"a": 94.6})  # >= 94.5 ceiling → charge cut
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 0.0})]
+
+
+async def test_mode_select_written() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(
+        hass, [_device("a", entity="number.dis_a", mode_entity="select.mode_a")]
+    )
+    await pub.apply({"a": -800.0}, {"a": 50.0})
+    modes = [c for c in _calls(hass) if c[1] == "select_option"]
+    assert modes == [
+        ("select", "select_option", {"entity_id": "select.mode_a", "option": "discharge"})
+    ]
+
+
+async def test_mode_idle_when_no_power() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(
+        hass, [_device("a", entity=None, mode_entity="input_select.mode_a")]
+    )
+    await pub.apply({"a": 0.0}, {"a": 50.0})
+    assert _calls(hass) == [
+        ("input_select", "select_option", {"entity_id": "input_select.mode_a", "option": "idle"})
+    ]
 
 
 async def test_service_failure_is_swallowed_and_not_cached() -> None:
