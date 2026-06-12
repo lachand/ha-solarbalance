@@ -73,7 +73,7 @@ Le Config Flow HA configure les **paramètres globaux**. Les équipements (batte
 | **Consigne zéro-injection** | 0 W | Puissance cible au PDL (typiquement 0 W ; valeur légèrement positive ajoute une marge de sécurité). |
 | **Hystérésis ZI** (`zero_injection_hysteresis_w`) | 50 W | Zone morte du régulateur : en dessous de cette valeur d'erreur, aucune correction n'est appliquée. |
 | **Gain ZI** (`zero_injection_kp`) | 0.6 | Gain proportionnel de la zéro-injection (0–2). Le terme intégral est désactivé (la régulation intègre déjà via la puissance mesurée). **Baisse-le à 0,3–0,4 si ça oscille** (batterie lente/cloud). |
-| **Filtre réseau** (`grid_filter_samples`) | 3 | Fenêtre de médiane glissante (en ticks, impaire ≥ 1) sur la mesure réseau **envoyée au régulateur**. Rejette les glitches capteur 1-échantillon et les marches brèves ; `1` = désactivé. Le capteur réseau affiché reste brut. |
+| **Filtre réseau** (`grid_filter_samples`) | 3 | Fenêtre de médiane glissante (en ticks, impaire ≥ 1) appliquée à la mesure réseau **et** à la puissance batterie (la base du régulateur), avec la même fenêtre → les deux restent alignés dans le temps malgré l'asynchronisme des capteurs cloud. Rejette les glitches 1-échantillon ; `1` = désactivé. Les capteurs affichés restent bruts. |
 | **Limite de pente** (`max_ramp_w`) | 800 W | Variation max de la cible batterie agrégée **par tick**. Garde-fou anti cycle-limite ; `0` = désactivé. |
 | **Phases** | 1 | Nombre de phases (1 ou 3). En triphasé, le régulateur PI tourne par phase. |
 | **Puissance souscrite** | 6 kVA | Puissance souscrite au contrat (3–36 kVA). Utilisée par la stratégie écrêtage de pointe. |

@@ -253,6 +253,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._grid_filter_l1 = RollingMedian(grid_samples)
         self._grid_filter_l2 = RollingMedian(grid_samples)
         self._grid_filter_l3 = RollingMedian(grid_samples)
+        # Filter the controllable-fleet power (the regulator's base) with the same
+        # window, so grid and base are time-aligned despite async cloud sensors.
+        self._fleet_filter = RollingMedian(grid_samples)
 
         # Daily energy integration (fallback when no vendor daily_energy_entity),
         # persisted across restarts via the HA Store.
@@ -595,10 +598,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # owns the grid loop (target = current fleet power + PI delta); otherwise
         # the strategies' absolute target drives the fleet. Summing both is what
         # caused the tick-frequency limit cycle. See core/controllers/regulation.
-        current_fleet_w = sum(
-            b.power_w
-            for b in snapshot.batteries
-            if b.available and b.device_name in self._controllable_battery_names
+        current_fleet_w = self._fleet_filter.update(
+            sum(
+                b.power_w
+                for b in snapshot.batteries
+                if b.available and b.device_name in self._controllable_battery_names
+            )
         )
         absolute_target_w = sum(
             t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values()
