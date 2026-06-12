@@ -1,7 +1,7 @@
 # SolarBalance — Documentation Technique
 
 > Version cible : **0.1.x (v1)**  
-> Home Assistant : **2026.1+** — Python : **3.14+**
+> Home Assistant : **2026.1+** — Python : **3.13+**
 
 ---
 

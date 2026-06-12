@@ -4,7 +4,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-orange.svg)](https://github.com/hacs/integration)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-[![Python 3.14+](https://img.shields.io/badge/python-3.14+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.13+](https://img.shields.io/badge/python-3.13+-blue.svg)](https://www.python.org/downloads/)
 
 SolarBalance orchestrates photovoltaic production, battery storage, and electrical loads in your home to meet one or several energy goals (self-consumption, cost minimization, autonomy, hardware longevity), while adapting to dynamic context (tariffs, weather, grid alerts).
 

@@ -11,7 +11,7 @@ This project follows the [Contributor Covenant 2.1](CODE_OF_CONDUCT.md). By part
 ```bash
 git clone https://github.com/solarbalance/ha-solarbalance.git
 cd ha-solarbalance
-python3.14 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 pre-commit install
@@ -21,7 +21,7 @@ pre-commit install
 
 1. Open an **issue** first for non-trivial changes — discussion saves rework.
 2. Fork the repo, create a topic branch (`feat/storm-mode-hysteresis`, `fix/balancing-saturation`).
-3. Write code following [`AGENTS.md`](AGENTS.md) — Python 3.14, ruff-clean, mypy-strict on `core/`.
+3. Write code following [`AGENTS.md`](AGENTS.md) — Python 3.13, ruff-clean, mypy-strict on `core/`.
 4. Add or update tests. Coverage on `core/` should not regress.
 5. Update `docs/` and `CHANGELOG.md` if behavior or API changes.
 6. Run the full check before pushing:

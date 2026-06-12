@@ -913,7 +913,7 @@ Ces dépendances sont **recommandées et documentées comme telles dans le READM
 
 ### 12.3 Qualité de code
 
-- Python ≥ 3.14 (alignement HA core)
+- Python ≥ 3.13 (alignement HA core)
 - **Typage strict** sur le cœur (`mypy --strict` sur `core/`)
 - **Linting** : ruff
 - **Formatting** : ruff format (équivalent black)

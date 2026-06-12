@@ -2,7 +2,7 @@
 
 ## Prerequisites
 
-- **Python 3.14+** (aligned with HA 2026.1+)
+- **Python 3.13+** (aligned with HA 2026.1+)
 - **Git** and **Make** (or run commands manually)
 
 ## Setup

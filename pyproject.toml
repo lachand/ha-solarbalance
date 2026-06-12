@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Home Energy Management System (HEMS) for Home Assistant"
 readme = "README.md"
 license = { text = "Apache-2.0" }
-requires-python = ">=3.14"
+requires-python = ">=3.13"
 authors = [{ name = "SolarBalance Contributors" }]
 keywords = ["home-assistant", "hems", "solar", "battery", "energy"]
 classifiers = [
@@ -16,7 +16,7 @@ classifiers = [
     "Intended Audience :: End Users/Desktop",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.14",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Home Automation",
 ]
 dependencies = []
@@ -92,6 +92,9 @@ convention = "google"
 # Mypy — strict on core, normal elsewhere
 # ----------------------------------------------------------------------
 [tool.mypy]
+# Kept at 3.14 so mypy can parse the installed Home Assistant (whose own code
+# already uses PEP 758 syntax). This only affects type analysis — our runtime
+# target is 3.13 (ruff target-version = py313 keeps our syntax 3.13-safe).
 python_version = "3.14"
 ignore_missing_imports = true
 follow_imports = "silent"

@@ -24,7 +24,7 @@
 
 | Outil | Version minimale |
 |---|---|
-| Python | **3.14** |
+| Python | **3.13** |
 | Home Assistant (test) | **2026.1** |
 | Node.js (frontend) | **20** |
 
@@ -145,14 +145,12 @@ Le script `scripts/check_core_purity.py` vérifie cela à chaque commit (hook pr
 
 - **`mypy --strict`** est obligatoire sur `core/`. Adapters et plateformes : mypy standard.
 - Les annotations sont **obligatoires** sur toutes les fonctions et méthodes publiques.
-- Python 3.14 évalue les annotations paresseusement (PEP 649) — les forward references ne nécessitent **pas** de guillemets ni de `from __future__ import annotations`.
+- Cible **Python 3.13** : pas de syntaxe 3.14-only (toujours parenthéser les `except (A, B):` — PEP 758 casse en 3.13). Pour les forward references évaluées au runtime, ajoutez `from __future__ import annotations` si besoin.
 
 ```python
-# ✓ correct (Python 3.14)
-def compute(self, snapshot: Snapshot) -> Decision: ...
+from __future__ import annotations  # si une annotation référence un type défini plus bas
 
-# ✗ inutile
-from __future__ import annotations
+def compute(self, snapshot: Snapshot) -> Decision: ...
 ```
 
 ### Linting & formatage

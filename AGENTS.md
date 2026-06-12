@@ -1,6 +1,6 @@
 # Agent Instructions for SolarBalance
 
-This repository hosts **SolarBalance**, a Home Assistant custom component for home energy management (HEMS). It targets **Home Assistant 2026.1+** and **Python 3.14+**, aligned with HA core requirements.
+This repository hosts **SolarBalance**, a Home Assistant custom component for home energy management (HEMS). It targets **Home Assistant 2026.1+** and **Python 3.13+** (the version HA currently ships).
 
 These instructions apply to GitHub Copilot, Claude Code, and any other AI assistant contributing to this repository.
 
@@ -16,7 +16,7 @@ When proposing code, **respect this layering**. A change to `core/` that imports
 
 ## Python syntax and language features
 
-- **Runtime reality: Home Assistant 2026.6 still ships Python 3.13.** Code must run on 3.13, so do **not** use 3.14-only *syntax* even though the project aspires to 3.14. In particular **always parenthesise multi-type excepts** — `except (TypeA, TypeB):` — because PEP 758's unparenthesised form (`except TypeA, TypeB:`) is a `SyntaxError` on 3.13 and breaks setup. `ruff` `target-version` is pinned to `py313` to stop it rewriting to the 3.14 form.
+- **Python 3.13 is the minimum supported version** (Home Assistant 2026.6 ships 3.13). Do not use 3.14-only *syntax*. In particular **always parenthesise multi-type excepts** — `except (TypeA, TypeB):` — because PEP 758's unparenthesised form (`except TypeA, TypeB:`) is a `SyntaxError` on 3.13 and breaks setup. `ruff` `target-version` and `mypy` `python_version` are pinned to 3.13.
 - Annotations: prefer forms valid on 3.13. `X | None` unions are fine; if you rely on unquoted forward references in runtime-evaluated annotations, add `from __future__ import annotations`.
 - Type annotations are **mandatory** on all public functions and methods, and on test parameters.
 - Type annotations are **mandatory** on all public functions and methods, and on test parameters.
