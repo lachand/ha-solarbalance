@@ -612,21 +612,20 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
 
         # Apply grid constraints: clamp the aggregate battery target so the
-        # projected grid exchange honours max_import_w and max_export_w.
-        # Projection: new_grid ≈ current_grid + (target_battery - current_battery)
+        # projected grid exchange honours max_import_w and max_export_w. Only the
+        # controllable fleet moves, so the projection uses the controllable fleet
+        # power (not all batteries) and the same filtered grid as the regulator:
+        #   new_grid ≈ grid_filtered + (target_fleet - current_fleet)
         gc = result.decision.grid_constraint
-        current_battery_w = snapshot.battery_power_total_w
         if gc.max_import_w is not None:
-            # target_battery ≤ max_import_w - current_grid + current_battery
             total_power_w = min(
                 total_power_w,
-                gc.max_import_w - snapshot.grid_power_w + current_battery_w,
+                gc.max_import_w - grid_filtered_w + current_fleet_w,
             )
         if gc.max_export_w is not None:
-            # target_battery ≥ -max_export_w - current_grid + current_battery
             total_power_w = max(
                 total_power_w,
-                -gc.max_export_w - snapshot.grid_power_w + current_battery_w,
+                -gc.max_export_w - grid_filtered_w + current_fleet_w,
             )
 
         # Slew-rate limit: cap how far the command may move per tick. Hard safety
@@ -657,13 +656,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             pv_limit_w=pv_limit_total,
         )
 
+        # Surplus available to pilotable loads: the export we would still have
+        # after the controllable fleet takes its allocated charge. Uses the
+        # controllable fleet's current power (matching per_battery_w), not all
+        # batteries, so the automatic battery's power does not leak in.
         load_states = {ls.name: ls for ls in snapshot.loads}
         self._load_dispatch.dispatch(
             available_surplus_w=max(
                 0.0,
                 -snapshot.grid_power_w
                 - sum(balancing_result.per_battery_w.values())
-                + current_battery_w,
+                + current_fleet_w,
             ),
             states=load_states,
             now=snapshot.timestamp,
