@@ -50,3 +50,19 @@ class DailyEnergyAccumulator:
         dt_h = dt_s / 3600.0
         self.pv_kwh += max(0.0, pv_w) * dt_h / 1000.0
         self.grid_import_kwh += max(0.0, grid_w) * dt_h / 1000.0
+
+    @property
+    def day(self) -> date | None:
+        """Local date the current totals belong to (None before the first sample)."""
+        return self._day
+
+    def restore(self, *, day: date, pv_kwh: float, grid_import_kwh: float) -> None:
+        """Seed persisted totals (e.g. after a restart).
+
+        The next :meth:`update` re-seeds the timestamp; if ``day`` is no longer
+        today it resets to zero, so a stale day cannot carry energy forward.
+        """
+        self._day = day
+        self._last_ts = None
+        self.pv_kwh = pv_kwh
+        self.grid_import_kwh = grid_import_kwh

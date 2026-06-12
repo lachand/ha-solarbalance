@@ -3,10 +3,12 @@
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -43,6 +45,8 @@ from .const import (
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DOMAIN,
+    STORE_KEY,
+    STORE_VERSION,
 )
 from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.controllers.balancing import BalancingController
@@ -77,6 +81,10 @@ from .core.strategies.self_consumption import SelfConsumptionStrategy
 from .core.tariff import TariffConfig
 
 _LOGGER = logging.getLogger(__name__)
+
+# Debounce persisted-state writes; the daily counters change every tick but we
+# don't need to hit disk that often. Store also flushes on HA shutdown.
+_STORE_SAVE_DELAY_S = 60.0
 
 _STRATEGY_CLASSES = {
     StrategyKind.SELF_CONSUMPTION.value: SelfConsumptionStrategy,
@@ -207,8 +215,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._grid_filter_l2 = RollingMedian(grid_samples)
         self._grid_filter_l3 = RollingMedian(grid_samples)
 
-        # Daily energy integration (fallback when no vendor daily_energy_entity).
+        # Daily energy integration (fallback when no vendor daily_energy_entity),
+        # persisted across restarts via the HA Store.
         self._energy = DailyEnergyAccumulator()
+        self._store: Store[dict[str, Any]] = Store(hass, STORE_VERSION, STORE_KEY)
 
         # Watchdog — entity lists built from config
         self._critical_entity_ids, self._monitored_entity_ids = self._collect_entity_ids(
@@ -241,6 +251,35 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def is_degraded(self) -> bool:
         """True when the HEMS is in degraded mode."""
         return self._mode is HemsMode.DEGRADED
+
+    async def async_restore(self) -> None:
+        """Restore persisted state (daily energy counters) from the HA Store.
+
+        Called once at setup before the first refresh. A stale day is harmless:
+        the next integration tick resets the counters when the date has changed.
+        """
+        data = await self._store.async_load()
+        energy = (data or {}).get("energy")
+        if not energy:
+            return
+        try:
+            self._energy.restore(
+                day=date.fromisoformat(energy["day"]),
+                pv_kwh=float(energy["pv_kwh"]),
+                grid_import_kwh=float(energy["grid_import_kwh"]),
+            )
+        except (KeyError, ValueError, TypeError):
+            _LOGGER.warning("SolarBalance: could not restore persisted daily energy")
+
+    def _persisted_state(self) -> dict[str, Any]:
+        """Build the dict written to the Store (daily energy counters)."""
+        return {
+            "energy": {
+                "day": self._energy.day.isoformat() if self._energy.day else None,
+                "pv_kwh": round(self._energy.pv_kwh, 4),
+                "grid_import_kwh": round(self._energy.grid_import_kwh, 4),
+            }
+        }
 
     @property
     def daily_pv_energy_kwh(self) -> float | None:
@@ -333,6 +372,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             pv_w=snapshot.pv_total_w,
             grid_w=snapshot.grid_power_w,
         )
+        self._store.async_delay_save(self._persisted_state, _STORE_SAVE_DELAY_S)
 
         # --- Grid median filter (B): clean the value handed to the regulator;
         # the displayed grid sensor keeps snapshot.grid_power_w (raw). ---

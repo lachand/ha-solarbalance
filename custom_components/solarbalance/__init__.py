@@ -174,6 +174,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     devices, meters, loads = yaml_cfg if yaml_cfg else ([], [], [])
 
     coordinator = SolarBalanceCoordinator(hass, entry, devices, meters, loads)
+    await coordinator.async_restore()
     await coordinator.async_config_entry_first_refresh()
 
     hass.data[DOMAIN][entry.entry_id] = {COORDINATOR_KEY: coordinator}
