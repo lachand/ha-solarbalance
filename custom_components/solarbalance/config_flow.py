@@ -100,7 +100,7 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ): bool,
             vol.Optional(
                 CONF_SOC_EQUALISER_ENABLED,
-                default=d.get(CONF_SOC_EQUALISER_ENABLED, True),
+                default=d.get(CONF_SOC_EQUALISER_ENABLED, False),
             ): bool,
             vol.Optional(
                 CONF_SOC_EQUALISER_MAX_W,

@@ -393,7 +393,7 @@ solarbalance:
 - `pv_forecast_entity` (entity_id, optionnel)
 - `weather_warning_entity` (entity_id, optionnel)
 - `active_control_enabled` (bool, défaut false) — autorise l'écriture de consignes vers le matériel (v2). Voir §6.6.
-- `soc_equaliser_enabled` (bool, défaut true) — pilotage indirect des batteries `controllable: false`. Voir §6.6.
+- `soc_equaliser_enabled` (bool, défaut false) — pilotage indirect des batteries `controllable: false`. Off par défaut (peut osciller sur batterie lente). Voir §6.6.
 - `soc_equaliser_max_w` (int, défaut 1500) — biais de puissance maximal appliqué au parc pilotable
 - `soc_equaliser_kp_w_per_pct` (float, défaut 80.0) — gain proportionnel (W par % d'écart de SoC)
 - `soc_equaliser_deadband_pct` (float, défaut 2.0) — demi-largeur de la bande morte de SoC

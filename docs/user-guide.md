@@ -71,11 +71,19 @@ Le Config Flow HA configure les **paramètres globaux**. Les équipements (batte
 | **Intervalle de tick** | 10 s | Fréquence de la boucle de calcul (5–60 s). Valeurs plus basses = réactivité accrue mais plus de charge CPU. |
 | **Zéro-injection** | Activé | Active le régulateur PI qui maintient l'injection réseau à 0 W. |
 | **Consigne zéro-injection** | 0 W | Puissance cible au PDL (typiquement 0 W ; valeur légèrement positive ajoute une marge de sécurité). |
-| **Hystérésis ZI** | 50 W | Zone morte du régulateur : en dessous de cette valeur d'erreur, aucune correction n'est appliquée. |
+| **Hystérésis ZI** (`zero_injection_hysteresis_w`) | 50 W | Zone morte du régulateur : en dessous de cette valeur d'erreur, aucune correction n'est appliquée. |
+| **Filtre réseau** (`grid_filter_samples`) | 3 | Fenêtre de médiane glissante (en ticks, impaire ≥ 1) sur la mesure réseau **envoyée au régulateur**. Rejette les glitches capteur 1-échantillon et les marches brèves ; `1` = désactivé. Le capteur réseau affiché reste brut. |
+| **Limite de pente** (`max_ramp_w`) | 800 W | Variation max de la cible batterie agrégée **par tick**. Garde-fou anti cycle-limite ; `0` = désactivé. |
 | **Phases** | 1 | Nombre de phases (1 ou 3). En triphasé, le régulateur PI tourne par phase. |
 | **Puissance souscrite** | 6 kVA | Puissance souscrite au contrat (3–36 kVA). Utilisée par la stratégie écrêtage de pointe. |
 | **Entité prévision PV** | — (optionnel) | Sensor HA exprimant la puissance PV prévue *maintenant* (en W). Compatible Solcast, Forecast.Solar, OpenMeteo via template. |
 | **Entité alerte météo** | — (optionnel) | `binary_sensor` ou `sensor` Météo-France vigilance. Déclenche le mode Tempête. |
+| **Pilotage actif** (`active_control_enabled`) | Désactivé | Autorise SolarBalance à **écrire** des consignes vers le matériel (v2). Tant que c'est off, l'intégration ne fait que publier des sensors de consigne. Requiert aussi `active_control_enabled: true` au niveau de l'appareil. |
+| **Équaliseur SoC** (`soc_equaliser_enabled`) | Désactivé | Pilote indirectement les batteries non-pilotables (`controllable: false`) vers le SoC moyen du parc. Sans effet si aucune batterie non-pilotable n'est déclarée. **Off par défaut** : sur batterie lente (cloud), peut induire des oscillations réseau — n'activer qu'après validation. |
+| **Équaliseur — puissance max** (`soc_equaliser_max_w`) | 1500 W | Biais de steering agrégé maximal appliqué au parc pilotable. |
+| **Équaliseur — gain** (`soc_equaliser_kp_w_per_pct`) | 80 | Gain proportionnel en W par % d'écart de SoC. |
+| **Équaliseur — bande morte** (`soc_equaliser_deadband_pct`) | 2,0 | Demi-largeur de la zone morte de SoC (%) ; en deçà, pas de steering. |
+| **Équaliseur — pas initial** (`soc_equaliser_probe_step_w`) | 150 W | Pas de steering de départ ; croît géométriquement tant que la batterie auto suit (voir §6.6 des SPECIFICATIONS). |
 | **Stratégies / priorités** | self_consumption en premier | Ordre des stratégies actives, de la plus prioritaire à la moins prioritaire. |
 
 ### Modifier les paramètres après installation
@@ -150,9 +158,15 @@ devices:
 | `soc_max_pct` | — | `95` | SoC maximum autorisé (%) |
 | `temperature_entity` | — | — | Sensor température batterie (°C) |
 | `cycles_entity` | — | — | Sensor nombre de cycles |
-| `usable_capacity_kwh` | — | — | Capacité utile explicite (surcharge le ratio par chimie) |
+| `usable_capacity_kwh` | — | — | Capacité utile explicite en kWh (surcharge le ratio par chimie) |
+| `controllable` | — | `true` | `false` = batterie lue mais **jamais commandée** (laissée en automatique). Exclue du contrôleur d'équilibrage ; pilotée indirectement par l'équaliseur SoC. Voir §5.6. |
+| `active_control_enabled` | — | `false` | `true` = SolarBalance **écrit** la consigne de décharge sur cet appareil (v2). Requiert `controllable: true`, un `discharge_power_setpoint_entity`, **et** l'option globale `active_control_enabled`. |
+| `discharge_power_setpoint_entity` | — | — | Entité **inscriptible** (`number.` / `input_number.`) recevant la consigne de décharge en W. Obligatoire si `active_control_enabled: true`. |
+| `ac_charge_limit_w` | — | = `max_charge_power_w` | Puissance max que la batterie peut **absorber depuis le bus AC** (W). Borne la décharge du parc quand l'équaliseur charge une batterie non-pilotable, pour ne pas déborder sur le réseau. |
 
 > **`power_sign_convention`** : la valeur la plus courante dépend de votre matériel. Ecoflow expose typiquement `charge_positive`, Victron expose souvent `discharge_positive`. Vérifiez dans les Outils de développement HA.
+
+> **`soc_min_pct` & pilotage actif** : lorsque le pilotage actif est activé, la consigne de décharge est forcée à **0 W dès que le SoC mesuré ≤ `soc_min_pct` + 0,5 %** — une batterie au plancher n'est jamais sollicitée en décharge (la marge couvre la latence d'un tick sur le SoC).
 
 #### Rôle MPPT solaire (`mppt`)
 
@@ -160,7 +174,10 @@ devices:
 |---|---|---|---|
 | `peak_power_w` | ✓ | — | Puissance crête installée en Wc |
 | `power_entity` | ✓ | — | Sensor puissance PV actuelle (W) |
-| `daily_energy_entity` | — | — | Sensor énergie produite aujourd'hui (kWh) |
+| `daily_energy_entity` | — | — | Sensor énergie produite aujourd'hui (kWh). Si absent, SolarBalance **calcule lui-même** l'énergie du jour en intégrant `power_entity`. |
+| `voltage_entity` | — | — | Sensor tension PV (V), pour diagnostic. |
+| `current_entity` | — | — | Sensor courant PV (A), pour diagnostic. |
+| `feeds` | — | `[]` | Liste des **noms de devices batterie** que ce MPPT alimente (topologie split type Victron). Sur une station tout-en-un, laisser vide. |
 
 #### Rôle onduleur (`inverter`)
 
@@ -171,6 +188,8 @@ devices:
 | `ac_input_power_entity` | — | — | Sensor puissance AC entrante (W) |
 | `eps_capable` | — | `false` | L'onduleur supporte le mode EPS (secours) |
 | `eps_active_entity` | — | — | `binary_sensor` indiquant le mode EPS actif |
+| `eps_circuits` | — | `[]` | Liste des circuits secourus par l'EPS (libellés libres, pour l'affichage). |
+| `temperature_entity` | — | — | Sensor température onduleur (°C). |
 
 ### 5.3 Déclaration des compteurs
 
@@ -187,6 +206,17 @@ meters:
     daily_import_energy_entity: sensor.shelly_import_kwh
     daily_export_energy_entity: sensor.shelly_export_kwh
 ```
+
+| Champ | Obligatoire | Défaut | Description |
+|---|---|---|---|
+| `name` | ✓ | — | Nom unique. Le compteur de point de livraison **doit s'appeler `pdl`**. |
+| `kind` | ✓ | — | `pdl` (point de livraison), `pv`, `consumption` ou `subcircuit`. |
+| `power_entity` | ✓ | — | Sensor puissance signée (W). Pour le PDL : positif = soutirage. |
+| `phases` | — | `1` | `1` ou `3`. |
+| `per_phase_zi` | — | `false` | `true` = régulation zéro-injection **par phase** (triphasé). Requiert les 3 entités `power_lN_entity`. |
+| `power_l1_entity` / `power_l2_entity` / `power_l3_entity` | — | — | Puissance par phase (W), pour la ZI par phase. |
+| `daily_import_energy_entity` | — | — | Énergie importée aujourd'hui (kWh). Si absent, SolarBalance **calcule** le soutirage du jour en intégrant `power_entity`. |
+| `daily_export_energy_entity` | — | — | Énergie exportée aujourd'hui (kWh). |
 
 **Convention PDL** : `power_entity` doit être **positif en soutirage** (import réseau) et **négatif en injection** (export). C'est la convention standard des compteurs Linky et Shelly 3EM.
 
@@ -234,6 +264,29 @@ loads:
       - level: 3
         power_w: 1200
 ```
+
+**Champs communs à toutes les charges** :
+
+| Champ | Obligatoire | Défaut | Description |
+|---|---|---|---|
+| `name` | ✓ | — | Nom unique. |
+| `control_type` | ✓ | — | `on_off`, `stepped` ou `modulating`. |
+| `priority` | ✓ | — | Entier ≥ 1 ; **1 = plus prioritaire**. |
+| `interruptible` | — | `true` | `false` = ne pas couper une fois démarrée. |
+| `min_on_duration_s` | — | `0` | Durée minimale d'allumage (s). |
+| `min_off_duration_s` | — | `0` | Durée minimale d'arrêt avant redémarrage (s). |
+| `max_daily_runtime_s` | — | — | Temps de marche max par jour (s). |
+| `max_daily_energy_kwh` | — | — | Énergie max par jour (kWh). |
+| `time_window` | — | — | Fenêtre horaire autorisée : `start` / `end` au format `HH:MM`. |
+| `deadline_constraint` | — | — | Exigence d'énergie : `kwh_required` à fournir avant `before_time` (`HH:MM`). |
+
+**Champs selon `control_type`** :
+
+| `control_type` | Champs requis | Description |
+|---|---|---|
+| `on_off` | `nominal_power_w`, `switch_entity` | Charge tout-ou-rien : puissance nominale (W) + `switch.` à piloter. |
+| `stepped` | `steps`, `level_entity` | Paliers discrets : liste `steps` de `{ level, power_w }` + entité `number.`/`select.` recevant le niveau. |
+| `modulating` | `min_power_w`, `max_power_w`, `power_set_entity` | Charge modulante : bornes de puissance + entité `number.` de consigne. Optionnels : `step_w` (résolution, défaut `1`) et `actual_power_entity` (puissance réelle mesurée). |
 
 ### 5.5 Exemple multi-équipements complet
 
@@ -286,6 +339,29 @@ solarbalance:
         start: "11:00"
         end: "16:00"
 ```
+
+### 5.6 Batterie non-pilotable et pilotage indirect
+
+Certaines batteries **remontent leur état** (SoC, puissance) mais ne peuvent **pas être commandées** en charge/décharge depuis Home Assistant — seul leur automatisme interne fonctionne. Déclarez-les avec **`controllable: false`** :
+
+```yaml
+- name: batterie_auto
+  roles:
+    battery:
+      capacity_kwh: 5.0
+      max_charge_power_w: 1200
+      max_discharge_power_w: 1200
+      soc_entity: sensor.batauto_soc
+      power_entity: sensor.batauto_power
+      controllable: false        # lue, jamais commandée
+      ac_charge_limit_w: 1200    # ce qu'elle peut absorber en AC
+```
+
+Conséquences :
+- Elle alimente normalement le `baseline` et l'équilibre réseau (le HEMS réagit autour d'elle), mais est **exclue du pilotage** : aucune consigne, aucune apparition dans les setpoints publiés.
+- Si l'**équaliseur SoC** est activé (option globale), le HEMS la pilote **indirectement** : pour la charger, il fait décharger les batteries pilotables (surplus AC qu'elle absorbe) ; pour la décharger, il les fait charger. Le steering démarre petit, croît tant qu'elle suit, recule si elle part dans le mauvais sens, et est **plafonné par `ac_charge_limit_w`** pour ne jamais déborder sur le réseau.
+
+Voir SPECIFICATIONS §6.6 pour l'algorithme détaillé, et `docs/device-mapping.md` pour les recettes par marque.
 
 ---
 

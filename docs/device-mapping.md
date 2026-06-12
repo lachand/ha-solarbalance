@@ -153,10 +153,10 @@ With this flag:
   (`soc_equaliser_probe_step_w`, default 150 W), grows only while the battery
   actually follows, backs off if it moves the wrong way, and is hard-capped by
   the battery's AC capacity (`ac_charge_limit_w` / `max_discharge_power_w`) — so
-  it never pushes more than the battery can take and never spills to the grid. It
-  is enabled automatically when a non-controllable battery is declared; disable it
-  with the global `soc_equaliser_enabled: false` option, and cap its overall
-  authority with `soc_equaliser_max_w` (default 1500 W).
+  it never pushes more than the battery can take and never spills to the grid.
+  **Off by default** — enable it with the global `soc_equaliser_enabled` option
+  once validated (on slow/cloud batteries it can still induce grid oscillation),
+  and cap its overall authority with `soc_equaliser_max_w` (default 1500 W).
 
 Note that indirect steering shuffles energy through two extra conversions, so it
 trades a little round-trip efficiency for SoC homogeneity across the fleet.

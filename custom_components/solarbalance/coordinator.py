@@ -155,7 +155,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if d.battery is not None and not d.battery.controllable
         ]
         self._soc_equaliser: SocEqualiserController | None = None
-        if uncontrollable and bool(cfg.get(CONF_SOC_EQUALISER_ENABLED, True)):
+        if uncontrollable and bool(cfg.get(CONF_SOC_EQUALISER_ENABLED, False)):
             self._soc_equaliser = SocEqualiserController(
                 uncontrollable,
                 kp_w_per_pct=float(
