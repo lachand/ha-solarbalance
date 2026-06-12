@@ -36,6 +36,25 @@ def test_only_positive_pv_and_import_counted() -> None:
     assert acc.grid_import_kwh == 0.0
 
 
+def test_grid_export_integrates_negative_grid() -> None:
+    acc = DailyEnergyAccumulator()
+    d = _ts(0).date()
+    acc.update(now=_ts(0), local_date=d, pv_w=2000.0, grid_w=-800.0)  # seed
+    acc.update(now=_ts(10), local_date=d, pv_w=2000.0, grid_w=-800.0)  # +10 min export
+    assert acc.grid_export_kwh == pytest.approx(800.0 * (10 / 60) / 1000)
+    assert acc.grid_import_kwh == 0.0
+    # Import does not feed the export accumulator.
+    acc.update(now=_ts(20), local_date=d, pv_w=2000.0, grid_w=500.0)
+    assert acc.grid_export_kwh == pytest.approx(800.0 * (10 / 60) / 1000)
+
+
+def test_restore_seeds_grid_export() -> None:
+    acc = DailyEnergyAccumulator()
+    d = _ts(0).date()
+    acc.restore(day=d, pv_kwh=1.0, grid_import_kwh=0.5, grid_export_kwh=2.0)
+    assert acc.grid_export_kwh == 2.0
+
+
 def test_resets_at_local_midnight() -> None:
     acc = DailyEnergyAccumulator()
     d0 = _ts(0).date()

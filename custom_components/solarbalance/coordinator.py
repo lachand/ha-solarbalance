@@ -349,6 +349,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 day=date.fromisoformat(energy["day"]),
                 pv_kwh=float(energy["pv_kwh"]),
                 grid_import_kwh=float(energy["grid_import_kwh"]),
+                grid_export_kwh=float(energy.get("grid_export_kwh", 0.0)),
             )
         except (KeyError, ValueError, TypeError):
             _LOGGER.warning("SolarBalance: could not restore persisted daily energy")
@@ -360,6 +361,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 "day": self._energy.day.isoformat() if self._energy.day else None,
                 "pv_kwh": round(self._energy.pv_kwh, 4),
                 "grid_import_kwh": round(self._energy.grid_import_kwh, 4),
+                "grid_export_kwh": round(self._energy.grid_export_kwh, 4),
             }
         }
 
@@ -399,6 +401,22 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     except (ValueError, TypeError):
                         pass
         return round(self._energy.grid_import_kwh, 3)
+
+    @property
+    def daily_grid_export_kwh(self) -> float | None:
+        """Today's grid export (injection) energy (kWh), integrated internally.
+
+        Prefers the PDL meter's ``daily_export_energy_entity`` when declared.
+        """
+        for meter in self._meters:
+            if meter.kind is MeterKind.PDL and meter.daily_export_energy_entity:
+                state = self.hass.states.get(meter.daily_export_energy_entity)
+                if state and state.state not in {"unavailable", "unknown", ""}:
+                    try:
+                        return round(float(state.state), 3)
+                    except (ValueError, TypeError):
+                        pass
+        return round(self._energy.grid_export_kwh, 3)
 
     def set_force_override(
         self,

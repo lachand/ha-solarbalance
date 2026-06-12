@@ -63,6 +63,7 @@ async def async_setup_entry(
         SolarBalanceBatterySocAvgSensor(coordinator, entry),
         SolarBalancePvEnergyTodaySensor(coordinator, entry),
         SolarBalanceGridImportTodaySensor(coordinator, entry),
+        SolarBalanceGridExportTodaySensor(coordinator, entry),
     ]
 
     # Per-battery setpoint + state (SoC / power / temperature) sensors
@@ -321,6 +322,24 @@ class SolarBalanceGridImportTodaySensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float | None:
         return self.coordinator.daily_grid_import_kwh
+
+
+class SolarBalanceGridExportTodaySensor(_SolarBalanceSensor):
+    """Grid energy exported (injected) today, integrated internally."""
+
+    _attr_translation_key = "grid_export_today"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:transmission-tower-export"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "grid_export_today")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.daily_grid_export_kwh
 
 
 # ---------------------------------------------------------------------------

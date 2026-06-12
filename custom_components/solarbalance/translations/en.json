@@ -75,6 +75,7 @@
       "battery_soc_avg": { "name": "Battery SoC Average" },
       "pv_energy_today": { "name": "PV Energy Today" },
       "grid_import_today": { "name": "Grid Import Today" },
+      "grid_export_today": { "name": "Grid Export Today" },
       "battery_setpoint_charge": { "name": "Charge setpoint" },
       "battery_setpoint_discharge": { "name": "Discharge setpoint" },
       "batt_soc": { "name": "SoC" },

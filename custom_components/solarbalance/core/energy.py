@@ -22,6 +22,7 @@ class DailyEnergyAccumulator:
 
     pv_kwh: float = 0.0
     grid_import_kwh: float = 0.0
+    grid_export_kwh: float = 0.0
     _day: date | None = field(default=None, repr=False)
     _last_ts: datetime | None = field(default=None, repr=False)
 
@@ -37,6 +38,7 @@ class DailyEnergyAccumulator:
         if self._day != local_date:
             self.pv_kwh = 0.0
             self.grid_import_kwh = 0.0
+            self.grid_export_kwh = 0.0
             self._day = local_date
             self._last_ts = now
             return
@@ -50,13 +52,21 @@ class DailyEnergyAccumulator:
         dt_h = dt_s / 3600.0
         self.pv_kwh += max(0.0, pv_w) * dt_h / 1000.0
         self.grid_import_kwh += max(0.0, grid_w) * dt_h / 1000.0
+        self.grid_export_kwh += max(0.0, -grid_w) * dt_h / 1000.0
 
     @property
     def day(self) -> date | None:
         """Local date the current totals belong to (None before the first sample)."""
         return self._day
 
-    def restore(self, *, day: date, pv_kwh: float, grid_import_kwh: float) -> None:
+    def restore(
+        self,
+        *,
+        day: date,
+        pv_kwh: float,
+        grid_import_kwh: float,
+        grid_export_kwh: float = 0.0,
+    ) -> None:
         """Seed persisted totals (e.g. after a restart).
 
         The next :meth:`update` re-seeds the timestamp; if ``day`` is no longer
@@ -66,3 +76,4 @@ class DailyEnergyAccumulator:
         self._last_ts = None
         self.pv_kwh = pv_kwh
         self.grid_import_kwh = grid_import_kwh
+        self.grid_export_kwh = grid_export_kwh
