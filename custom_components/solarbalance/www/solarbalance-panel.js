@@ -35,9 +35,33 @@ class SolarBalancePanel extends HTMLElement {
   }
 
   _state(id) {
-    const s = this._hass && this._hass.states[id];
+    const s = id && this._hass && this._hass.states[id];
     if (!s || s.state === "unavailable" || s.state === "unknown" || s.state === "") return null;
     return s.state;
+  }
+
+  /**
+   * Resolve a SolarBalance entity by its stable translation_key via the entity
+   * registry. Entity_ids are localised (French installs get e.g.
+   * `sensor.solarbalance_puissance_reseau`), but translation_key is not. Falls
+   * back to the given English entity_id if the registry is unavailable.
+   */
+  _buildByKey() {
+    const map = {};
+    const ents = this._hass && this._hass.entities;
+    if (ents) {
+      for (const eid in ents) {
+        const e = ents[eid];
+        if (e && e.platform === "solarbalance" && e.translation_key) {
+          map[e.translation_key] = eid;
+        }
+      }
+    }
+    this._byKey = map;
+  }
+
+  _id(translationKey, fallback) {
+    return (this._byKey && this._byKey[translationKey]) || fallback;
   }
 
   _fmt(id, digits = 0, unit = "") {
@@ -84,8 +108,25 @@ class SolarBalancePanel extends HTMLElement {
 
   _content() {
     if (!this._hass) return `<div class="wrap"><p>Chargement…</p></div>`;
-    const mode = this._state("sensor.solarbalance_mode") || "—";
-    const strat = this._state("sensor.solarbalance_dominant_strategy") || "—";
+    this._buildByKey();
+    const id = (k, fb) => this._id(k, fb);
+    // Core + binary entities resolved by translation_key (language-agnostic).
+    const E = {
+      mode: id("mode", "sensor.solarbalance_mode"),
+      strat: id("dominant_strategy", "sensor.solarbalance_dominant_strategy"),
+      grid: id("grid_power", "sensor.solarbalance_grid_power"),
+      pv: id("pv_power", "sensor.solarbalance_pv_power"),
+      battery: id("battery_power", "sensor.solarbalance_battery_power"),
+      home: id("baseline_consumption", "sensor.solarbalance_baseline_consumption"),
+      soc: id("battery_soc_avg", "sensor.solarbalance_battery_soc_avg"),
+      pvToday: id("pv_energy_today", "sensor.solarbalance_pv_energy_today"),
+      gridToday: id("grid_import_today", "sensor.solarbalance_grid_import_today"),
+      storm: id("storm_mode", "binary_sensor.solarbalance_storm_mode"),
+      weather: id("weather_warning", "binary_sensor.solarbalance_weather_warning"),
+      degraded: id("degraded", "binary_sensor.solarbalance_degraded"),
+    };
+    const mode = this._state(E.mode) || "—";
+    const strat = this._state(E.strat) || "—";
     const modeColors = {
       storm: "var(--error-color, red)",
       degraded: "var(--warning-color, orange)",
@@ -94,9 +135,9 @@ class SolarBalancePanel extends HTMLElement {
       normal: "var(--success-color, green)",
     };
     const chips = [];
-    if (this._badge("binary_sensor.solarbalance_storm_mode")) chips.push("⛈️ Tempête");
-    if (this._badge("binary_sensor.solarbalance_weather_warning")) chips.push("⚠️ Vigilance");
-    if (this._badge("binary_sensor.solarbalance_degraded")) chips.push("🛑 Dégradé");
+    if (this._badge(E.storm)) chips.push("⛈️ Tempête");
+    if (this._badge(E.weather)) chips.push("⚠️ Vigilance");
+    if (this._badge(E.degraded)) chips.push("🛑 Dégradé");
 
     const devs = this._devices();
     const devCards = Object.keys(devs)
@@ -128,15 +169,15 @@ class SolarBalancePanel extends HTMLElement {
           <div class="card">
             <h3>Flux énergétique</h3>
             <div class="tiles">
-              ${this._tile("Réseau", this._fmt("sensor.solarbalance_grid_power", 0, "W"), "var(--info-color,#39f)")}
-              ${this._tile("Solaire", this._fmt("sensor.solarbalance_pv_power", 0, "W"), "var(--warning-color,#f90)")}
-              ${this._tile("Batteries", this._fmt("sensor.solarbalance_battery_power", 0, "W"), "var(--success-color,#2a2)")}
-              ${this._tile("Maison", this._fmt("sensor.solarbalance_baseline_consumption", 0, "W"))}
+              ${this._tile("Réseau", this._fmt(E.grid, 0, "W"), "var(--info-color,#39f)")}
+              ${this._tile("Solaire", this._fmt(E.pv, 0, "W"), "var(--warning-color,#f90)")}
+              ${this._tile("Batteries", this._fmt(E.battery, 0, "W"), "var(--success-color,#2a2)")}
+              ${this._tile("Maison", this._fmt(E.home, 0, "W"))}
             </div>
             <div class="tiles">
-              ${this._tile("SoC moyen", this._fmt("sensor.solarbalance_battery_soc_avg", 0, "%"))}
-              ${this._tile("PV jour", this._fmt("sensor.solarbalance_pv_energy_today", 2, "kWh"))}
-              ${this._tile("Soutirage jour", this._fmt("sensor.solarbalance_grid_import_today", 2, "kWh"))}
+              ${this._tile("SoC moyen", this._fmt(E.soc, 0, "%"))}
+              ${this._tile("PV jour", this._fmt(E.pvToday, 2, "kWh"))}
+              ${this._tile("Soutirage jour", this._fmt(E.gridToday, 2, "kWh"))}
             </div>
           </div>
 
