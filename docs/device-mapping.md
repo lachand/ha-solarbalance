@@ -199,6 +199,29 @@ select uses different labels, bridge them with a `template select`.
 `active_control_enabled` requires `controllable: true` and at least one of the
 three setpoint entities — it is rejected at load time otherwise.
 
+### Curtailing a micro-inverter for zero-injection (v2)
+
+When the controllable batteries are **full** and can no longer absorb PV surplus,
+SolarBalance can cap a micro-inverter's output so production tracks consumption
+(zero-injection's last resort, after the batteries). Declare a writable output
+limit (W) on the `mppt` role:
+
+```yaml
+- name: micro_inverter_roof
+  roles:
+    mppt:
+      peak_power_w: 800
+      power_entity: sensor.micro_roof_power
+      active_control_enabled: true
+      power_limit_setpoint_entity: number.micro_roof_limit   # W, e.g. OpenDTU/AhoyDTU
+```
+
+With the global `active_control_enabled` on, SolarBalance writes a **sticky**
+output limit: it lowers it only while the batteries are saturated and the grid
+exports past its setpoint, and raises it again when the batteries can absorb
+again or the grid imports. The limit is released (set to peak) in degraded mode.
+Watch the `PV output limit` diagnostic sensor while tuning.
+
 ## Verifying your mapping
 
 After applying the YAML and reloading SolarBalance, check `sensor.solarbalance_baseline_consumption`:

@@ -49,7 +49,8 @@ from .const import (
     STORE_VERSION,
 )
 from .core.arbitrer import Arbiter, ArbitrationResult
-from .core.controllers.balancing import BalancingController
+from .core.controllers.balancing import BalancingController, BalancingResult
+from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
 from .core.controllers.load_dispatch import LoadDispatchController
 from .core.controllers.regulation import apply_slew_limit, resolve_fleet_target_w
 from .core.controllers.soc_equaliser import SocEqualiserController
@@ -123,6 +124,7 @@ class RegulationDiagnostics:
     equaliser_offer_w: float = 0.0
     fleet_target_w: float = 0.0
     regulating: bool = False
+    pv_limit_w: float = 0.0
 
 
 class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
@@ -207,6 +209,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Slew-rate limit on the aggregate battery target (anti limit-cycle).
         self._max_ramp_w = float(cfg.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W))
         self._last_total_power_w: float | None = None
+
+        # PV curtailment — zero-injection's last resort when batteries saturate.
+        self._curtailable_mppts: tuple[tuple[str, float], ...] = tuple(
+            (d.name, float(d.mppt.peak_power_w))
+            for d in devices
+            if d.mppt is not None and d.mppt.active_control_enabled
+        )
+        self._curtailment: CurtailmentController | None = (
+            CurtailmentController(peak_total_w=sum(peak for _, peak in self._curtailable_mppts))
+            if self._curtailable_mppts
+            else None
+        )
 
         zi_enabled = bool(cfg.get(CONF_ZERO_INJECTION_ENABLED, True))
         self._zi_enabled = zi_enabled
@@ -319,7 +333,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 pv_kwh=float(energy["pv_kwh"]),
                 grid_import_kwh=float(energy["grid_import_kwh"]),
             )
-        except (KeyError, ValueError, TypeError):
+        except KeyError, ValueError, TypeError:
             _LOGGER.warning("SolarBalance: could not restore persisted daily energy")
 
     def _persisted_state(self) -> dict[str, Any]:
@@ -348,7 +362,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     try:
                         total += float(state.state)
                         found = True
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         pass
         return round(total, 3) if found else round(self._energy.pv_kwh, 3)
 
@@ -365,7 +379,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 if state and state.state not in {"unavailable", "unknown", ""}:
                     try:
                         return round(float(state.state), 3)
-                    except (ValueError, TypeError):
+                    except ValueError, TypeError:
                         pass
         return round(self._energy.grid_import_kwh, 3)
 
@@ -474,9 +488,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             elif not self._storm_manual and not snapshot.weather_warning_active:
                 # Auto-triggered storm: exit when warning clears
                 self.mode = HemsMode.NORMAL
-        elif self._mode is HemsMode.NORMAL and snapshot.weather_warning_active and not self._storm_manual:
+        elif (
+            self._mode is HemsMode.NORMAL
+            and snapshot.weather_warning_active
+            and not self._storm_manual
+        ):
             self.mode = HemsMode.STORM
-        elif self._mode is HemsMode.NORMAL and not snapshot.weather_warning_active and self._storm_manual:
+        elif (
+            self._mode is HemsMode.NORMAL
+            and not snapshot.weather_warning_active
+            and self._storm_manual
+        ):
             # Warning cleared after a timer-based exit — re-arm auto-trigger for future events.
             self._storm_manual = False
 
@@ -606,14 +628,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         total_power_w = apply_slew_limit(total_power_w, self._last_total_power_w, self._max_ramp_w)
         self._last_total_power_w = total_power_w
 
-        self._diagnostics = RegulationDiagnostics(
-            grid_filtered_w=grid_filtered_w,
-            zero_injection_correction_w=zi_correction_w,
-            equaliser_offer_w=eq_bias_w,
-            fleet_target_w=total_power_w,
-            regulating=zi_regulating,
-        )
-
         # Dispatch loads using the unallocated surplus
         battery_states = {b.device_name: b for b in snapshot.batteries}
         balancing_result = self._balancing.allocate(
@@ -621,6 +635,22 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             states=battery_states,
             now=snapshot.timestamp,
         )
+
+        # PV curtailment: zero-injection's last resort when the batteries cannot
+        # absorb the surplus. Computes a per-inverter output limit (W).
+        pv_limits, pv_limit_total = self._compute_pv_limits(
+            snapshot, total_power_w, balancing_result, grid_filtered_w
+        )
+
+        self._diagnostics = RegulationDiagnostics(
+            grid_filtered_w=grid_filtered_w,
+            zero_injection_correction_w=zi_correction_w,
+            equaliser_offer_w=eq_bias_w,
+            fleet_target_w=total_power_w,
+            regulating=zi_regulating,
+            pv_limit_w=pv_limit_total,
+        )
+
         load_states = {ls.name: ls for ls in snapshot.loads}
         self._load_dispatch.dispatch(
             available_surplus_w=max(
@@ -635,7 +665,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         self._publisher.publish(result, balancing_result=balancing_result)
         soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}
-        await self._apply_active_control(balancing_result.per_battery_w, soc_by_device)
+        await self._apply_active_control(balancing_result.per_battery_w, soc_by_device, pv_limits)
         return snapshot
 
     # ------------------------------------------------------------------ helpers
@@ -705,25 +735,61 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             )
         return result.grid_setpoint_bias_w
 
+    def _compute_pv_limits(
+        self,
+        snapshot: Snapshot,
+        total_power_w: float,
+        balancing_result: BalancingResult,
+        grid_w: float,
+    ) -> tuple[dict[str, float], float]:
+        """Per-inverter PV output limits and the aggregate limit (W).
+
+        Curtailment engages only when the batteries could not absorb the charge
+        demand (saturated) and the grid is exporting past its setpoint.
+        """
+        if self._curtailment is None:
+            return {}, 0.0
+        names = {n for n, _ in self._curtailable_mppts}
+        pv_total = sum(m.power_w for m in snapshot.mppts if m.available and m.device_name in names)
+        saturated = total_power_w > 0.0 and balancing_result.unallocated_w > 1.0
+        result = self._curtailment.step(
+            pv_total_w=pv_total,
+            grid_w=grid_w,
+            setpoint_w=self._zi_setpoint_w,
+            batteries_saturated=saturated,
+        )
+        limits = dict(distribute_pv_limit(result.limit_total_w, self._curtailable_mppts))
+        return limits, result.limit_total_w
+
     async def _apply_active_control(
         self,
         per_battery_w: Mapping[str, float],
         soc_by_device: Mapping[str, float],
+        pv_limits: Mapping[str, float],
     ) -> None:
-        """Write discharge setpoints to equipment when active control is enabled.
+        """Write setpoints to equipment when active control is enabled.
 
         Suspended in DEGRADED mode (stale entities): managed setpoints are reset
-        to 0 W once, then left untouched until the entities recover.
+        to 0 W and PV curtailment is released once, then left untouched until the
+        entities recover.
         """
         if not (self._active_control_enabled and self._active_control.enabled):
             return
         if self._mode is HemsMode.DEGRADED:
             if not self._active_control_suspended:
                 await self._active_control.reset()
+                if self._curtailment is not None:
+                    self._curtailment.reset_to_unlimited()
+                    await self._active_control.apply_pv_limits(
+                        dict(
+                            distribute_pv_limit(self._curtailment.limit_w, self._curtailable_mppts)
+                        )
+                    )
                 self._active_control_suspended = True
             return
         self._active_control_suspended = False
         await self._active_control.apply(per_battery_w, soc_by_device)
+        await self._active_control.apply_pv_limits(pv_limits)
 
     def _build_storm_result(self, snapshot: Snapshot) -> ArbitrationResult:
         """Build an ArbitrationResult that charges all batteries to the storm SoC target.

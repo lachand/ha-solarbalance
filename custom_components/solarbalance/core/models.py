@@ -166,7 +166,7 @@ class BatteryRole:
 
 @dataclass(slots=True, frozen=True)
 class MpptRole:
-    """Configuration of a solar MPPT role."""
+    """Configuration of a solar MPPT / micro-inverter role."""
 
     peak_power_w: int
     power_entity: str
@@ -174,6 +174,18 @@ class MpptRole:
     voltage_entity: str | None = None
     current_entity: str | None = None
     feeds: tuple[str, ...] = ()
+    active_control_enabled: bool = False
+    """When True (and global active control is on), SolarBalance caps this
+    inverter's output for zero-injection via power_limit_setpoint_entity.
+    """
+    power_limit_setpoint_entity: str | None = None
+    """HA entity (number/input_number) receiving the max output power (W)."""
+
+    def __post_init__(self) -> None:
+        if self.active_control_enabled and self.power_limit_setpoint_entity is None:
+            raise ValueError(
+                "MpptRole active_control_enabled requires power_limit_setpoint_entity"
+            )
 
 
 @dataclass(slots=True, frozen=True)

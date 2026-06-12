@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, MagicMock
 from custom_components.solarbalance.adapters.active_control_publisher import (
     ActiveControlPublisher,
 )
-from custom_components.solarbalance.core.models import BatteryRole, Device
+from custom_components.solarbalance.core.models import BatteryRole, Device, MpptRole
 
 
 def _device(
@@ -161,6 +161,37 @@ async def test_mode_idle_when_no_power() -> None:
     assert _calls(hass) == [
         ("input_select", "select_option", {"entity_id": "input_select.mode_a", "option": "idle"})
     ]
+
+
+def _mppt_device(name: str, *, entity: str | None = "number.pv_limit") -> Device:
+    return Device(
+        name=name,
+        mppt=MpptRole(
+            peak_power_w=1000,
+            power_entity="sensor.pv",
+            active_control_enabled=entity is not None,
+            power_limit_setpoint_entity=entity,
+        ),
+    )
+
+
+def test_pv_curtailment_enabled_flag() -> None:
+    assert ActiveControlPublisher(_hass(), [_mppt_device("pv")]).pv_curtailment_enabled is True
+    assert ActiveControlPublisher(_hass(), [_device("a")]).pv_curtailment_enabled is False
+
+
+async def test_pv_limit_written() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_mppt_device("pv", entity="number.pv_limit")])
+    await pub.apply_pv_limits({"pv": 650.0})
+    assert _calls(hass) == [
+        ("number", "set_value", {"entity_id": "number.pv_limit", "value": 650.0})
+    ]
+
+
+async def test_publisher_enabled_with_only_pv_limit() -> None:
+    pub = ActiveControlPublisher(_hass(), [_mppt_device("pv")])
+    assert pub.enabled is True
 
 
 async def test_service_failure_is_swallowed_and_not_cached() -> None:

@@ -63,13 +63,32 @@ class ActiveControlPublisher:
                 soc_ceiling=float(battery.soc_max_pct) - _SOC_MARGIN_PCT,
             )
         self._managed = managed
+        # device_name -> PV output-limit entity (curtailable micro-inverters)
+        self._pv_limit_entities: dict[str, str] = {
+            device.name: device.mppt.power_limit_setpoint_entity
+            for device in devices
+            if device.mppt is not None
+            and device.mppt.active_control_enabled
+            and device.mppt.power_limit_setpoint_entity is not None
+        }
         self._last_power: dict[str, float] = {}
         self._last_mode: dict[str, str] = {}
 
     @property
     def enabled(self) -> bool:
         """True when at least one device has an active-control entity."""
-        return bool(self._managed)
+        return bool(self._managed) or bool(self._pv_limit_entities)
+
+    @property
+    def pv_curtailment_enabled(self) -> bool:
+        """True when at least one micro-inverter exposes a PV output limit."""
+        return bool(self._pv_limit_entities)
+
+    async def apply_pv_limits(self, limit_by_device: Mapping[str, float]) -> None:
+        """Write per-inverter output-power limits (W) for PV curtailment."""
+        for name, entity_id in self._pv_limit_entities.items():
+            if name in limit_by_device:
+                await self._write_power(entity_id, limit_by_device[name])
 
     async def apply(
         self,

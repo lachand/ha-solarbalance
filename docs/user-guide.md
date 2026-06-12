@@ -180,6 +180,8 @@ devices:
 | `voltage_entity` | — | — | Sensor tension PV (V), pour diagnostic. |
 | `current_entity` | — | — | Sensor courant PV (A), pour diagnostic. |
 | `feeds` | — | `[]` | Liste des **noms de devices batterie** que ce MPPT alimente (topologie split type Victron). Sur une station tout-en-un, laisser vide. |
+| `active_control_enabled` | — | `false` | `true` = SolarBalance peut **écrêter** la sortie de ce micro-onduleur pour la zéro-injection (v2). Requiert `power_limit_setpoint_entity` + l'option globale `active_control_enabled`. |
+| `power_limit_setpoint_entity` | — | — | Entité **inscriptible** (`number.` / `input_number.`) recevant la **limite de puissance de sortie** en W (ex. OpenDTU/AhoyDTU). |
 
 #### Rôle onduleur (`inverter`)
 

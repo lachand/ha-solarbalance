@@ -86,6 +86,12 @@ async def async_setup_entry(
             coordinator, entry, "grid_filtered_w", "Grid power (filtered)", "mdi:filter-variant"
         ),
     ]
+    if coordinator._curtailment is not None:
+        entities.append(
+            SolarBalanceRegulationDiagnosticSensor(
+                coordinator, entry, "pv_limit_w", "PV output limit", "mdi:solar-power-variant"
+            )
+        )
 
     # Advisory predictive plan (observation only) — when a controllable fleet exists.
     if coordinator._scheduler is not None:

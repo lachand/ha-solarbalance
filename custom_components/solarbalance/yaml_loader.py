@@ -80,6 +80,8 @@ _MPPT_SCHEMA = vol.Schema(
         vol.Optional("voltage_entity"): str,
         vol.Optional("current_entity"): str,
         vol.Optional("feeds", default=[]): [str],
+        vol.Optional("active_control_enabled", default=False): bool,
+        vol.Optional("power_limit_setpoint_entity"): str,
     }
 )
 
@@ -216,6 +218,8 @@ def _build_mppt_role(raw: Mapping[str, Any]) -> MpptRole:
         voltage_entity=raw.get("voltage_entity"),
         current_entity=raw.get("current_entity"),
         feeds=tuple(raw.get("feeds", [])),
+        active_control_enabled=raw["active_control_enabled"],
+        power_limit_setpoint_entity=raw.get("power_limit_setpoint_entity"),
     )
 
 
