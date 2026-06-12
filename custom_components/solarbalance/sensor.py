@@ -25,7 +25,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
+from homeassistant.const import PERCENTAGE, EntityCategory, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -66,6 +66,26 @@ async def async_setup_entry(
                 SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "charge"),
                 SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "discharge"),
             ]
+
+    # Regulation diagnostics (help tune the loop; entity-category diagnostic)
+    entities += [
+        SolarBalanceRegulationDiagnosticSensor(
+            coordinator, entry, "fleet_target_w", "Regulation target", "mdi:target"
+        ),
+        SolarBalanceRegulationDiagnosticSensor(
+            coordinator,
+            entry,
+            "zero_injection_correction_w",
+            "Zero-injection correction",
+            "mdi:sine-wave",
+        ),
+        SolarBalanceRegulationDiagnosticSensor(
+            coordinator, entry, "equaliser_offer_w", "SoC equaliser offer", "mdi:scale-balance"
+        ),
+        SolarBalanceRegulationDiagnosticSensor(
+            coordinator, entry, "grid_filtered_w", "Grid power (filtered)", "mdi:filter-variant"
+        ),
+    ]
 
     async_add_entities(entities)
 
@@ -317,3 +337,34 @@ class SolarBalanceBatterySetpointSensor(_SolarBalanceSensor):
         if self._direction == "charge":
             return round(max(0.0, pw), 1)
         return round(max(0.0, -pw), 1)
+
+
+# ---------------------------------------------------------------------------
+# Regulation diagnostics
+# ---------------------------------------------------------------------------
+
+
+class SolarBalanceRegulationDiagnosticSensor(_SolarBalanceSensor):
+    """Internal regulation value from the last tick (diagnostic, in W)."""
+
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(
+        self,
+        coordinator: SolarBalanceCoordinator,
+        entry: ConfigEntry,
+        attr: str,
+        name: str,
+        icon: str,
+    ) -> None:
+        super().__init__(coordinator, entry, f"diag_{attr}")
+        self._diag_attr = attr
+        self._attr_name = name
+        self._attr_icon = icon
+
+    @property
+    def native_value(self) -> float:
+        return round(float(getattr(self.coordinator.diagnostics, self._diag_attr)), 1)

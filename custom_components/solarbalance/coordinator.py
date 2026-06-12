@@ -106,6 +106,17 @@ class _BatteryOverride:
     expires_at: datetime | None = None
 
 
+@dataclass(frozen=True)
+class RegulationDiagnostics:
+    """Last-tick internal regulation values, exposed as diagnostic sensors."""
+
+    grid_filtered_w: float = 0.0
+    zero_injection_correction_w: float = 0.0
+    equaliser_offer_w: float = 0.0
+    fleet_target_w: float = 0.0
+    regulating: bool = False
+
+
 class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     """Polls HA entities, runs the core engine, publishes results."""
 
@@ -220,6 +231,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._energy = DailyEnergyAccumulator()
         self._store: Store[dict[str, Any]] = Store(hass, STORE_VERSION, STORE_KEY)
 
+        self._diagnostics = RegulationDiagnostics()
+
         # Watchdog — entity lists built from config
         self._critical_entity_ids, self._monitored_entity_ids = self._collect_entity_ids(
             devices, meters
@@ -246,6 +259,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     @property
     def publisher(self) -> DecisionPublisher:
         return self._publisher
+
+    @property
+    def diagnostics(self) -> RegulationDiagnostics:
+        """Last-tick internal regulation values for diagnostic sensors."""
+        return self._diagnostics
 
     @property
     def is_degraded(self) -> bool:
@@ -449,6 +467,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Apply zero-injection correction when it owns regulation: only in NORMAL
         # mode (storm/override/degraded drive batteries with explicit intent).
         zi_correction_w = 0.0
+        eq_bias_w = 0.0
         zi_regulating = self._zi_enabled and self._mode is HemsMode.NORMAL
         if zi_regulating:
             # Indirect SoC equaliser (cascaded): offer a surplus/deficit by biasing
@@ -552,6 +571,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # belt against limit cycles given the battery's actuation lag.
         total_power_w = apply_slew_limit(total_power_w, self._last_total_power_w, self._max_ramp_w)
         self._last_total_power_w = total_power_w
+
+        self._diagnostics = RegulationDiagnostics(
+            grid_filtered_w=grid_filtered_w,
+            zero_injection_correction_w=zi_correction_w,
+            equaliser_offer_w=eq_bias_w,
+            fleet_target_w=total_power_w,
+            regulating=zi_regulating,
+        )
 
         # Dispatch loads using the unallocated surplus
         battery_states = {b.device_name: b for b in snapshot.batteries}
