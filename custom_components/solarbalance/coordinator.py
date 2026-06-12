@@ -1,5 +1,6 @@
 """DataUpdateCoordinator for SolarBalance."""
 
+import contextlib
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
@@ -64,7 +65,12 @@ from .core.controllers.zero_injection import (
 )
 from .core.energy import DailyEnergyAccumulator
 from .core.filters import RollingMedian
-from .core.forecast import aggregate_battery_constraints, build_forecast_slots
+from .core.forecast import (
+    ForecastConfig,
+    aggregate_battery_constraints,
+    build_forecast_slots,
+    build_pv_w_by_hour,
+)
 from .core.models import (
     BatteryTarget,
     Decision,
@@ -140,6 +146,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         meters: list[Meter],
         loads: list[Load],
         tariff: TariffConfig | None = None,
+        forecast: ForecastConfig | None = None,
     ) -> None:
         cfg = dict(entry.options or entry.data)
         tick = int(cfg.get(CONF_TICK_INTERVAL_S, DEFAULT_TICK_INTERVAL_S))
@@ -154,6 +161,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._meters = meters
         self._loads = loads
         self._tariff = tariff or TariffConfig()
+        self._forecast = forecast
         self._mode: HemsMode = HemsMode.NORMAL
         self._pre_degraded_mode: HemsMode = HemsMode.NORMAL
         self._battery_override: _BatteryOverride | None = None
@@ -689,8 +697,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         Maintains a slow background-load estimate and re-runs the DP planner on a
         coarse cadence. The plan is published via :attr:`advisory_plan` but never
-        fed into the control loop. It is meaningful only once a real hourly PV
-        forecast series is available (currently a flat estimate).
+        fed into the control loop. The PV series comes from the configured
+        ``forecast`` block (hourly entities); without it, a flat estimate is used.
         """
         if self._scheduler is None:
             return
@@ -710,15 +718,30 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         ]
         if not controllable_soc:
             return
-        pv_by_hour = [snapshot.pv_forecast_now_w] if snapshot.pv_forecast_now_w is not None else []
         slots = build_forecast_slots(
             start=snapshot.timestamp,
             n_hours=24,
-            pv_w_by_hour=pv_by_hour,
+            pv_w_by_hour=self._forecast_pv_by_hour(snapshot),
             baseline_w=max(0.0, self._baseline_ema_w),
             tariff=self._tariff,
         )
         self._plan = self._scheduler.plan(slots, sum(controllable_soc) / len(controllable_soc))
+
+    def _forecast_pv_by_hour(self, snapshot: Snapshot) -> list[float]:
+        """Per-hour PV power (W) for the planner, from the configured forecast.
+
+        Falls back to a flat current value when no ``forecast`` block is declared.
+        """
+        if self._forecast is None:
+            return [snapshot.pv_forecast_now_w] if snapshot.pv_forecast_now_w is not None else []
+        values: dict[str, float] = {}
+        for entity_id in self._forecast.entities:
+            state = self.hass.states.get(entity_id)
+            if state is None or state.state in {"unavailable", "unknown", ""}:
+                continue
+            with contextlib.suppress(ValueError, TypeError):
+                values[entity_id] = float(state.state)
+        return build_pv_w_by_hour(self._forecast, values, horizon_h=24)
 
     def _equaliser_bias(self, snapshot: Snapshot, grid_w: float) -> float:
         """Grid-setpoint offer from the SoC equaliser (0 W when inactive).

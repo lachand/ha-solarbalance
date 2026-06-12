@@ -591,7 +591,7 @@ Certaines batteries remontent leur état (SoC, puissance) mais n'offrent **aucun
 
 Le `PredictiveScheduler` (programmation dynamique sur une grille de SoC) calcule un planning 24 h coût-optimal pour le **parc pilotable agrégé** (capacités/puissances sommées, bornes SoC les plus restrictives). Il tourne sur cadence lente (~15 min) et **ne pilote rien** : son résultat est publié à titre indicatif via les capteurs diagnostic `planner_recommended_power (advisory)` (W) et `planner_expected_cost (advisory)` (€).
 
-Entrées : prix par créneau depuis le tarif, charge de fond estimée (EMA de `baseline_consumption`), et une série PV. **Limite actuelle** : faute de série de prévision PV horaire, le PV est tenu plat (valeur instantanée) → le plan n'est qu'une démonstration du pipeline. L'ingestion d'une vraie prévision horaire (attributs Solcast/Forecast.Solar) est l'étape suivante avant tout passage en pilotage.
+Entrées : prix par créneau depuis le tarif, charge de fond estimée (EMA de `baseline_consumption`), et une série PV horaire issue du **bloc `forecast:`** (mapping générique heure→entité, voir guide §5.7). Les heures non déclarées valent 0 W. Sans bloc `forecast`, le PV est tenu plat (valeur instantanée). Le plan reste **observationnel** ; son passage en pilotage est l'étape suivante.
 
 ---
 

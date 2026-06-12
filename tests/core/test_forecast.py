@@ -3,8 +3,11 @@
 from datetime import UTC, datetime
 
 from custom_components.solarbalance.core.forecast import (
+    ForecastConfig,
+    ForecastUnit,
     aggregate_battery_constraints,
     build_forecast_slots,
+    build_pv_w_by_hour,
 )
 from custom_components.solarbalance.core.planner import BatteryConstraints
 from custom_components.solarbalance.core.tariff import TariffConfig
@@ -71,3 +74,32 @@ def test_aggregate_sums_and_tightens_bounds() -> None:
 
 def test_aggregate_empty_is_none() -> None:
     assert aggregate_battery_constraints([]) is None
+
+
+def test_build_pv_by_hour_kwh_converted_to_power() -> None:
+    cfg = ForecastConfig(
+        unit=ForecastUnit.KWH,
+        hour_entities=((0, "sensor.this_hour"), (1, "sensor.next_hour")),
+    )
+    pv = build_pv_w_by_hour(
+        cfg, {"sensor.this_hour": 0.8, "sensor.next_hour": 0.5}, horizon_h=4
+    )
+    assert pv == [800.0, 500.0, 0.0, 0.0]  # kWh/h → W, undeclared hours = 0
+
+
+def test_build_pv_by_hour_watt_passthrough_and_clamp() -> None:
+    cfg = ForecastConfig(unit=ForecastUnit.W, hour_entities=((0, "sensor.now"),))
+    assert build_pv_w_by_hour(cfg, {"sensor.now": -50.0}, horizon_h=2) == [0.0, 0.0]
+
+
+def test_build_pv_by_hour_missing_value_is_zero() -> None:
+    cfg = ForecastConfig(unit=ForecastUnit.W, hour_entities=((1, "sensor.next"),))
+    assert build_pv_w_by_hour(cfg, {}, horizon_h=3) == [0.0, 0.0, 0.0]
+
+
+def test_forecast_entities_deduplicated() -> None:
+    cfg = ForecastConfig(
+        unit=ForecastUnit.W,
+        hour_entities=((0, "sensor.a"), (1, "sensor.a"), (2, "sensor.b")),
+    )
+    assert cfg.entities == ("sensor.a", "sensor.b")

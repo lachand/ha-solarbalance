@@ -13,6 +13,7 @@ from typing import Any
 import voluptuous as vol
 from homeassistant.exceptions import ConfigEntryError
 
+from .core.forecast import ForecastConfig, ForecastUnit
 from .core.models import (
     BatteryRole,
     Chemistry,
@@ -171,11 +172,26 @@ _LOAD_SCHEMA = vol.Schema(
     }
 )
 
+_FORECAST_HOUR_SCHEMA = vol.Schema(
+    {
+        vol.Required("hour"): vol.All(int, vol.Range(min=0)),
+        vol.Required("entity"): str,
+    }
+)
+
+_FORECAST_SCHEMA = vol.Schema(
+    {
+        vol.Optional("unit", default=ForecastUnit.W.value): vol.In([u.value for u in ForecastUnit]),
+        vol.Required("hours"): [_FORECAST_HOUR_SCHEMA],
+    }
+)
+
 SOLARBALANCE_SCHEMA = vol.Schema(
     {
         vol.Optional("devices", default=[]): [_DEVICE_SCHEMA],
         vol.Optional("meters", default=[]): [_METER_SCHEMA],
         vol.Optional("loads", default=[]): [_LOAD_SCHEMA],
+        vol.Optional("forecast"): _FORECAST_SCHEMA,
     }
 )
 
@@ -301,14 +317,24 @@ def _build_load(raw: Mapping[str, Any]) -> Load:
 # ---------------------------------------------------------------------------
 
 
-def parse_yaml_config(raw: Mapping[str, Any]) -> tuple[list[Device], list[Meter], list[Load]]:
+def _build_forecast(raw: Mapping[str, Any]) -> ForecastConfig:
+    return ForecastConfig(
+        unit=ForecastUnit(raw["unit"]),
+        hour_entities=tuple((h["hour"], h["entity"]) for h in raw["hours"]),
+    )
+
+
+def parse_yaml_config(
+    raw: Mapping[str, Any],
+) -> tuple[list[Device], list[Meter], list[Load], ForecastConfig | None]:
     """Validate and convert the ``solarbalance:`` YAML block.
 
     Args:
         raw: The ``solarbalance:`` dict from ``configuration.yaml``.
 
     Returns:
-        Tuple of (devices, meters, loads).
+        Tuple of (devices, meters, loads, forecast). ``forecast`` is ``None`` when
+        no ``forecast:`` block is declared.
 
     Raises:
         `homeassistant.exceptions.ConfigEntryError` on schema validation errors.
@@ -345,10 +371,18 @@ def parse_yaml_config(raw: Mapping[str, Any]) -> tuple[list[Device], list[Meter]
                 f"SolarBalance: invalid load {raw_load.get('name', '?')!r}: {exc}"
             ) from exc
 
+    forecast: ForecastConfig | None = None
+    if "forecast" in validated:
+        try:
+            forecast = _build_forecast(validated["forecast"])
+        except (ValueError, KeyError) as exc:
+            raise ConfigEntryError(f"SolarBalance: invalid forecast block: {exc}") from exc
+
     _LOGGER.info(
-        "SolarBalance YAML: %d device(s), %d meter(s), %d load(s) parsed",
+        "SolarBalance YAML: %d device(s), %d meter(s), %d load(s), forecast=%s",
         len(devices),
         len(meters),
         len(loads),
+        "yes" if forecast else "no",
     )
-    return devices, meters, loads
+    return devices, meters, loads, forecast

@@ -14,14 +14,68 @@ make the plan **advisory only**; it is not fed into the control loop.
 Pure module — no Home Assistant imports.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from datetime import datetime, timedelta
+from enum import StrEnum
 
 from .planner import BatteryConstraints, ForecastSlot
 from .tariff import TariffConfig
 
 _DEFAULT_IMPORT_PRICE = 0.20
 _DEFAULT_EXPORT_PRICE = 0.10
+
+
+class ForecastUnit(StrEnum):
+    """How a configured PV-forecast entity expresses its value."""
+
+    W = "w"  # average power over the hour (W)
+    WH = "wh"  # energy over the hour (Wh) — numerically the average W
+    KWH = "kwh"  # energy over the hour (kWh)
+
+
+@dataclass(slots=True, frozen=True)
+class ForecastConfig:
+    """User-declared mapping of PV-forecast entities to hour offsets.
+
+    ``hour_entities`` pairs an hour offset (0 = the current hour, 1 = next hour,
+    …) with the HA entity giving the forecast for that hour. Vendor-agnostic: the
+    user maps whatever forecast entities they have.
+    """
+
+    unit: ForecastUnit
+    hour_entities: tuple[tuple[int, str], ...]
+
+    @property
+    def entities(self) -> tuple[str, ...]:
+        """Distinct entity IDs to read."""
+        return tuple(dict.fromkeys(e for _, e in self.hour_entities))
+
+    def to_power_w(self, value: float) -> float:
+        """Convert a forecast value to average power (W) for its hour."""
+        if self.unit is ForecastUnit.KWH:
+            return value * 1000.0
+        return value  # W, or Wh-per-hour which equals the average W numerically
+
+
+def build_pv_w_by_hour(
+    config: ForecastConfig,
+    values_by_entity: Mapping[str, float],
+    *,
+    horizon_h: int,
+) -> list[float]:
+    """Per-hour PV power (W) from configured forecast entities.
+
+    Declared hours are filled (converted to W, clamped ≥ 0); undeclared hours are
+    0 (conservative — no assumed production). Length is ``horizon_h``.
+    """
+    pv = [0.0] * horizon_h
+    for hour, entity in config.hour_entities:
+        if 0 <= hour < horizon_h:
+            value = values_by_entity.get(entity)
+            if value is not None:
+                pv[hour] = max(0.0, config.to_power_w(value))
+    return pv
 
 
 def build_forecast_slots(

@@ -368,6 +368,29 @@ Conséquences :
 
 Voir SPECIFICATIONS §6.6 pour l'algorithme détaillé, et `docs/device-mapping.md` pour les recettes par marque.
 
+### 5.7 Prévision PV pour l'optimiseur (`forecast`)
+
+L'optimiseur prédictif (advisory, §6.7) a besoin d'une **courbe PV horaire**. Tu la déclares de façon **générique** en mappant tes entités de prévision à des **créneaux horaires** (`hour: 0` = l'heure en cours, `1` = l'heure suivante…). N'importe quelle entité de prévision convient.
+
+```yaml
+solarbalance:
+  forecast:
+    unit: kwh                 # comment lire les valeurs : w | wh | kwh (énergie par heure)
+    hours:
+      - hour: 0
+        entity: sensor.pv_prevision_cette_heure
+      - hour: 1
+        entity: sensor.pv_prevision_heure_suivante
+      # ajoute autant de créneaux que tu as d'entités
+```
+
+| Champ | Obligatoire | Défaut | Description |
+|---|---|---|---|
+| `unit` | — | `w` | Interprétation des valeurs : `w` (puissance moyenne de l'heure), `wh` ou `kwh` (énergie sur l'heure, convertie en W moyens). |
+| `hours` | ✓ | — | Liste de `{ hour, entity }`. `hour` = décalage en heures (0 = heure courante). |
+
+Les heures non déclarées valent **0 W** (prudent — pas de production supposée). C'est purement **observationnel** : l'optimiseur publie ses capteurs (`planner_recommended_power`, `planner_expected_cost`) mais ne pilote rien.
+
 ---
 
 ## 6. Stratégies d'optimisation

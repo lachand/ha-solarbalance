@@ -1,0 +1,70 @@
+# SolarBalance — regulation supervision & tuning view.
+#
+# Uses only built-in Lovelace cards (no HACS needed). Drop this as a new view in
+# your dashboard. The diagnostic/advisory entities are entity-category
+# "diagnostic"; if an entity_id below does not match, check the exact id in
+# Developer Tools → States (filter: solarbalance). Names slugify, e.g.
+# "Grid power (filtered)" → sensor.solarbalance_grid_power_filtered.
+
+title: SolarBalance — Supervision
+icon: mdi:tune-variant
+path: solarbalance-supervision
+
+cards:
+  # ----- Live regulation loop (watch for sign flips = oscillation) -----------
+  - type: history-graph
+    title: Regulation loop (last 1 h)
+    hours_to_show: 1
+    refresh_interval: 10
+    entities:
+      - entity: sensor.solarbalance_grid_power
+        name: Grid (raw)
+      - entity: sensor.solarbalance_grid_power_filtered
+        name: Grid (filtered → regulator)
+      - entity: sensor.solarbalance_regulation_target
+        name: Fleet target
+      - entity: sensor.solarbalance_battery_power
+        name: Battery (measured)
+
+  # ----- Regulation internals (tuning) --------------------------------------
+  - type: entities
+    title: Regulation internals
+    state_color: false
+    entities:
+      - entity: sensor.solarbalance_zero_injection_correction
+        name: Zero-injection correction
+        secondary_info: last-changed
+      - entity: sensor.solarbalance_soc_equaliser_offer
+        name: SoC equaliser offer
+      - entity: sensor.solarbalance_pv_output_limit
+        name: PV output limit (curtailment)
+      - entity: sensor.solarbalance_baseline_consumption
+        name: Baseline consumption
+      - entity: sensor.solarbalance_battery_soc_avg
+        name: Fleet SoC (avg)
+
+  # ----- Advisory predictive plan (observation only) ------------------------
+  - type: entities
+    title: Predictive plan (advisory)
+    entities:
+      - entity: sensor.solarbalance_planner_recommended_power_advisory
+        name: Recommended battery power
+      - entity: sensor.solarbalance_planner_expected_cost_advisory
+        name: Expected cost (24 h)
+
+  # ----- Tuning cheatsheet --------------------------------------------------
+  - type: markdown
+    title: Tuning cheatsheet
+    content: >
+      **Yoyo on the grid?** Watch *Zero-injection correction*: if it flips sign
+      every tick, lower `zero_injection_kp` (0.3–0.4) and/or raise
+      `grid_filter_samples` (5).
+
+
+      **Grid sits off 0 W?** Check *SoC equaliser offer* (the equaliser shifts the
+      target on purpose) and `zero_injection_setpoint_w`; tighten with a smaller
+      `zero_injection_hysteresis_w`.
+
+
+      **Curtailing too much/little?** Watch *PV output limit* vs PV power when the
+      batteries are full.
