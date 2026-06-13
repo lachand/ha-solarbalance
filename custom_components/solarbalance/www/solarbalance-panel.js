@@ -134,9 +134,12 @@ class SolarBalancePanel extends HTMLElement {
       pvToday: id("pv_energy_today", "sensor.solarbalance_pv_energy_today"),
       gridImportToday: id("grid_import_today", "sensor.solarbalance_grid_import_today"),
       gridExportToday: id("grid_export_today", "sensor.solarbalance_grid_export_today"),
+      consoToday: id("consumption_today", "sensor.solarbalance_consumption_today"),
+      talon: id("baseline_night", "sensor.solarbalance_standby_baseline_night"),
       storm: id("storm_mode", "binary_sensor.solarbalance_storm_mode"),
       weather: id("weather_warning", "binary_sensor.solarbalance_weather_warning"),
       degraded: id("degraded", "binary_sensor.solarbalance_degraded"),
+      eveningShed: id("evening_shed", "binary_sensor.solarbalance_battery_priority_shedding"),
       gridFiltered: id("grid_filtered", "sensor.solarbalance_grid_power_filtered"),
       target: id("regulation_target", "sensor.solarbalance_regulation_target"),
       ziCorr: id("zi_correction", "sensor.solarbalance_zero_injection_correction"),
@@ -415,9 +418,13 @@ class SolarBalancePanel extends HTMLElement {
     const imp = this._num(this._E.gridImportToday);
     const exp = this._num(this._E.gridExportToday);
     const pvSelf = pv != null && exp != null ? Math.max(0, pv - exp) : null;
-    let used = null;
-    if (pvSelf != null && imp != null) used = pvSelf + imp;
-    else if (imp != null) used = imp;
+    // Prefer the integrated total-consumption sensor; fall back to the identity
+    // consumption = self-consumed PV + grid import.
+    let used = this._num(this._E.consoToday);
+    if (used == null) {
+      if (pvSelf != null && imp != null) used = pvSelf + imp;
+      else if (imp != null) used = imp;
+    }
     // Autonomy: share of consumption NOT drawn from the grid.
     let autonomy = null;
     if (used != null && used > 0 && imp != null) autonomy = Math.max(0, Math.min(100, ((used - imp) / used) * 100));
@@ -490,9 +497,107 @@ class SolarBalancePanel extends HTMLElement {
     if (this._badge(this._E.storm)) msgs.push("⛈️ Mode tempête actif — préparation du stockage en cours.");
     if (this._badge(this._E.degraded)) msgs.push("🛑 Mode dégradé — une ou plusieurs entités sont indisponibles.");
     if (this._badge(this._E.weather)) msgs.push("⚠️ Vigilance météo en cours.");
+    if (this._badge(this._E.eveningShed)) {
+      const a = this._stateObj(this._E.eveningShed);
+      const loads = (a && a.attributes && a.attributes.shed_loads) || [];
+      const def = a && a.attributes ? a.attributes.battery_deficit_kwh : null;
+      msgs.push(
+        `🔋 Délestage priorité batterie — gros consommateurs coupés${
+          loads.length ? " (" + loads.join(", ") + ")" : ""
+        }${def != null ? `, déficit ${def} kWh` : ""}.`
+      );
+    }
     if (!msgs.length) return "";
     const cls = this._badge(this._E.degraded) ? "err" : "warn";
     return `<div class="banner ${cls}">${msgs.map((m) => `<div>${m}</div>`).join("")}</div>`;
+  }
+
+  // ---- Predictions (advisory planner schedule) ---------------------------
+
+  _planSchedule() {
+    const a = this._stateObj(this._E.planPower);
+    const sched = a && a.attributes && a.attributes.schedule;
+    return Array.isArray(sched) ? sched : [];
+  }
+
+  _predictions() {
+    const sched = this._planSchedule();
+    if (!sched.length) return "";
+    const fmtH = (iso) => {
+      const d = new Date(iso);
+      return d.getHours().toString().padStart(2, "0") + "h";
+    };
+    // --- SVG: SoC trajectory line + battery-power bars ---
+    const W = 720;
+    const H = 200;
+    const padL = 36;
+    const padR = 12;
+    const padT = 12;
+    const padB = 22;
+    const n = sched.length;
+    const bw = (W - padL - padR) / n;
+    let pMax = 1;
+    for (const s of sched) pMax = Math.max(pMax, Math.abs(s.battery_power_w || 0));
+    const by0 = padT + (H - padT - padB) * 0.55; // power zero baseline
+    const barScale = (H - padT - padB) * 0.4 / pMax;
+    const socY = (pct) => padT + (1 - pct / 100) * (H - padT - padB);
+    let bars = "";
+    sched.forEach((s, i) => {
+      const p = s.battery_power_w || 0;
+      const h = Math.abs(p) * barScale;
+      const x = padL + i * bw + 1;
+      const y = p >= 0 ? by0 - h : by0;
+      const cls = p >= 0 ? "bar-chg" : "bar-dis";
+      bars += `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bw - 2).toFixed(
+        1
+      )}" height="${h.toFixed(1)}" class="${cls}"/>`;
+    });
+    const socPts = sched
+      .map((s, i) => `${(padL + i * bw + bw / 2).toFixed(1)},${socY(s.soc_end_pct).toFixed(1)}`)
+      .join(" ");
+    const labels = sched
+      .map((s, i) =>
+        i % 3 === 0
+          ? `<text x="${(padL + i * bw + bw / 2).toFixed(1)}" y="${H - 6}" class="xlbl" text-anchor="middle">${fmtH(
+              s.start
+            )}</text>`
+          : ""
+      )
+      .join("");
+
+    // --- Hourly table (next 8 slots) ---
+    const rows = sched
+      .slice(0, 8)
+      .map((s) => {
+        const p = Math.round(s.battery_power_w || 0);
+        const act = p > 20 ? `charge ${p} W` : p < -20 ? `décharge ${-p} W` : "repos";
+        return `<tr><td>${fmtH(s.start)}</td><td>${act}</td><td>${Math.round(
+          s.soc_end_pct
+        )} %</td><td>${(s.expected_cost_eur || 0).toFixed(2)} €</td></tr>`;
+      })
+      .join("");
+
+    return `
+      <section class="card pred-card">
+        <h3>Prédictions (advisory) — 24 h</h3>
+        <svg viewBox="0 0 ${W} ${H}" class="pred-chart" preserveAspectRatio="none" role="img">
+          <line x1="${padL}" y1="${by0.toFixed(1)}" x2="${W - padR}" y2="${by0.toFixed(
+      1
+    )}" class="zero"/>
+          ${bars}
+          <polyline points="${socPts}" class="soc-line"/>
+          ${labels}
+        </svg>
+        <div class="legend">
+          <span><i class="sw chg"></i>Charge prévue</span>
+          <span><i class="sw dis"></i>Décharge prévue</span>
+          <span><i class="sw soc"></i>SoC prévu</span>
+        </div>
+        <table class="pred-table">
+          <thead><tr><th>Heure</th><th>Batterie</th><th>SoC</th><th>Coût</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </section>`;
   }
 
   _content() {
@@ -560,6 +665,9 @@ class SolarBalancePanel extends HTMLElement {
               ${this._tile("Soutiré", kwh(st.imp), "var(--info-color,#3d8bff)")}
               ${this._tile("Injecté", kwh(st.exp), "var(--success-color,#27ae60)")}
             </div>
+            <div class="tiles">
+              ${this._tile("Talon (nuit)", this._fmt(E.talon, 0, "W"), "var(--secondary-text-color)")}
+            </div>
           </div>
         </section>
 
@@ -570,6 +678,8 @@ class SolarBalancePanel extends HTMLElement {
           </div>
           ${this._chart()}
         </section>
+
+        ${this._predictions()}
 
         <section class="grid">
           <div class="card">
@@ -646,6 +756,20 @@ class SolarBalancePanel extends HTMLElement {
         .flow-link.flow-out { animation:dashOut linear infinite; }
         @keyframes dashIn { to { stroke-dashoffset:-24; } }
         @keyframes dashOut { to { stroke-dashoffset:24; } }
+
+        /* Predictions */
+        .pred-card { margin-bottom:12px; }
+        .pred-chart { width:100%; height:auto; display:block; }
+        .bar-chg { fill:var(--success-color,#27ae60); opacity:.65; }
+        .bar-dis { fill:var(--error-color,#e74c3c); opacity:.6; }
+        .soc-line { fill:none; stroke:var(--info-color,#3d8bff); stroke-width:2; }
+        .legend .sw.chg { background:var(--success-color,#27ae60); }
+        .legend .sw.dis { background:var(--error-color,#e74c3c); }
+        .legend .sw.soc { background:var(--info-color,#3d8bff); }
+        .pred-table { width:100%; border-collapse:collapse; margin-top:10px; font-size:.85rem; }
+        .pred-table th, .pred-table td { text-align:left; padding:4px 8px;
+                border-bottom:1px solid var(--divider-color,#eee); }
+        .pred-table th { color:var(--secondary-text-color); font-weight:500; }
 
         /* Donuts */
         .donuts { display:flex; justify-content:space-around; gap:12px; margin-bottom:10px; }

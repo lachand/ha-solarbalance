@@ -543,6 +543,25 @@ class SolarBalancePlannerRecommendedPowerSensor(_SolarBalanceSensor):
         plan = self.coordinator.advisory_plan
         return round(plan.first_setpoint_w, 1) if plan is not None else None
 
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """Expose the hourly schedule so the panel can chart/tabulate it."""
+        plan = self.coordinator.advisory_plan
+        if plan is None or not plan.schedule:
+            return None
+        return {
+            "schedule": [
+                {
+                    "start": slot.start.isoformat(),
+                    "battery_power_w": round(slot.battery_power_w, 0),
+                    "expected_grid_w": round(slot.expected_grid_w, 0),
+                    "soc_end_pct": round(slot.soc_end_pct, 1),
+                    "expected_cost_eur": round(slot.expected_cost_eur, 3),
+                }
+                for slot in plan.schedule
+            ],
+        }
+
 
 class SolarBalancePlannerExpectedCostSensor(_SolarBalanceSensor):
     """Expected electricity cost over the planning horizon (EUR; negative = revenue)."""
