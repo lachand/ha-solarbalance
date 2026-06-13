@@ -34,6 +34,7 @@ CONF_EXPORT_PRICE: Final = "export_price"
 CONF_PREDICTIVE_CONTROL_ENABLED: Final = "predictive_control_enabled"
 CONF_PV_FORECAST_TOMORROW_ENTITY: Final = "pv_forecast_tomorrow_entity"
 CONF_FORECAST_SAFETY_FACTOR: Final = "forecast_safety_factor"
+CONF_NOTIFICATIONS_ENABLED: Final = "notifications_enabled"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10

@@ -32,6 +32,7 @@ from .const import (
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
+    CONF_NOTIFICATIONS_ENABLED,
     CONF_PREDICTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
     CONF_PV_FORECAST_TOMORROW_ENTITY,
@@ -238,6 +239,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._zi_state: ZeroInjectionState | PerPhaseZeroInjectionState = ZeroInjectionState()
         self._negative_baseline_ticks: int = 0
         self._baseline_notification_sent: bool = False
+        self._notifications_enabled = bool(cfg.get(CONF_NOTIFICATIONS_ENABLED, True))
+        self._alerts_sent: dict[str, bool] = {}
         self._storm_expires_at: datetime | None = None
         self._storm_manual: bool = False
 
@@ -1039,6 +1042,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._publisher.publish(result, balancing_result=balancing_result)
         soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}
         await self._apply_active_control(balancing_result.per_battery_w, soc_by_device, pv_limits)
+        self._check_alerts(snapshot)
         return snapshot
 
     # ------------------------------------------------------------------ helpers
@@ -1591,6 +1595,64 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 async_dismiss(self.hass, self._BASELINE_NOTIFICATION_ID)
                 self._baseline_notification_sent = False
             self._negative_baseline_ticks = 0
+
+    def _fire_alert(self, notif_id: str, active: bool, *, title: str, message: str) -> None:
+        """Create a persistent notification on the rising edge, dismiss on the falling edge."""
+        from homeassistant.components.persistent_notification import async_create, async_dismiss
+
+        was_sent = self._alerts_sent.get(notif_id, False)
+        if active and not was_sent:
+            async_create(self.hass, message, title=title, notification_id=notif_id)
+            self._alerts_sent[notif_id] = True
+        elif not active and was_sent:
+            async_dismiss(self.hass, notif_id)
+            self._alerts_sent[notif_id] = False
+
+    # Grid import fraction of the subscription that raises / clears the overload alert.
+    _OVERLOAD_ON = 0.90
+    _OVERLOAD_OFF = 0.80
+
+    def _check_alerts(self, snapshot: Snapshot) -> None:
+        """Edge-triggered persistent notifications for degraded / overload / shedding."""
+        if not self._notifications_enabled:
+            return
+
+        self._fire_alert(
+            "solarbalance_degraded",
+            self.is_degraded,
+            title="SolarBalance — Mode dégradé",
+            message=(
+                "Le HEMS est en **mode dégradé** : une ou plusieurs entités critiques "
+                "sont indisponibles. Le pilotage est suspendu jusqu'au rétablissement."
+            ),
+        )
+
+        sub = self._subscribed_power_w
+        if sub:
+            frac = max(0.0, snapshot.grid_power_w) / sub
+            sent = self._alerts_sent.get("solarbalance_overload", False)
+            # Hysteresis: trigger at 90 %, clear below 80 %.
+            active = frac >= self._OVERLOAD_ON or (sent and frac >= self._OVERLOAD_OFF)
+            self._fire_alert(
+                "solarbalance_overload",
+                active,
+                title="SolarBalance — Puissance souscrite",
+                message=(
+                    f"Le soutirage réseau atteint **{snapshot.grid_power_w / 1000:.1f} kW** "
+                    f"(souscrit {sub / 1000:.0f} kW). Risque de dépassement / disjonction."
+                ),
+            )
+
+        shed = self._evening_shed
+        self._fire_alert(
+            "solarbalance_evening_shed",
+            bool(shed and shed.active),
+            title="SolarBalance — Délestage priorité batterie",
+            message=(
+                "Les gros consommateurs sont **délestés** pour laisser le solaire restant "
+                "recharger les batteries (production prévue insuffisante pour faire les deux)."
+            ),
+        )
 
     @staticmethod
     def _collect_entity_ids(

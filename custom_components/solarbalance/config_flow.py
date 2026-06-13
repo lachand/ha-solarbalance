@@ -20,6 +20,7 @@ from .const import (
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
+    CONF_NOTIFICATIONS_ENABLED,
     CONF_PHASES,
     CONF_PREDICTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
@@ -160,6 +161,10 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_PREDICTIVE_CONTROL_ENABLED,
                 default=d.get(CONF_PREDICTIVE_CONTROL_ENABLED, False),
+            ): bool,
+            vol.Optional(
+                CONF_NOTIFICATIONS_ENABLED,
+                default=d.get(CONF_NOTIFICATIONS_ENABLED, True),
             ): bool,
             vol.Optional(
                 CONF_EVENING_SHED_MIN_POWER_W,
