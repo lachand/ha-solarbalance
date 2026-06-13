@@ -173,3 +173,9 @@ class TestBuildTariff:
     def test_tempo_requires_color_provider(self) -> None:
         with pytest.raises(ValueError, match="color_provider"):
             build_tariff({"type": "tempo"})
+
+    def test_tempo_off_peak_window(self) -> None:
+        t = build_tariff({"type": "tempo"}, color_provider=lambda _dt: TempoColor.BLUE)
+        assert t.is_off_peak(_dt(3)) is True  # 03:00 in HC (22:00-06:00)
+        assert t.is_off_peak(_dt(23)) is True  # 23:00 in HC
+        assert t.is_off_peak(_dt(12)) is False  # midday is HP

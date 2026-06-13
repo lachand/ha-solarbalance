@@ -42,6 +42,8 @@ from .const import (
     CONF_SOC_EQUALISER_MAX_W,
     CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SUBSCRIBED_POWER_KVA,
+    CONF_TEMPO_RED_PREP_ENABLED,
+    CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
@@ -64,6 +66,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_MAX_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_STORM_TARGET_SOC_PCT,
+    DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
@@ -122,7 +125,13 @@ from .core.strategies.longevity import LongevityStrategy
 from .core.strategies.peak_shaving import PeakShavingStrategy
 from .core.strategies.revenue_max import RevenueMaxStrategy
 from .core.strategies.self_consumption import SelfConsumptionStrategy
-from .core.tariff import TariffConfig, TempoColor, build_tariff, parse_tempo_color
+from .core.tariff import (
+    TariffConfig,
+    TempoColor,
+    TempoTariff,
+    build_tariff,
+    parse_tempo_color,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -261,6 +270,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         self._predictive_control_enabled = bool(cfg.get(CONF_PREDICTIVE_CONTROL_ENABLED, False))
         self._evening_shed_enabled = bool(cfg.get(CONF_EVENING_SHED_ENABLED, False))
+        self._tempo_red_prep_enabled = bool(cfg.get(CONF_TEMPO_RED_PREP_ENABLED, False))
+        self._tempo_red_prep_soc_pct = float(
+            cfg.get(CONF_TEMPO_RED_PREP_SOC_PCT, DEFAULT_TEMPO_RED_PREP_SOC_PCT)
+        )
+        self._tempo_color_tomorrow_entity: str | None = (
+            (tariff_spec or {}).get("color_tomorrow_entity") if tariff_spec else None
+        )
         self._evening_shed_min_power_w = float(
             cfg.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W)
         )
@@ -890,18 +906,26 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
 
         # --- Strategy execution or manual override ---
+        red_prep = self._mode is HemsMode.NORMAL and self._red_prep_active(snapshot)
         if self._mode is HemsMode.MANUAL_OVERRIDE and self._battery_override is not None:
             result: ArbitrationResult = self._build_override_result(snapshot)
         elif self._mode is HemsMode.STORM:
             result = self._build_storm_result(snapshot)
+        elif red_prep:
+            # Tempo: grid-charge the controllable fleet to full during the cheap
+            # HC window before a red day, so it covers the expensive red peak.
+            result = self._build_charge_result(
+                snapshot, self._tempo_red_prep_soc_pct, "tempo: pre-charge before red day"
+            )
         else:
             result = self._arbiter.run(snapshot)
 
         # Apply zero-injection correction when it owns regulation: only in NORMAL
-        # mode (storm/override/degraded drive batteries with explicit intent).
+        # mode, and not while pre-charging from the grid for a red day (storm /
+        # override / red-prep drive batteries with explicit intent).
         zi_correction_w = 0.0
         eq_bias_w = 0.0
-        zi_regulating = self._zi_enabled and self._mode is HemsMode.NORMAL
+        zi_regulating = self._zi_enabled and self._mode is HemsMode.NORMAL and not red_prep
         if zi_regulating:
             # Indirect SoC equaliser (cascaded): offer a surplus/deficit by biasing
             # the ZI setpoint, so the single ZI loop produces the extra fleet
@@ -1521,6 +1545,41 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 else self._backup_reserve_soc_pct
             )
         return out
+
+    def _red_prep_active(self, snapshot: Snapshot) -> bool:
+        """True during the Tempo off-peak window preceding a red day (pre-charge)."""
+        if not self._tempo_red_prep_enabled or self._tempo_color_tomorrow_entity is None:
+            return False
+        if not isinstance(self._tariff, TempoTariff):
+            return False
+        if not self._tariff.is_off_peak(snapshot.timestamp):
+            return False
+        state = self.hass.states.get(self._tempo_color_tomorrow_entity)
+        tomorrow = parse_tempo_color(state.state if state else None)
+        return tomorrow is TempoColor.RED
+
+    def _build_charge_result(
+        self, snapshot: Snapshot, target_soc_pct: float, rationale: str
+    ) -> ArbitrationResult:
+        """Charge all batteries toward ``target_soc_pct`` (grid-backed); fall back when reached."""
+        available = [b for b in snapshot.batteries if b.available]
+        if available and all(b.soc_pct >= target_soc_pct for b in available):
+            return self._arbiter.run(snapshot)
+        targets: dict[str, BatteryTarget] = {}
+        for device in self._devices:
+            if device.battery is None:
+                continue
+            bat = device.battery
+            targets[device.name] = BatteryTarget(
+                soc_min_pct=float(bat.soc_min_pct),
+                soc_max_pct=min(target_soc_pct, float(bat.soc_max_pct)),
+                preferred_power_w=float(bat.max_charge_power_w),
+            )
+        return ArbitrationResult(
+            decision=Decision(battery_targets=targets, confidence=1.0, rationale=rationale),
+            dominant_strategy="tempo_red_prep",
+            per_strategy=(),
+        )
 
     def _build_storm_result(self, snapshot: Snapshot) -> ArbitrationResult:
         """Build an ArbitrationResult that charges all batteries to the storm SoC target.

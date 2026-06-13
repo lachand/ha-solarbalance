@@ -243,6 +243,10 @@ class TempoTariff:
         # HC = 22:00 → 06:00 (overnight)
         return t >= _TEMPO_HC_START or t < _TEMPO_HC_END
 
+    def is_off_peak(self, dt: datetime) -> bool:
+        """True during the Tempo off-peak (Heures Creuses) window."""
+        return self._is_hc(dt)
+
     def current_import_price(self, dt: datetime) -> float | None:
         """Return the HC or HP import price for the current Tempo colour.
 

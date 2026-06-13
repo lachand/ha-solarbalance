@@ -213,7 +213,8 @@ _TARIFF_SCHEMA = vol.Schema(
         vol.Optional("export_price"): vol.Coerce(float),
         vol.Optional("import_price"): vol.Coerce(float),  # flat
         vol.Optional("slots", default=[]): [_TARIFF_SLOT_SCHEMA],  # hc_hp
-        vol.Optional("color_entity"): str,  # tempo
+        vol.Optional("color_entity"): str,  # tempo (today's colour)
+        vol.Optional("color_tomorrow_entity"): str,  # tempo (tomorrow, for red-day prep)
         vol.Optional("prices"): {vol.In(["blue", "white", "red"]): _TEMPO_PRICE_SCHEMA},  # tempo
     }
 )

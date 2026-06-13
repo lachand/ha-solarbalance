@@ -32,6 +32,8 @@ from .const import (
     CONF_SOC_EQUALISER_MAX_W,
     CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SUBSCRIBED_POWER_KVA,
+    CONF_TEMPO_RED_PREP_ENABLED,
+    CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
     CONF_WEATHER_WARNING_ENTITY,
     CONF_ZERO_INJECTION_ENABLED,
@@ -52,6 +54,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
+    DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
@@ -166,6 +169,14 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_NOTIFICATIONS_ENABLED,
                 default=d.get(CONF_NOTIFICATIONS_ENABLED, True),
             ): bool,
+            vol.Optional(
+                CONF_TEMPO_RED_PREP_ENABLED,
+                default=d.get(CONF_TEMPO_RED_PREP_ENABLED, False),
+            ): bool,
+            vol.Optional(
+                CONF_TEMPO_RED_PREP_SOC_PCT,
+                default=d.get(CONF_TEMPO_RED_PREP_SOC_PCT, DEFAULT_TEMPO_RED_PREP_SOC_PCT),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
             vol.Optional(
                 CONF_EVENING_SHED_MIN_POWER_W,
                 default=d.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W),
