@@ -656,6 +656,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return self._tariff.current_import_price(dt_util.now())
 
     @property
+    def tariff_time_varying(self) -> bool:
+        """True when the tariff has time-of-use windows (HC/HP, Tempo, spot).
+
+        A flat ``TariffConfig`` (no slots) gives no arbitrage signal, so the
+        advisory plan is meaningless and the panel hides it.
+        """
+        return not (isinstance(self._tariff, TariffConfig) and not self._tariff.slots)
+
+    @property
     def daily_export_revenue_eur(self) -> float:
         """Today's export revenue (EUR)."""
         return round(self._energy.export_revenue_eur, 3)
@@ -1460,6 +1469,22 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._active_control_suspended = False
         await self._active_control.apply(per_battery_w, soc_by_device)
         await self._active_control.apply_pv_limits(pv_limits)
+        await self._active_control.apply_reserve(self._reserve_setpoints())
+
+    def _reserve_setpoints(self) -> dict[str, float]:
+        """Per-battery backup-reserve setpoint (%): storm target in storm, else backup reserve."""
+        storm = self._mode is HemsMode.STORM
+        out: dict[str, float] = {}
+        for device in self._devices:
+            battery = device.battery
+            if battery is None or battery.reserve_soc_setpoint_entity is None:
+                continue
+            out[device.name] = (
+                min(DEFAULT_STORM_TARGET_SOC_PCT, float(battery.soc_max_pct))
+                if storm
+                else self._backup_reserve_soc_pct
+            )
+        return out
 
     def _build_storm_result(self, snapshot: Snapshot) -> ArbitrationResult:
         """Build an ArbitrationResult that charges all batteries to the storm SoC target.

@@ -73,7 +73,7 @@
         "state": {
           "normal": "Normal",
           "storm": "Storm",
-          "vacation": "Vacation",
+          "vacation": "Vacation (not implemented)",
           "paused": "Paused",
           "degraded": "Degraded",
           "manual_override": "Manual Override"
@@ -124,7 +124,7 @@
         "state": {
           "normal": "Normal",
           "storm": "Storm",
-          "vacation": "Vacation",
+          "vacation": "Vacation (not implemented)",
           "paused": "Paused",
           "degraded": "Degraded",
           "manual_override": "Manual Override"

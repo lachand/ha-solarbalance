@@ -131,6 +131,11 @@ class BatteryRole:
     """HA entity (number/input_number) receiving the charge power setpoint (W)."""
     mode_setpoint_entity: str | None = None
     """HA select/input_select receiving the operating mode (charge/discharge/idle)."""
+    reserve_soc_setpoint_entity: str | None = None
+    """HA entity (number/input_number) receiving the battery's backup-reserve /
+    minimum-SoC setpoint (%). SolarBalance raises it to the storm target during
+    storm mode so a discharge-only-controllable battery is held and fills from PV,
+    then restores it to the configured backup reserve afterwards."""
 
     def __post_init__(self) -> None:
         if self.power_entity is None and (

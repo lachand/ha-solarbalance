@@ -418,6 +418,10 @@ class SolarBalanceCurrentImportPriceSensor(_SolarBalanceSensor):
     def native_value(self) -> float | None:
         return self.coordinator.current_import_price
 
+    @property
+    def extra_state_attributes(self) -> dict[str, bool]:
+        return {"time_varying": self.coordinator.tariff_time_varying}
+
 
 class SolarBalanceBaselineNightSensor(_SolarBalanceSensor):
     """Standby baseline (talon) averaged over the quiet night window (W)."""

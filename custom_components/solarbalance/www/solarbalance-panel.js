@@ -138,6 +138,7 @@ class SolarBalancePanel extends HTMLElement {
       talon: id("baseline_night", "sensor.solarbalance_standby_baseline_night"),
       dailyCost: id("daily_cost", "sensor.solarbalance_grid_cost_today"),
       dailySavings: id("daily_savings", "sensor.solarbalance_savings_today"),
+      importPrice: id("current_import_price", "sensor.solarbalance_current_import_price"),
       storm: id("storm_mode", "binary_sensor.solarbalance_storm_mode"),
       weather: id("weather_warning", "binary_sensor.solarbalance_weather_warning"),
       degraded: id("degraded", "binary_sensor.solarbalance_degraded"),
@@ -537,6 +538,9 @@ class SolarBalancePanel extends HTMLElement {
   }
 
   _predictions() {
+    // Hide the advisory plan under a flat tariff: with no time-of-use signal its
+    // charge recommendations are meaningless (and not applied).
+    if (this._attr(this._E.importPrice, "time_varying") === false) return "";
     const sched = this._planSchedule();
     if (!sched.length) return "";
     const fmtH = (iso) => {

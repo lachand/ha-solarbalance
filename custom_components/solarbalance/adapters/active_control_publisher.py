@@ -71,13 +71,47 @@ class ActiveControlPublisher:
             and device.mppt.active_control_enabled
             and device.mppt.power_limit_setpoint_entity is not None
         }
+        # device_name -> backup-reserve / min-SoC setpoint entity (% number)
+        self._reserve_entities: dict[str, str] = {
+            device.name: device.battery.reserve_soc_setpoint_entity
+            for device in devices
+            if device.battery is not None
+            and device.battery.reserve_soc_setpoint_entity is not None
+        }
         self._last_power: dict[str, float] = {}
         self._last_mode: dict[str, str] = {}
+        self._last_reserve: dict[str, float] = {}
 
     @property
     def enabled(self) -> bool:
         """True when at least one device has an active-control entity."""
-        return bool(self._managed) or bool(self._pv_limit_entities)
+        return bool(self._managed) or bool(self._pv_limit_entities) or bool(self._reserve_entities)
+
+    async def apply_reserve(self, soc_by_device: Mapping[str, float]) -> None:
+        """Write each battery's backup-reserve / min-SoC setpoint (%)."""
+        for name, entity_id in self._reserve_entities.items():
+            if name in soc_by_device:
+                await self._write_reserve(entity_id, soc_by_device[name])
+
+    async def _write_reserve(self, entity_id: str, value_pct: float) -> None:
+        last = self._last_reserve.get(entity_id)
+        if last is not None and abs(last - value_pct) < 0.5:
+            return
+        service_domain = "input_number" if entity_id.startswith("input_number.") else "number"
+        try:
+            await self._hass.services.async_call(
+                service_domain,
+                "set_value",
+                {"entity_id": entity_id, "value": round(value_pct, 1)},
+                blocking=False,
+            )
+        except Exception:
+            _LOGGER.exception(
+                "Active control: failed to set %s reserve = %.0f%%", entity_id, value_pct
+            )
+            return
+        self._last_reserve[entity_id] = value_pct
+        _LOGGER.debug("Active control: %s <- reserve %.0f%%", entity_id, value_pct)
 
     @property
     def pv_curtailment_enabled(self) -> bool:
