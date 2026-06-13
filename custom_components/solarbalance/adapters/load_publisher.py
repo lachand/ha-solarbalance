@@ -54,9 +54,15 @@ class LoadPublisher:
             if load.control_type is LoadControlType.ON_OFF:
                 await self._write_switch(load.switch_entity, cmd.on)
             elif load.control_type is LoadControlType.STEPPED:
-                if load.level_entity is not None and cmd.step_level is not None:
+                # Optional on/off switch (e.g. EV charger whose 0 A does not stop
+                # charging): cut via the switch, modulate via the level entity.
+                if load.switch_entity is not None:
+                    await self._write_switch(load.switch_entity, cmd.on)
+                if cmd.on and load.level_entity is not None and cmd.step_level is not None:
                     await self._write_value(load.level_entity, float(cmd.step_level))
             elif load.control_type is LoadControlType.MODULATING:
+                if load.switch_entity is not None:
+                    await self._write_switch(load.switch_entity, cmd.on)
                 target = cmd.power_w if cmd.on and cmd.power_w is not None else 0.0
                 if load.power_set_entity is not None:
                     await self._write_value(load.power_set_entity, target)

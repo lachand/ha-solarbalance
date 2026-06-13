@@ -95,6 +95,34 @@ async def test_modulating_writes_power_then_zero_when_off() -> None:
     assert calls[1] == ("number", "set_value", {"entity_id": "number.ev_power", "value": 0.0})
 
 
+def _stepped_with_switch(name: str = "ev") -> Load:
+    return Load(
+        name=name,
+        control_type=LoadControlType.STEPPED,
+        priority=5,
+        level_entity="number.ev_amps",
+        switch_entity="switch.ev",
+        steps=(LoadStep(level=6, power_w=1380), LoadStep(level=16, power_w=3680)),
+    )
+
+
+async def test_stepped_with_switch_turns_on_and_sets_level() -> None:
+    hass = _hass()
+    pub = LoadPublisher(hass, [_stepped_with_switch()], enabled=True)
+    await pub.apply([LoadCommand(load_name="ev", on=True, step_level=16)])
+    calls = _calls(hass)
+    assert calls[0] == ("homeassistant", "turn_on", {"entity_id": "switch.ev"})
+    assert calls[1] == ("number", "set_value", {"entity_id": "number.ev_amps", "value": 16.0})
+
+
+async def test_stepped_with_switch_off_cuts_switch_without_setting_level() -> None:
+    hass = _hass()
+    pub = LoadPublisher(hass, [_stepped_with_switch()], enabled=True)
+    await pub.apply([LoadCommand(load_name="ev", on=False, step_level=0)])
+    calls = _calls(hass)
+    assert calls == [("homeassistant", "turn_off", {"entity_id": "switch.ev"})]
+
+
 async def test_reset_turns_off_managed_switch() -> None:
     hass = _hass()
     pub = LoadPublisher(hass, [_on_off()], enabled=True)
