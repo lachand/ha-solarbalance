@@ -241,6 +241,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._baseline_notification_sent: bool = False
         self._notifications_enabled = bool(cfg.get(CONF_NOTIFICATIONS_ENABLED, True))
         self._alerts_sent: dict[str, bool] = {}
+        self._daily_history: list[dict[str, Any]] = []
         self._storm_expires_at: datetime | None = None
         self._storm_manual: bool = False
 
@@ -444,6 +445,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if baseline and baseline.get("talon_w") is not None:
             with contextlib.suppress(ValueError, TypeError):
                 self._baseline_est.restore(float(baseline["talon_w"]))
+        history = (data or {}).get("daily_history")
+        if isinstance(history, list):
+            self._daily_history = [h for h in history if isinstance(h, dict)][-30:]
         le = (data or {}).get("load_energy")
         if le and le.get("day"):
             with contextlib.suppress(ValueError, TypeError):
@@ -575,6 +579,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 "day": self._load_energy_day.isoformat() if self._load_energy_day else None,
                 "kwh": {k: round(v, 4) for k, v in self._load_energy_kwh.items()},
             },
+            "daily_history": self._daily_history,
         }
 
     @property
@@ -644,6 +649,36 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def daily_savings_eur(self) -> float:
         """Today's value created by PV + battery (EUR): avoided import + export revenue."""
         return round(self._energy.avoided_import_eur + self._energy.export_revenue_eur, 3)
+
+    @property
+    def daily_history(self) -> list[dict[str, Any]]:
+        """Archived per-day energy/cost totals (last 30 days, oldest first)."""
+        return self._daily_history
+
+    def _maybe_archive_day(self, local_date: date) -> None:
+        """On a local-date rollover, snapshot the finished day's totals (last 30 kept)."""
+        day = self._energy.day
+        if day is None or day == local_date:
+            return
+        pv = self._energy.pv_kwh
+        used = self._energy.consumption_kwh
+        imp = self._energy.grid_import_kwh
+        autonomy = round(max(0.0, (used - imp)) / used * 100.0, 1) if used > 0 else 0.0
+        self._daily_history.append(
+            {
+                "day": day.isoformat(),
+                "pv": round(pv, 2),
+                "import": round(imp, 2),
+                "export": round(self._energy.grid_export_kwh, 2),
+                "consumption": round(used, 2),
+                "cost": round(self._energy.import_cost_eur - self._energy.export_revenue_eur, 2),
+                "savings": round(
+                    self._energy.avoided_import_eur + self._energy.export_revenue_eur, 2
+                ),
+                "autonomy": autonomy,
+            }
+        )
+        self._daily_history = self._daily_history[-30:]
 
     @property
     def daily_import_cost_eur(self) -> float:
@@ -763,6 +798,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         # --- Daily energy integration (fallback when no vendor daily entity) ---
         local_now = dt_util.as_local(snapshot.timestamp)
+        self._maybe_archive_day(local_now.date())
         self._energy.update(
             now=snapshot.timestamp,
             local_date=local_now.date(),

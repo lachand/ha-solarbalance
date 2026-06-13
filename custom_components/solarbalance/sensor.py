@@ -401,6 +401,11 @@ class SolarBalanceDailySavingsSensor(_SolarBalanceSensor):
     def native_value(self) -> float | None:
         return self.coordinator.daily_savings_eur
 
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        history = self.coordinator.daily_history
+        return {"history": history} if history else None
+
 
 class SolarBalanceCurrentImportPriceSensor(_SolarBalanceSensor):
     """Current import price from the active tariff (EUR/kWh)."""

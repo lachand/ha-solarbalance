@@ -620,6 +620,83 @@ class SolarBalancePanel extends HTMLElement {
       </section>`;
   }
 
+  // ---- Daily history (last N days) ---------------------------------------
+
+  _history() {
+    const h = this._attr(this._E.dailySavings, "history");
+    if (!Array.isArray(h) || h.length < 2) return "";
+    const days = h.slice(-30);
+    const W = 720;
+    const H = 180;
+    const padL = 30;
+    const padR = 12;
+    const padT = 10;
+    const padB = 26;
+    const n = days.length;
+    const bw = (W - padL - padR) / n;
+    let eMax = 1;
+    for (const d of days) eMax = Math.max(eMax, d.pv || 0, d.consumption || 0);
+    const y = (v) => padT + (1 - v / eMax) * (H - padT - padB);
+    const base = H - padB;
+    let bars = "";
+    days.forEach((d, i) => {
+      const x = padL + i * bw;
+      const pvH = base - y(d.pv || 0);
+      const coH = base - y(d.consumption || 0);
+      const w2 = (bw - 3) / 2;
+      bars +=
+        `<rect x="${(x + 1).toFixed(1)}" y="${y(d.pv || 0).toFixed(1)}" width="${w2.toFixed(
+          1
+        )}" height="${pvH.toFixed(1)}" class="h-pv"/>` +
+        `<rect x="${(x + 1 + w2).toFixed(1)}" y="${y(d.consumption || 0).toFixed(
+          1
+        )}" width="${w2.toFixed(1)}" height="${coH.toFixed(1)}" class="h-co"/>`;
+    });
+    const lbl = (iso) => {
+      const d = new Date(iso);
+      return `${d.getDate()}/${d.getMonth() + 1}`;
+    };
+    const step = Math.ceil(n / 8);
+    const xlbls = days
+      .map((d, i) =>
+        i % step === 0
+          ? `<text x="${(padL + i * bw + bw / 2).toFixed(1)}" y="${H - 8}" class="xlbl" text-anchor="middle">${lbl(
+              d.day
+            )}</text>`
+          : ""
+      )
+      .join("");
+
+    const rows = days
+      .slice(-7)
+      .reverse()
+      .map(
+        (d) =>
+          `<tr><td>${lbl(d.day)}</td><td>${(d.pv || 0).toFixed(1)} kWh</td><td>${(
+            d.consumption || 0
+          ).toFixed(1)} kWh</td><td>${Math.round(d.autonomy || 0)} %</td><td>${(d.cost || 0).toFixed(
+            2
+          )} €</td><td>${(d.savings || 0).toFixed(2)} €</td></tr>`
+      )
+      .join("");
+
+    return `
+      <section class="card hist-card">
+        <h3>Historique — ${n} derniers jours</h3>
+        <svg viewBox="0 0 ${W} ${H}" class="pred-chart" preserveAspectRatio="none" role="img">
+          ${bars}${xlbls}
+        </svg>
+        <div class="legend">
+          <span><i class="sw pv"></i>Production</span>
+          <span><i class="sw co"></i>Consommation</span>
+        </div>
+        <table class="pred-table">
+          <thead><tr><th>Jour</th><th>Prod</th><th>Conso</th><th>Autonomie</th><th>Coût</th><th>Éco.</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </section>`;
+  }
+
   _content() {
     if (!this._hass) return `<div class="wrap"><p>Chargement…</p></div>`;
     const E = this._E;
@@ -702,6 +779,8 @@ class SolarBalancePanel extends HTMLElement {
         </section>
 
         ${this._predictions()}
+
+        ${this._history()}
 
         <section class="grid">
           <div class="card">
@@ -788,6 +867,10 @@ class SolarBalancePanel extends HTMLElement {
         .legend .sw.chg { background:var(--success-color,#27ae60); }
         .legend .sw.dis { background:var(--error-color,#e74c3c); }
         .legend .sw.soc { background:var(--info-color,#3d8bff); }
+        .legend .sw.co { background:var(--info-color,#3d8bff); }
+        .hist-card { margin-bottom:12px; }
+        .h-pv { fill:var(--warning-color,#f5a623); opacity:.85; }
+        .h-co { fill:var(--info-color,#3d8bff); opacity:.7; }
         .pred-table { width:100%; border-collapse:collapse; margin-top:10px; font-size:.85rem; }
         .pred-table th, .pred-table td { text-align:left; padding:4px 8px;
                 border-bottom:1px solid var(--divider-color,#eee); }
