@@ -12,6 +12,8 @@
           "phases": "Electrical phases",
           "subscribed_power_kva": "Subscribed power (kVA)",
           "backup_reserve_soc_pct": "Backup reserve (SoC %)",
+          "baseline_window_start_h": "Talon: night window start (h)",
+          "baseline_window_end_h": "Talon: night window end (h)",
           "pv_forecast_entity": "PV forecast entity (optional)",
           "weather_warning_entity": "Météo-France warning entity (optional)"
         },
@@ -38,6 +40,8 @@
           "phases": "Electrical phases",
           "subscribed_power_kva": "Subscribed power (kVA)",
           "backup_reserve_soc_pct": "Backup reserve (SoC %)",
+          "baseline_window_start_h": "Talon: night window start (h)",
+          "baseline_window_end_h": "Talon: night window end (h)",
           "pv_forecast_entity": "PV forecast entity (optional)",
           "weather_warning_entity": "Météo-France warning entity (optional)"
         }
@@ -78,6 +82,7 @@
       "pv_energy_today": { "name": "PV Energy Today" },
       "grid_import_today": { "name": "Grid Import Today" },
       "grid_export_today": { "name": "Grid Export Today" },
+      "baseline_night": { "name": "Standby baseline (night)" },
       "battery_setpoint_charge": { "name": "Charge setpoint" },
       "battery_setpoint_discharge": { "name": "Discharge setpoint" },
       "batt_soc": { "name": "SoC" },

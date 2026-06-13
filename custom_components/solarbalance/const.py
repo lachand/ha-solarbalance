@@ -24,6 +24,8 @@ CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"
 CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
 CONF_BACKUP_RESERVE_SOC_PCT: Final = "backup_reserve_soc_pct"
+CONF_BASELINE_WINDOW_START_H: Final = "baseline_window_start_h"
+CONF_BASELINE_WINDOW_END_H: Final = "baseline_window_end_h"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10
@@ -50,6 +52,10 @@ DEFAULT_GRID_FILTER_SAMPLES: Final = 3
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1
+
+# Night-window over which the standby baseline (talon) is averaged (local hours).
+DEFAULT_BASELINE_WINDOW_START_H: Final = 2
+DEFAULT_BASELINE_WINDOW_END_H: Final = 5
 
 # Strategy defaults — see SPECIFICATIONS §6.1 and docs/technical.md
 DEFAULT_BACKUP_RESERVE_SOC_PCT: Final = 20.0

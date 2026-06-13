@@ -10,6 +10,8 @@ from homeassistant.core import callback
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
+    CONF_BASELINE_WINDOW_END_H,
+    CONF_BASELINE_WINDOW_START_H,
     CONF_GRID_FILTER_SAMPLES,
     CONF_MAX_RAMP_W,
     CONF_PHASES,
@@ -28,6 +30,8 @@ from .const import (
     CONF_ZERO_INJECTION_KP,
     CONF_ZERO_INJECTION_SETPOINT_W,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
+    DEFAULT_BASELINE_WINDOW_END_H,
+    DEFAULT_BASELINE_WINDOW_START_H,
     DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_PHASES,
@@ -98,6 +102,14 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_BACKUP_RESERVE_SOC_PCT,
                 default=d.get(CONF_BACKUP_RESERVE_SOC_PCT, DEFAULT_BACKUP_RESERVE_SOC_PCT),
             ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+            vol.Optional(
+                CONF_BASELINE_WINDOW_START_H,
+                default=d.get(CONF_BASELINE_WINDOW_START_H, DEFAULT_BASELINE_WINDOW_START_H),
+            ): vol.All(int, vol.Range(min=0, max=23)),
+            vol.Optional(
+                CONF_BASELINE_WINDOW_END_H,
+                default=d.get(CONF_BASELINE_WINDOW_END_H, DEFAULT_BASELINE_WINDOW_END_H),
+            ): vol.All(int, vol.Range(min=0, max=23)),
             vol.Optional(
                 CONF_PV_FORECAST_ENTITY,
                 default=d.get(CONF_PV_FORECAST_ENTITY, ""),

@@ -20,6 +20,8 @@ from .adapters.watchdog import EntityWatchdog
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
+    CONF_BASELINE_WINDOW_END_H,
+    CONF_BASELINE_WINDOW_START_H,
     CONF_GRID_FILTER_SAMPLES,
     CONF_MAX_RAMP_W,
     CONF_PRIORITIES,
@@ -36,6 +38,8 @@ from .const import (
     CONF_ZERO_INJECTION_SETPOINT_W,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BALANCING_ALPHA,
+    DEFAULT_BASELINE_WINDOW_END_H,
+    DEFAULT_BASELINE_WINDOW_START_H,
     DEFAULT_COST_MIN_CHEAP_THRESHOLD,
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
     DEFAULT_GRID_FILTER_SAMPLES,
@@ -53,6 +57,7 @@ from .const import (
     STORE_VERSION,
 )
 from .core.arbitrer import Arbiter, ArbitrationResult
+from .core.baseline import NightBaselineEstimator
 from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
 from .core.controllers.load_dispatch import LoadDispatchController
@@ -269,6 +274,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Daily energy integration (fallback when no vendor daily_energy_entity),
         # persisted across restarts via the HA Store.
         self._energy = DailyEnergyAccumulator()
+        self._baseline_est = NightBaselineEstimator(
+            window_start_h=int(
+                cfg.get(CONF_BASELINE_WINDOW_START_H, DEFAULT_BASELINE_WINDOW_START_H)
+            ),
+            window_end_h=int(cfg.get(CONF_BASELINE_WINDOW_END_H, DEFAULT_BASELINE_WINDOW_END_H)),
+        )
         self._store: Store[dict[str, Any]] = Store(hass, STORE_VERSION, STORE_KEY)
 
         self._diagnostics = RegulationDiagnostics()
@@ -348,6 +359,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         the next integration tick resets the counters when the date has changed.
         """
         data = await self._store.async_load()
+        baseline = (data or {}).get("baseline")
+        if baseline and baseline.get("talon_w") is not None:
+            with contextlib.suppress(ValueError, TypeError):
+                self._baseline_est.restore(float(baseline["talon_w"]))
         energy = (data or {}).get("energy")
         if not energy:
             return
@@ -369,7 +384,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 "pv_kwh": round(self._energy.pv_kwh, 4),
                 "grid_import_kwh": round(self._energy.grid_import_kwh, 4),
                 "grid_export_kwh": round(self._energy.grid_export_kwh, 4),
-            }
+            },
+            "baseline": {
+                "talon_w": (
+                    round(self._baseline_est.talon_w, 1)
+                    if self._baseline_est.talon_w is not None
+                    else None
+                ),
+            },
         }
 
     @property
@@ -429,6 +451,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def subscribed_power_w(self) -> float | None:
         """Subscribed grid power (W), from the configured kVA. None if unset."""
         return self._subscribed_power_w
+
+    @property
+    def baseline_night_w(self) -> float | None:
+        """Standby baseline (talon) averaged over the night window, or None."""
+        talon = self._baseline_est.talon_w
+        return round(talon, 1) if talon is not None else None
 
     @property
     def pv_forecast_hourly(self) -> list[dict[str, float | str]]:
@@ -497,11 +525,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._check_baseline(snapshot)
 
         # --- Daily energy integration (fallback when no vendor daily entity) ---
+        local_now = dt_util.as_local(snapshot.timestamp)
         self._energy.update(
             now=snapshot.timestamp,
-            local_date=dt_util.as_local(snapshot.timestamp).date(),
+            local_date=local_now.date(),
             pv_w=snapshot.pv_total_w,
             grid_w=snapshot.grid_power_w,
+        )
+        self._baseline_est.update(
+            local_time=local_now.time(),
+            local_date=local_now.date(),
+            baseline_w=snapshot.baseline_consumption_w,
         )
         self._store.async_delay_save(self._persisted_state, _STORE_SAVE_DELAY_S)
         self._run_advisory_plan(snapshot)

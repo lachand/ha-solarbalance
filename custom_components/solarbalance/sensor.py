@@ -64,6 +64,7 @@ async def async_setup_entry(
         SolarBalancePvEnergyTodaySensor(coordinator, entry),
         SolarBalanceGridImportTodaySensor(coordinator, entry),
         SolarBalanceGridExportTodaySensor(coordinator, entry),
+        SolarBalanceBaselineNightSensor(coordinator, entry),
     ]
 
     # Per-battery setpoint + state (SoC / power / temperature) sensors
@@ -334,6 +335,23 @@ class SolarBalanceGridImportTodaySensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float | None:
         return self.coordinator.daily_grid_import_kwh
+
+
+class SolarBalanceBaselineNightSensor(_SolarBalanceSensor):
+    """Standby baseline (talon) averaged over the quiet night window (W)."""
+
+    _attr_translation_key = "baseline_night"
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:sleep"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "baseline_night")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.baseline_night_w
 
 
 class SolarBalanceGridExportTodaySensor(_SolarBalanceSensor):
