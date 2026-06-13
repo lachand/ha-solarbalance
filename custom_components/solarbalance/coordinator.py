@@ -26,7 +26,9 @@ from .const import (
     CONF_BASELINE_WINDOW_START_H,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
+    CONF_EXPORT_PRICE,
     CONF_GRID_FILTER_SAMPLES,
+    CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_PRIORITIES,
@@ -48,7 +50,9 @@ from .const import (
     DEFAULT_COST_MIN_CHEAP_THRESHOLD,
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
+    DEFAULT_EXPORT_PRICE,
     DEFAULT_GRID_FILTER_SAMPLES,
+    DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
@@ -188,7 +192,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._devices = devices
         self._meters = meters
         self._loads = loads
-        self._tariff = tariff or TariffConfig()
+        # When no richer tariff is provided, fall back to flat configurable
+        # import/export prices so cost/savings accounting works out of the box.
+        self._tariff = tariff or TariffConfig(
+            default_import_price=float(cfg.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)),
+            default_export_price=float(cfg.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)),
+        )
         self._forecast = forecast
         self._mode: HemsMode = HemsMode.NORMAL
         self._pre_degraded_mode: HemsMode = HemsMode.NORMAL
@@ -404,6 +413,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 grid_import_kwh=float(energy["grid_import_kwh"]),
                 grid_export_kwh=float(energy.get("grid_export_kwh", 0.0)),
                 consumption_kwh=float(energy.get("consumption_kwh", 0.0)),
+                import_cost_eur=float(energy.get("import_cost_eur", 0.0)),
+                export_revenue_eur=float(energy.get("export_revenue_eur", 0.0)),
+                avoided_import_eur=float(energy.get("avoided_import_eur", 0.0)),
             )
         except (KeyError, ValueError, TypeError):
             _LOGGER.warning("SolarBalance: could not restore persisted daily energy")
@@ -480,6 +492,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 pv_w=last["pv_power"],
                 grid_w=last["grid_power"],
                 battery_w=last["battery_power"],
+                import_price=self._tariff.current_import_price(ts),
+                export_price=self._tariff.current_export_price(ts),
             )
         _LOGGER.debug(
             "Recomputed daily energy from recorder: pv=%.2f import=%.2f export=%.2f conso=%.2f kWh",
@@ -498,6 +512,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 "grid_import_kwh": round(self._energy.grid_import_kwh, 4),
                 "grid_export_kwh": round(self._energy.grid_export_kwh, 4),
                 "consumption_kwh": round(self._energy.consumption_kwh, 4),
+                "import_cost_eur": round(self._energy.import_cost_eur, 4),
+                "export_revenue_eur": round(self._energy.export_revenue_eur, 4),
+                "avoided_import_eur": round(self._energy.avoided_import_eur, 4),
             },
             "baseline": {
                 "talon_w": (
@@ -565,6 +582,26 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def daily_consumption_kwh(self) -> float | None:
         """Today's total house consumption energy (kWh), integrated internally."""
         return round(self._energy.consumption_kwh, 3)
+
+    @property
+    def daily_cost_eur(self) -> float:
+        """Today's net grid cost (EUR): import cost minus export revenue."""
+        return round(self._energy.import_cost_eur - self._energy.export_revenue_eur, 3)
+
+    @property
+    def daily_savings_eur(self) -> float:
+        """Today's value created by PV + battery (EUR): avoided import + export revenue."""
+        return round(self._energy.avoided_import_eur + self._energy.export_revenue_eur, 3)
+
+    @property
+    def daily_import_cost_eur(self) -> float:
+        """Today's grid-import cost (EUR)."""
+        return round(self._energy.import_cost_eur, 3)
+
+    @property
+    def daily_export_revenue_eur(self) -> float:
+        """Today's export revenue (EUR)."""
+        return round(self._energy.export_revenue_eur, 3)
 
     @property
     def evening_shed(self) -> ShedDecision | None:
@@ -661,6 +698,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             pv_w=snapshot.pv_total_w,
             grid_w=snapshot.grid_power_w,
             battery_w=snapshot.battery_power_total_w,
+            import_price=self._tariff.current_import_price(snapshot.timestamp),
+            export_price=self._tariff.current_export_price(snapshot.timestamp),
         )
         self._baseline_est.update(
             local_time=local_now.time(),

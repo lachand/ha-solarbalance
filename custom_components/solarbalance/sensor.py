@@ -66,6 +66,8 @@ async def async_setup_entry(
         SolarBalanceGridExportTodaySensor(coordinator, entry),
         SolarBalanceConsumptionTodaySensor(coordinator, entry),
         SolarBalanceBaselineNightSensor(coordinator, entry),
+        SolarBalanceDailyCostSensor(coordinator, entry),
+        SolarBalanceDailySavingsSensor(coordinator, entry),
     ]
 
     # Per-battery setpoint + state (SoC / power / temperature) sensors
@@ -354,6 +356,49 @@ class SolarBalanceConsumptionTodaySensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float | None:
         return self.coordinator.daily_consumption_kwh
+
+
+class SolarBalanceDailyCostSensor(_SolarBalanceSensor):
+    """Today's net grid cost in euros (import cost minus export revenue)."""
+
+    _attr_translation_key = "daily_cost"
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_icon = "mdi:cash-minus"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "daily_cost")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.daily_cost_eur
+
+    @property
+    def extra_state_attributes(self) -> dict[str, float]:
+        return {
+            "import_cost_eur": self.coordinator.daily_import_cost_eur,
+            "export_revenue_eur": self.coordinator.daily_export_revenue_eur,
+        }
+
+
+class SolarBalanceDailySavingsSensor(_SolarBalanceSensor):
+    """Today's value created by PV + battery (avoided import + export revenue)."""
+
+    _attr_translation_key = "daily_savings"
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_device_class = SensorDeviceClass.MONETARY
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_icon = "mdi:piggy-bank"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "daily_savings")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.daily_savings_eur
 
 
 class SolarBalanceBaselineNightSensor(_SolarBalanceSensor):

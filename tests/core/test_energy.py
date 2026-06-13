@@ -80,6 +80,44 @@ def test_restore_seeds_consumption() -> None:
     assert acc.consumption_kwh == 3.0
 
 
+def test_import_cost_integrates_with_price() -> None:
+    acc = DailyEnergyAccumulator()
+    d = _ts(0).date()
+    acc.update(now=_ts(0), local_date=d, pv_w=0.0, grid_w=1200.0, import_price=0.30)  # seed
+    acc.update(now=_ts(10), local_date=d, pv_w=0.0, grid_w=1200.0, import_price=0.30)  # +10 min
+    kwh = 1200.0 * (10 / 60) / 1000  # 0.2 kWh
+    assert acc.grid_import_kwh == pytest.approx(kwh)
+    assert acc.import_cost_eur == pytest.approx(kwh * 0.30)
+
+
+def test_export_revenue_integrates_with_price() -> None:
+    acc = DailyEnergyAccumulator()
+    d = _ts(0).date()
+    acc.update(now=_ts(0), local_date=d, pv_w=2000.0, grid_w=-1200.0, export_price=0.10)  # seed
+    acc.update(now=_ts(10), local_date=d, pv_w=2000.0, grid_w=-1200.0, export_price=0.10)
+    kwh = 1200.0 * (10 / 60) / 1000
+    assert acc.export_revenue_eur == pytest.approx(kwh * 0.10)
+
+
+def test_avoided_import_counts_self_supplied_energy() -> None:
+    acc = DailyEnergyAccumulator()
+    d = _ts(0).date()
+    # PV 2000, grid -500 (export 500), battery 0 -> consumption 1500 W, all self-supplied.
+    acc.update(now=_ts(0), local_date=d, pv_w=2000.0, grid_w=-500.0, import_price=0.30)
+    acc.update(now=_ts(10), local_date=d, pv_w=2000.0, grid_w=-500.0, import_price=0.30)
+    kwh = 1500.0 * (10 / 60) / 1000  # 0.25 kWh self-supplied
+    assert acc.avoided_import_eur == pytest.approx(kwh * 0.30)
+
+
+def test_no_price_skips_cost() -> None:
+    acc = DailyEnergyAccumulator()
+    d = _ts(0).date()
+    acc.update(now=_ts(0), local_date=d, pv_w=0.0, grid_w=1200.0)  # no prices
+    acc.update(now=_ts(10), local_date=d, pv_w=0.0, grid_w=1200.0)
+    assert acc.import_cost_eur == 0.0
+    assert acc.grid_import_kwh == pytest.approx(1200.0 * (10 / 60) / 1000)  # energy still counted
+
+
 def test_resets_at_local_midnight() -> None:
     acc = DailyEnergyAccumulator()
     d0 = _ts(0).date()

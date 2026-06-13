@@ -17,6 +17,8 @@
           "load_control_enabled": "Activer le contrôle des consommateurs (switches)",
           "evening_shed_enabled": "Délestage fin de journée (priorité charge batterie)",
           "evening_shed_min_power_w": "Délestage : puissance mini d'un « gros » consommateur (W)",
+          "import_price": "Prix soutirage (€/kWh)",
+          "export_price": "Prix injection (€/kWh)",
           "pv_forecast_entity": "Entité prévision PV (optionnel)",
           "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
         },
@@ -48,6 +50,8 @@
           "load_control_enabled": "Activer le contrôle des consommateurs (switches)",
           "evening_shed_enabled": "Délestage fin de journée (priorité charge batterie)",
           "evening_shed_min_power_w": "Délestage : puissance mini d'un « gros » consommateur (W)",
+          "import_price": "Prix soutirage (€/kWh)",
+          "export_price": "Prix injection (€/kWh)",
           "pv_forecast_entity": "Entité prévision PV (optionnel)",
           "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
         }
@@ -89,6 +93,8 @@
       "grid_import_today": { "name": "Soutirage réseau aujourd'hui" },
       "grid_export_today": { "name": "Injection réseau aujourd'hui" },
       "consumption_today": { "name": "Consommation totale aujourd'hui" },
+      "daily_cost": { "name": "Coût réseau aujourd'hui" },
+      "daily_savings": { "name": "Économies aujourd'hui" },
       "baseline_night": { "name": "Talon de consommation (nuit)" },
       "battery_setpoint_charge": { "name": "Consigne de charge" },
       "battery_setpoint_discharge": { "name": "Consigne de décharge" },

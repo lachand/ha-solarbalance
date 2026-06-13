@@ -17,6 +17,8 @@
           "load_control_enabled": "Enable load control (switches)",
           "evening_shed_enabled": "End-of-day shedding (battery-charge priority)",
           "evening_shed_min_power_w": "Shedding: min power of a \"big\" load (W)",
+          "import_price": "Import price (€/kWh)",
+          "export_price": "Export price (€/kWh)",
           "pv_forecast_entity": "PV forecast entity (optional)",
           "weather_warning_entity": "Météo-France warning entity (optional)"
         },
@@ -48,6 +50,8 @@
           "load_control_enabled": "Enable load control (switches)",
           "evening_shed_enabled": "End-of-day shedding (battery-charge priority)",
           "evening_shed_min_power_w": "Shedding: min power of a \"big\" load (W)",
+          "import_price": "Import price (€/kWh)",
+          "export_price": "Export price (€/kWh)",
           "pv_forecast_entity": "PV forecast entity (optional)",
           "weather_warning_entity": "Météo-France warning entity (optional)"
         }
@@ -89,6 +93,8 @@
       "grid_import_today": { "name": "Grid Import Today" },
       "grid_export_today": { "name": "Grid Export Today" },
       "consumption_today": { "name": "Total Consumption Today" },
+      "daily_cost": { "name": "Grid cost today" },
+      "daily_savings": { "name": "Savings today" },
       "baseline_night": { "name": "Standby baseline (night)" },
       "battery_setpoint_charge": { "name": "Charge setpoint" },
       "battery_setpoint_discharge": { "name": "Discharge setpoint" },

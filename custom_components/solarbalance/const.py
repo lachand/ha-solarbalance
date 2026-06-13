@@ -29,6 +29,8 @@ CONF_BASELINE_WINDOW_END_H: Final = "baseline_window_end_h"
 CONF_LOAD_CONTROL_ENABLED: Final = "load_control_enabled"
 CONF_EVENING_SHED_ENABLED: Final = "evening_shed_enabled"
 CONF_EVENING_SHED_MIN_POWER_W: Final = "evening_shed_min_power_w"
+CONF_IMPORT_PRICE: Final = "import_price"
+CONF_EXPORT_PRICE: Final = "export_price"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10
@@ -63,6 +65,11 @@ DEFAULT_BASELINE_WINDOW_END_H: Final = 5
 # Evening battery-priority shedding: only interruptible loads at or above this
 # power are considered "big" and shed to let the PV charge the batteries.
 DEFAULT_EVENING_SHED_MIN_POWER_W: Final = 500
+
+# Flat fallback tariff (EUR/kWh) used for cost/savings accounting and the
+# planner when no richer tariff is configured. User-editable in the options.
+DEFAULT_IMPORT_PRICE: Final = 0.25
+DEFAULT_EXPORT_PRICE: Final = 0.10
 
 # Strategy defaults — see SPECIFICATIONS §6.1 and docs/technical.md
 DEFAULT_BACKUP_RESERVE_SOC_PCT: Final = 20.0
