@@ -1,13 +1,16 @@
 """Tests for the generic tariff model."""
 
-from datetime import datetime, time, UTC
+from datetime import UTC, datetime, time
 
 import pytest
 
 from custom_components.solarbalance.core.tariff import (
     TariffConfig,
     TariffSlot,
+    TempoColor,
+    build_tariff,
     make_hchp_tariff,
+    parse_tempo_color,
 )
 
 
@@ -45,7 +48,7 @@ class TestTariffSlot:
             start=time(0, 0),
             end=time(23, 59),
             import_price=0.20,
-            weekdays=(0, 1, 2, 3, 4),  # Mon–Fri
+            weekdays=(0, 1, 2, 3, 4),  # Mon-Fri
         )
         assert slot.applies_at(_dt(12)) is True
 
@@ -55,7 +58,7 @@ class TestTariffSlot:
             start=time(0, 0),
             end=time(23, 59),
             import_price=0.18,
-            weekdays=(5, 6),  # Sat–Sun
+            weekdays=(5, 6),  # Sat-Sun
         )
         assert slot.applies_at(_dt(12)) is False  # 2026-05-04 is Monday
 
@@ -113,3 +116,60 @@ class TestMakeHchpTariff:
         """'24:00' as end time creates a permanently-active slot; reject it early."""
         with pytest.raises(ValueError, match="24:00"):
             make_hchp_tariff([("22:00", "24:00", 0.15)])
+
+
+class TestParseTempoColor:
+    @pytest.mark.parametrize(
+        ("state", "expected"),
+        [
+            ("Rouge", TempoColor.RED),
+            ("red", TempoColor.RED),
+            ("BLANC", TempoColor.WHITE),
+            ("Bleu", TempoColor.BLUE),
+            ("3", TempoColor.RED),
+            (None, TempoColor.UNKNOWN),
+            ("unknown", TempoColor.UNKNOWN),
+        ],
+    )
+    def test_mapping(self, state: str | None, expected: TempoColor) -> None:
+        assert parse_tempo_color(state) is expected
+
+
+class TestBuildTariff:
+    def test_flat(self) -> None:
+        t = build_tariff({"type": "flat", "import_price": 0.25, "export_price": 0.10})
+        assert t.current_import_price(_dt(12)) == pytest.approx(0.25)
+        assert t.current_export_price(_dt(12)) == pytest.approx(0.10)
+
+    def test_hc_hp(self) -> None:
+        t = build_tariff(
+            {
+                "type": "hc_hp",
+                "export_price": 0.13,
+                "slots": [
+                    {"start": "22:00", "end": "06:00", "price": 0.20},
+                    {"start": "06:00", "end": "22:00", "price": 0.27},
+                ],
+            }
+        )
+        assert t.current_import_price(_dt(3)) == pytest.approx(0.20)
+        assert t.current_import_price(_dt(12)) == pytest.approx(0.27)
+
+    def test_tempo_red_hp_is_expensive(self) -> None:
+        t = build_tariff(
+            {
+                "type": "tempo",
+                "export_price": 0.13,
+                "prices": {"red": {"hc": 0.16, "hp": 0.76}},
+            },
+            color_provider=lambda _dt: TempoColor.RED,
+        )
+        # 12:00 is HP for the red day -> expensive.
+        assert t.current_import_price(_dt(12)) == pytest.approx(0.76)
+        assert t.is_expensive_window(_dt(12), threshold=0.25) is True
+        # 03:00 is HC -> cheaper.
+        assert t.current_import_price(_dt(3)) == pytest.approx(0.16)
+
+    def test_tempo_requires_color_provider(self) -> None:
+        with pytest.raises(ValueError, match="color_provider"):
+            build_tariff({"type": "tempo"})

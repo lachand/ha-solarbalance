@@ -97,6 +97,7 @@
       "consumption_today": { "name": "Total Consumption Today" },
       "daily_cost": { "name": "Grid cost today" },
       "daily_savings": { "name": "Savings today" },
+      "current_import_price": { "name": "Current import price" },
       "baseline_night": { "name": "Standby baseline (night)" },
       "battery_setpoint_charge": { "name": "Charge setpoint" },
       "battery_setpoint_discharge": { "name": "Discharge setpoint" },

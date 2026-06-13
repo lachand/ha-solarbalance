@@ -12,10 +12,20 @@ This module also provides:
 See SPECIFICATIONS §7.3 — Configuration tarifaire générique multi-plages.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta
 from enum import StrEnum
+from typing import Protocol
+
+
+class Tariff(Protocol):
+    """Common interface for all tariff resolvers (price + cheap/expensive)."""
+
+    def current_import_price(self, dt: datetime) -> float | None: ...
+    def current_export_price(self, dt: datetime) -> float | None: ...
+    def is_cheap_window(self, dt: datetime, *, threshold: float) -> bool: ...
+    def is_expensive_window(self, dt: datetime, *, threshold: float) -> bool: ...
 
 # ---------------------------------------------------------------------------
 # Slot definition
@@ -253,6 +263,16 @@ class TempoTariff:
         """Return the export price (constant, independent of colour/slot)."""
         return self._export_price
 
+    def is_cheap_window(self, dt: datetime, *, threshold: float) -> bool:
+        """True when the current import price is at or below ``threshold``."""
+        price = self.current_import_price(dt)
+        return price is not None and price <= threshold
+
+    def is_expensive_window(self, dt: datetime, *, threshold: float) -> bool:
+        """True when the current import price is strictly above ``threshold``."""
+        price = self.current_import_price(dt)
+        return price is not None and price > threshold
+
     def as_tariff_config(self, dt: datetime) -> TariffConfig:
         """Snapshot current prices into a static `TariffConfig` for this tick.
 
@@ -323,9 +343,81 @@ class EpexSpotTariff:
         """Return the fixed export buy-back price."""
         return self._export_price
 
+    def is_cheap_window(self, dt: datetime, *, threshold: float) -> bool:
+        """True when the current import price is at or below ``threshold``."""
+        price = self.current_import_price(dt)
+        return price is not None and price <= threshold
+
+    def is_expensive_window(self, dt: datetime, *, threshold: float) -> bool:
+        """True when the current import price is strictly above ``threshold``."""
+        price = self.current_import_price(dt)
+        return price is not None and price > threshold
+
     def as_tariff_config(self, dt: datetime) -> TariffConfig:
         """Snapshot current prices into a static `TariffConfig` for this tick."""
         return TariffConfig(
             default_import_price=self.current_import_price(dt),
             default_export_price=self.current_export_price(dt),
         )
+
+
+# ---------------------------------------------------------------------------
+# Builder from a validated ``tariff:`` YAML block
+# ---------------------------------------------------------------------------
+
+
+def parse_tempo_color(state: str | None) -> TempoColor:
+    """Map a HA Tempo-colour state (RTE integrations, FR/EN labels) to TempoColor."""
+    if not state:
+        return TempoColor.UNKNOWN
+    s = str(state).strip().lower()
+    if "roug" in s or "red" in s or s == "3":
+        return TempoColor.RED
+    if "blanc" in s or "white" in s or s == "2":
+        return TempoColor.WHITE
+    if "bleu" in s or "blue" in s or s == "1":
+        return TempoColor.BLUE
+    return TempoColor.UNKNOWN
+
+
+def build_tariff(
+    spec: Mapping[str, object],
+    *,
+    color_provider: Callable[[datetime], TempoColor] | None = None,
+) -> Tariff:
+    """Build a tariff resolver from a validated ``tariff:`` block.
+
+    ``type`` is one of ``flat`` | ``hc_hp`` | ``tempo``. For ``tempo`` a
+    ``color_provider`` (reading the configured colour entity) must be supplied.
+    """
+    kind = str(spec.get("type", "flat"))
+    export_price = float(spec.get("export_price", 0.0) or 0.0)
+
+    if kind == "hc_hp":
+        slots = spec.get("slots") or []
+        triples = [
+            (str(s["start"]), str(s["end"]), float(s["price"]))
+            for s in slots  # type: ignore[union-attr]
+        ]
+        return make_hchp_tariff(triples, export_price=export_price)
+
+    if kind == "tempo":
+        if color_provider is None:
+            raise ValueError("tempo tariff requires a color_provider")
+        prices = dict(_TEMPO_DEFAULTS)
+        raw_prices = spec.get("prices") or {}
+        for color in (TempoColor.BLUE, TempoColor.WHITE, TempoColor.RED):
+            entry = raw_prices.get(color.value)  # type: ignore[union-attr]
+            if entry:
+                prices[color] = TempoSlotPrices(
+                    hc_price=float(entry["hc"]),
+                    hp_price=float(entry["hp"]),
+                    export_price=export_price,
+                )
+        return TempoTariff(color_provider, prices=prices, export_price=export_price)
+
+    # flat
+    return TariffConfig(
+        default_import_price=float(spec.get("import_price", 0.0) or 0.0),
+        default_export_price=export_price,
+    )

@@ -2,7 +2,7 @@
 
 import contextlib
 import logging
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -118,7 +118,7 @@ from .core.strategies.longevity import LongevityStrategy
 from .core.strategies.peak_shaving import PeakShavingStrategy
 from .core.strategies.revenue_max import RevenueMaxStrategy
 from .core.strategies.self_consumption import SelfConsumptionStrategy
-from .core.tariff import TariffConfig
+from .core.tariff import TariffConfig, TempoColor, build_tariff, parse_tempo_color
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -185,6 +185,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         loads: list[Load],
         tariff: TariffConfig | None = None,
         forecast: ForecastConfig | None = None,
+        tariff_spec: dict[str, Any] | None = None,
     ) -> None:
         cfg = dict(entry.options or entry.data)
         tick = int(cfg.get(CONF_TICK_INTERVAL_S, DEFAULT_TICK_INTERVAL_S))
@@ -198,12 +199,28 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._devices = devices
         self._meters = meters
         self._loads = loads
-        # When no richer tariff is provided, fall back to flat configurable
-        # import/export prices so cost/savings accounting works out of the box.
-        self._tariff = tariff or TariffConfig(
-            default_import_price=float(cfg.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)),
-            default_export_price=float(cfg.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)),
-        )
+        # Tariff resolution priority: explicit object (tests) > YAML tariff: block
+        # (HC/HP or Tempo) > flat configurable import/export prices (defaults so
+        # cost/savings accounting works out of the box).
+        flat_import = float(cfg.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE))
+        flat_export = float(cfg.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE))
+        if tariff is not None:
+            self._tariff = tariff
+        elif tariff_spec:
+            spec = dict(tariff_spec)
+            spec.setdefault("export_price", flat_export)
+            spec.setdefault("import_price", flat_import)
+            color_entity = spec.get("color_entity")
+            self._tariff = build_tariff(
+                spec,
+                color_provider=self._make_tempo_color_provider(color_entity)
+                if color_entity
+                else None,
+            )
+        else:
+            self._tariff = TariffConfig(
+                default_import_price=flat_import, default_export_price=flat_export
+            )
         self._forecast = forecast
         self._pv_forecast_entity: str | None = cfg.get("pv_forecast_entity") or None
         self._mode: HemsMode = HemsMode.NORMAL
@@ -620,6 +637,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def daily_import_cost_eur(self) -> float:
         """Today's grid-import cost (EUR)."""
         return round(self._energy.import_cost_eur, 3)
+
+    @property
+    def current_import_price(self) -> float | None:
+        """Current import price (EUR/kWh) from the active tariff."""
+        return self._tariff.current_import_price(dt_util.now())
 
     @property
     def daily_export_revenue_eur(self) -> float:
@@ -1067,6 +1089,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if entity_profile:
             return entity_profile
         return [snapshot.pv_forecast_now_w] if snapshot.pv_forecast_now_w is not None else []
+
+    def _make_tempo_color_provider(
+        self, entity_id: str
+    ) -> Callable[[datetime], TempoColor]:
+        """Build a Tempo colour provider reading the configured HA entity live."""
+
+        def _provider(_dt: datetime) -> TempoColor:
+            state = self.hass.states.get(entity_id)
+            return parse_tempo_color(state.state if state else None)
+
+        return _provider
 
     @staticmethod
     def _coerce_dt(value: object) -> datetime | None:

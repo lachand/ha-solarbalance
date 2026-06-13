@@ -68,6 +68,7 @@ async def async_setup_entry(
         SolarBalanceBaselineNightSensor(coordinator, entry),
         SolarBalanceDailyCostSensor(coordinator, entry),
         SolarBalanceDailySavingsSensor(coordinator, entry),
+        SolarBalanceCurrentImportPriceSensor(coordinator, entry),
     ]
 
     # Per-battery setpoint + state (SoC / power / temperature) sensors
@@ -399,6 +400,23 @@ class SolarBalanceDailySavingsSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float | None:
         return self.coordinator.daily_savings_eur
+
+
+class SolarBalanceCurrentImportPriceSensor(_SolarBalanceSensor):
+    """Current import price from the active tariff (EUR/kWh)."""
+
+    _attr_translation_key = "current_import_price"
+    _attr_native_unit_of_measurement = "EUR/kWh"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:cash-clock"
+    _attr_suggested_display_precision = 4
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "current_import_price")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.current_import_price
 
 
 class SolarBalanceBaselineNightSensor(_SolarBalanceSensor):

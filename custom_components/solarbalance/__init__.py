@@ -101,11 +101,11 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     raw = config.get(DOMAIN)
     if raw:
         try:
-            devices, meters, loads, forecast = parse_yaml_config(raw)
+            devices, meters, loads, forecast, tariff_spec = parse_yaml_config(raw)
         except Exception as exc:
             _LOGGER.error("SolarBalance YAML error: %s", exc)
             return False
-        hass.data[DOMAIN][YAML_CONFIG_KEY] = (devices, meters, loads, forecast)
+        hass.data[DOMAIN][YAML_CONFIG_KEY] = (devices, meters, loads, forecast, tariff_spec)
         _LOGGER.debug(
             "SolarBalance YAML: %d device(s), %d meter(s), %d load(s)",
             len(devices),
@@ -201,10 +201,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _register_card_frontend(hass)
 
     yaml_cfg = hass.data[DOMAIN].get(YAML_CONFIG_KEY)
-    devices, meters, loads, forecast = yaml_cfg if yaml_cfg else ([], [], [], None)
+    devices, meters, loads, forecast, tariff_spec = (
+        yaml_cfg if yaml_cfg else ([], [], [], None, None)
+    )
 
     coordinator = SolarBalanceCoordinator(
-        hass, entry, devices, meters, loads, forecast=forecast
+        hass, entry, devices, meters, loads, forecast=forecast, tariff_spec=tariff_spec
     )
     await coordinator.async_restore()
     await coordinator.async_config_entry_first_refresh()

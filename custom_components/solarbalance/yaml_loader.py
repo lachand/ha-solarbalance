@@ -191,12 +191,39 @@ _FORECAST_SCHEMA = vol.Schema(
     }
 )
 
+_TARIFF_SLOT_SCHEMA = vol.Schema(
+    {
+        vol.Required("start"): _HHMM,
+        vol.Required("end"): _HHMM,
+        vol.Required("price"): vol.Coerce(float),
+    }
+)
+
+_TEMPO_PRICE_SCHEMA = vol.Schema(
+    {
+        vol.Required("hc"): vol.Coerce(float),
+        vol.Required("hp"): vol.Coerce(float),
+    }
+)
+
+_TARIFF_SCHEMA = vol.Schema(
+    {
+        vol.Optional("type", default="flat"): vol.In(["flat", "hc_hp", "tempo"]),
+        vol.Optional("export_price"): vol.Coerce(float),
+        vol.Optional("import_price"): vol.Coerce(float),  # flat
+        vol.Optional("slots", default=[]): [_TARIFF_SLOT_SCHEMA],  # hc_hp
+        vol.Optional("color_entity"): str,  # tempo
+        vol.Optional("prices"): {vol.In(["blue", "white", "red"]): _TEMPO_PRICE_SCHEMA},  # tempo
+    }
+)
+
 SOLARBALANCE_SCHEMA = vol.Schema(
     {
         vol.Optional("devices", default=[]): [_DEVICE_SCHEMA],
         vol.Optional("meters", default=[]): [_METER_SCHEMA],
         vol.Optional("loads", default=[]): [_LOAD_SCHEMA],
         vol.Optional("forecast"): _FORECAST_SCHEMA,
+        vol.Optional("tariff"): _TARIFF_SCHEMA,
     }
 )
 
@@ -335,15 +362,17 @@ def _build_forecast(raw: Mapping[str, Any]) -> ForecastConfig:
 
 def parse_yaml_config(
     raw: Mapping[str, Any],
-) -> tuple[list[Device], list[Meter], list[Load], ForecastConfig | None]:
+) -> tuple[list[Device], list[Meter], list[Load], ForecastConfig | None, dict[str, Any] | None]:
     """Validate and convert the ``solarbalance:`` YAML block.
 
     Args:
         raw: The ``solarbalance:`` dict from ``configuration.yaml``.
 
     Returns:
-        Tuple of (devices, meters, loads, forecast). ``forecast`` is ``None`` when
-        no ``forecast:`` block is declared.
+        Tuple of (devices, meters, loads, forecast, tariff_spec). ``forecast`` and
+        ``tariff_spec`` are ``None`` when their blocks are not declared; the
+        tariff spec is returned raw (validated) for the coordinator to build with
+        HA access (the Tempo colour entity needs runtime reads).
 
     Raises:
         `homeassistant.exceptions.ConfigEntryError` on schema validation errors.
@@ -387,11 +416,14 @@ def parse_yaml_config(
         except (ValueError, KeyError) as exc:
             raise ConfigEntryError(f"SolarBalance: invalid forecast block: {exc}") from exc
 
+    tariff_spec: dict[str, Any] | None = validated.get("tariff")
+
     _LOGGER.info(
-        "SolarBalance YAML: %d device(s), %d meter(s), %d load(s), forecast=%s",
+        "SolarBalance YAML: %d device(s), %d meter(s), %d load(s), forecast=%s, tariff=%s",
         len(devices),
         len(meters),
         len(loads),
         "yes" if forecast else "no",
+        tariff_spec.get("type") if tariff_spec else "flat",
     )
-    return devices, meters, loads, forecast
+    return devices, meters, loads, forecast, tariff_spec
