@@ -17,6 +17,7 @@ from homeassistant.util import dt as dt_util
 from .adapters.active_control_publisher import ActiveControlPublisher
 from .adapters.decision_publisher import DecisionPublisher
 from .adapters.entity_reader import EntityReader
+from .adapters.load_publisher import LoadPublisher
 from .adapters.watchdog import EntityWatchdog
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
@@ -24,6 +25,7 @@ from .const import (
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
     CONF_GRID_FILTER_SAMPLES,
+    CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_PRIORITIES,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
@@ -189,6 +191,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._publisher = DecisionPublisher()
         self._balancing = BalancingController(devices, alpha=DEFAULT_BALANCING_ALPHA)
         self._load_dispatch = LoadDispatchController(loads)
+        self._load_publisher = LoadPublisher(
+            hass, loads, enabled=bool(cfg.get(CONF_LOAD_CONTROL_ENABLED, False))
+        )
 
         # Indirect SoC equaliser — only meaningful when at least one battery is
         # declared non-controllable (reports state but cannot be commanded).
@@ -847,7 +852,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # controllable fleet's current power (matching per_battery_w), not all
         # batteries, so the automatic battery's power does not leak in.
         load_states = {ls.name: ls for ls in snapshot.loads}
-        self._load_dispatch.dispatch(
+        dispatch_result = self._load_dispatch.dispatch(
             available_surplus_w=max(
                 0.0,
                 -snapshot.grid_power_w
@@ -857,6 +862,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             states=load_states,
             now=snapshot.timestamp,
         )
+        await self._load_publisher.apply(dispatch_result.commands)
 
         self._publisher.publish(result, balancing_result=balancing_result)
         soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}

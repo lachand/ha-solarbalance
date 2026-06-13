@@ -13,6 +13,7 @@ from .const import (
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
     CONF_GRID_FILTER_SAMPLES,
+    CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_PHASES,
     CONF_PRIORITIES,
@@ -121,6 +122,10 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_ACTIVE_CONTROL_ENABLED,
                 default=d.get(CONF_ACTIVE_CONTROL_ENABLED, False),
+            ): bool,
+            vol.Optional(
+                CONF_LOAD_CONTROL_ENABLED,
+                default=d.get(CONF_LOAD_CONTROL_ENABLED, False),
             ): bool,
             vol.Optional(
                 CONF_SOC_EQUALISER_ENABLED,

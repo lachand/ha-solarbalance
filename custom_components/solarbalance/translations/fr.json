@@ -14,6 +14,7 @@
           "backup_reserve_soc_pct": "Réserve backup (SoC %)",
           "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
           "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
+          "load_control_enabled": "Activer le contrôle des consommateurs (switches)",
           "pv_forecast_entity": "Entité prévision PV (optionnel)",
           "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
         },
@@ -42,6 +43,7 @@
           "backup_reserve_soc_pct": "Réserve backup (SoC %)",
           "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
           "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
+          "load_control_enabled": "Activer le contrôle des consommateurs (switches)",
           "pv_forecast_entity": "Entité prévision PV (optionnel)",
           "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
         }

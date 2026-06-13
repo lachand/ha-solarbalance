@@ -26,6 +26,7 @@ CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
 CONF_BACKUP_RESERVE_SOC_PCT: Final = "backup_reserve_soc_pct"
 CONF_BASELINE_WINDOW_START_H: Final = "baseline_window_start_h"
 CONF_BASELINE_WINDOW_END_H: Final = "baseline_window_end_h"
+CONF_LOAD_CONTROL_ENABLED: Final = "load_control_enabled"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10
