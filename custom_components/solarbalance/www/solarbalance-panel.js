@@ -513,6 +513,16 @@ class SolarBalancePanel extends HTMLElement {
     if (this._badge(this._E.evFastCharge)) {
       msgs.push("⚡ Charge rapide voiture assistée par les batteries (PV récupérable).");
     }
+    const dl = this._attr(this._E.evFastCharge, "deadline");
+    if (dl && typeof dl === "object") {
+      for (const name in dl) {
+        if (dl[name] && dl[name].force) {
+          msgs.push(
+            `⏰ Échéance ${name} : charge réseau forcée (${dl[name].remaining_kwh} kWh restants, ${dl[name].hours_left} h).`
+          );
+        }
+      }
+    }
     if (!msgs.length) return "";
     const cls = this._badge(this._E.degraded) ? "err" : "warn";
     return `<div class="banner ${cls}">${msgs.map((m) => `<div>${m}</div>`).join("")}</div>`;

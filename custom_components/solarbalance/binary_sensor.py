@@ -133,9 +133,10 @@ class EvFastChargeBinarySensor(_SBBinarySensor):
     @property
     def extra_state_attributes(self) -> dict[str, object] | None:
         decisions = self.coordinator.fast_charge
-        if not decisions:
+        deadlines = self.coordinator.ev_deadline
+        if not decisions and not deadlines:
             return None
-        return {
+        attrs: dict[str, object] = {
             name: {
                 "target_w": round(d.target_w, 0),
                 "reason": d.reason,
@@ -145,3 +146,15 @@ class EvFastChargeBinarySensor(_SBBinarySensor):
             }
             for name, d in decisions.items()
         }
+        if deadlines:
+            attrs["deadline"] = {
+                name: {
+                    "force": dl.force,
+                    "reason": dl.reason,
+                    "remaining_kwh": round(dl.remaining_kwh, 2),
+                    "hours_left": round(dl.hours_left, 1),
+                    "needed_w": round(dl.needed_w, 0) if dl.needed_w != float("inf") else None,
+                }
+                for name, dl in deadlines.items()
+            }
+        return attrs

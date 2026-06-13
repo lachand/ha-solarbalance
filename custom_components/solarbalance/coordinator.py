@@ -70,6 +70,7 @@ from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.baseline import NightBaselineEstimator
 from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
+from .core.controllers.deadline import DeadlineDecision, evaluate_deadline
 from .core.controllers.ev_fast_charge import FastChargeDecision, evaluate_fast_charge
 from .core.controllers.evening_shed import (
     BatteryChargeNeed,
@@ -228,6 +229,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         self._evening_shed: ShedDecision | None = None
         self._fast_charge: dict[str, FastChargeDecision] = {}
+        self._ev_deadline: dict[str, DeadlineDecision] = {}
+        self._load_energy_kwh: dict[str, float] = {}
+        self._load_energy_day: date | None = None
+        self._load_energy_last_ts: datetime | None = None
 
         # Indirect SoC equaliser — only meaningful when at least one battery is
         # declared non-controllable (reports state but cannot be commanded).
@@ -403,6 +408,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if baseline and baseline.get("talon_w") is not None:
             with contextlib.suppress(ValueError, TypeError):
                 self._baseline_est.restore(float(baseline["talon_w"]))
+        le = (data or {}).get("load_energy")
+        if le and le.get("day"):
+            with contextlib.suppress(ValueError, TypeError):
+                self._load_energy_day = date.fromisoformat(le["day"])
+                self._load_energy_kwh = {
+                    str(k): float(v) for k, v in (le.get("kwh") or {}).items()
+                }
         energy = (data or {}).get("energy")
         if not energy:
             return
@@ -523,6 +535,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     else None
                 ),
             },
+            "load_energy": {
+                "day": self._load_energy_day.isoformat() if self._load_energy_day else None,
+                "kwh": {k: round(v, 4) for k, v in self._load_energy_kwh.items()},
+            },
         }
 
     @property
@@ -612,6 +628,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def fast_charge(self) -> dict[str, FastChargeDecision]:
         """Last EV fast-charge decisions, keyed by load name."""
         return self._fast_charge
+
+    @property
+    def ev_deadline(self) -> dict[str, DeadlineDecision]:
+        """Last departure-deadline decisions, keyed by load name."""
+        return self._ev_deadline
 
     @property
     def subscribed_power_w(self) -> float | None:
@@ -706,6 +727,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             local_date=local_now.date(),
             baseline_w=snapshot.baseline_consumption_w,
         )
+        self._track_load_energy(snapshot, local_now.date())
         self._store.async_delay_save(self._persisted_state, _STORE_SAVE_DELAY_S)
         self._run_advisory_plan(snapshot)
 
@@ -951,6 +973,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 else c
                 for c in commands
             )
+        # Departure deadline has the final say: a grid-backed charge to meet the
+        # required energy by the target time overrides shedding/fast-charge.
+        commands = self._apply_deadline(commands, snapshot)
         await self._load_publisher.apply(commands)
 
         self._publisher.publish(result, balancing_result=balancing_result)
@@ -1136,6 +1161,54 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 rationale="fast_charge",
             )
         return LoadCommand(load_name=load.name, on=True, power_w=target_w, rationale="fast_charge")
+
+    def _track_load_energy(self, snapshot: Snapshot, local_date: date) -> None:
+        """Integrate energy delivered to each load today (for deadline tracking)."""
+        if self._load_energy_day != local_date:
+            self._load_energy_kwh = {}
+            self._load_energy_day = local_date
+            self._load_energy_last_ts = snapshot.timestamp
+            return
+        if self._load_energy_last_ts is None:
+            self._load_energy_last_ts = snapshot.timestamp
+            return
+        dt_s = (snapshot.timestamp - self._load_energy_last_ts).total_seconds()
+        self._load_energy_last_ts = snapshot.timestamp
+        if dt_s <= 0.0 or dt_s > 1800.0:
+            return
+        dt_h = dt_s / 3600.0
+        for ls in snapshot.loads:
+            self._load_energy_kwh[ls.name] = (
+                self._load_energy_kwh.get(ls.name, 0.0)
+                + max(0.0, ls.actual_power_w) * dt_h / 1000.0
+            )
+
+    def _apply_deadline(
+        self, commands: tuple[LoadCommand, ...], snapshot: Snapshot
+    ) -> tuple[LoadCommand, ...]:
+        """Force a grid-backed charge on deadline loads at risk of missing their target."""
+        deadline_loads = [load for load in self._loads if load.deadline_constraint is not None]
+        if not deadline_loads:
+            self._ev_deadline = {}
+            return commands
+        local_now = dt_util.as_local(snapshot.timestamp)
+        by_name = {c.load_name: c for c in commands}
+        decisions: dict[str, DeadlineDecision] = {}
+        for load in deadline_loads:
+            dc = load.deadline_constraint
+            assert dc is not None  # for type-checkers; filtered above
+            decision = evaluate_deadline(
+                now=local_now,
+                before_time=dc.before_time,
+                required_kwh=dc.kwh_required,
+                delivered_kwh=self._load_energy_kwh.get(load.name, 0.0),
+                max_charge_w=_load_nominal_w(load),
+            )
+            decisions[load.name] = decision
+            if decision.force:
+                by_name[load.name] = self._command_for_power(load, decision.target_w)
+        self._ev_deadline = decisions
+        return tuple(by_name.values())
 
     def _equaliser_bias(self, snapshot: Snapshot, grid_w: float) -> float:
         """Grid-setpoint offer from the SoC equaliser (0 W when inactive).
