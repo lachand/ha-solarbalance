@@ -24,6 +24,8 @@ from .const import (
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
+    CONF_EVENING_SHED_ENABLED,
+    CONF_EVENING_SHED_MIN_POWER_W,
     CONF_GRID_FILTER_SAMPLES,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
@@ -45,6 +47,7 @@ from .const import (
     DEFAULT_BASELINE_WINDOW_START_H,
     DEFAULT_COST_MIN_CHEAP_THRESHOLD,
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
+    DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
@@ -63,7 +66,12 @@ from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.baseline import NightBaselineEstimator
 from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
-from .core.controllers.load_dispatch import LoadDispatchController
+from .core.controllers.evening_shed import (
+    BatteryChargeNeed,
+    ShedDecision,
+    evaluate_evening_shed,
+)
+from .core.controllers.load_dispatch import LoadCommand, LoadDispatchController
 from .core.controllers.regulation import apply_slew_limit, resolve_fleet_target_w
 from .core.controllers.soc_equaliser import SocEqualiserController
 from .core.controllers.zero_injection import (
@@ -86,6 +94,7 @@ from .core.models import (
     Device,
     HemsMode,
     Load,
+    LoadControlType,
     Meter,
     MeterKind,
     Snapshot,
@@ -144,6 +153,15 @@ class RegulationDiagnostics:
     pv_limit_w: float = 0.0
 
 
+def _load_nominal_w(load: Load) -> float:
+    """Representative power (W) of a pilotable load for shedding decisions."""
+    if load.control_type is LoadControlType.ON_OFF:
+        return float(load.nominal_power_w or 0)
+    if load.control_type is LoadControlType.STEPPED:
+        return float(max((s.power_w for s in load.steps), default=0))
+    return float(load.max_power_w or 0)  # modulating
+
+
 class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     """Polls HA entities, runs the core engine, publishes results."""
 
@@ -194,6 +212,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._load_publisher = LoadPublisher(
             hass, loads, enabled=bool(cfg.get(CONF_LOAD_CONTROL_ENABLED, False))
         )
+        self._evening_shed_enabled = bool(cfg.get(CONF_EVENING_SHED_ENABLED, False))
+        self._evening_shed_min_power_w = float(
+            cfg.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W)
+        )
+        self._evening_shed: ShedDecision | None = None
 
         # Indirect SoC equaliser — only meaningful when at least one battery is
         # declared non-controllable (reports state but cannot be commanded).
@@ -542,6 +565,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return round(self._energy.consumption_kwh, 3)
 
     @property
+    def evening_shed(self) -> ShedDecision | None:
+        """Last evening battery-priority shedding decision (None before first tick)."""
+        return self._evening_shed
+
+    @property
     def subscribed_power_w(self) -> float | None:
         """Subscribed grid power (W), from the configured kVA. None if unset."""
         return self._subscribed_power_w
@@ -862,7 +890,20 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             states=load_states,
             now=snapshot.timestamp,
         )
-        await self._load_publisher.apply(dispatch_result.commands)
+        # Evening battery-priority shedding: force big interruptible loads off so
+        # the remaining PV charges the batteries to SoC max. Always evaluated for
+        # observability; only applied when load control is enabled.
+        shed = self._evaluate_evening_shed(snapshot)
+        self._evening_shed = shed
+        commands = dispatch_result.commands
+        if shed.active:
+            commands = tuple(
+                LoadCommand(load_name=c.load_name, on=False, rationale="evening_shed")
+                if c.load_name in shed.shed_load_names
+                else c
+                for c in commands
+            )
+        await self._load_publisher.apply(commands)
 
         self._publisher.publish(result, balancing_result=balancing_result)
         soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}
@@ -921,6 +962,54 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             with contextlib.suppress(ValueError, TypeError):
                 values[entity_id] = float(state.state)
         return build_pv_w_by_hour(self._forecast, values, horizon_h=24)
+
+    def _evaluate_evening_shed(self, snapshot: Snapshot) -> ShedDecision:
+        """Assemble inputs and evaluate the evening battery-priority shedding."""
+        # Remaining PV energy & production hours from the forecast (hour 0 = now).
+        pv_by_hour = self._forecast_pv_by_hour(snapshot)
+        local = dt_util.as_local(snapshot.timestamp)
+        frac_left = max(0.0, 1.0 - local.minute / 60.0)
+        remaining_pv_kwh = 0.0
+        remaining_hours = 0.0
+        for h, w in enumerate(pv_by_hour):
+            if w <= 0.0:
+                continue
+            weight = frac_left if h == 0 else 1.0
+            remaining_pv_kwh += w * weight / 1000.0
+            remaining_hours += weight
+
+        soc_by_device = {b.device_name: b for b in snapshot.batteries}
+        needs: list[BatteryChargeNeed] = []
+        for device in self._devices:
+            battery = device.battery
+            if battery is None or device.name not in self._controllable_battery_names:
+                continue
+            state = soc_by_device.get(device.name)
+            if state is None or not state.available:
+                continue
+            usable = battery.usable_capacity_kwh or battery.capacity_kwh
+            needs.append(
+                BatteryChargeNeed(
+                    soc_pct=state.soc_pct,
+                    soc_max_pct=float(battery.soc_max_pct),
+                    usable_capacity_kwh=float(usable),
+                )
+            )
+
+        sheddable = [
+            (load.name, float(_load_nominal_w(load)))
+            for load in self._loads
+            if load.interruptible
+        ]
+        return evaluate_evening_shed(
+            enabled=self._evening_shed_enabled,
+            batteries=needs,
+            remaining_pv_kwh=remaining_pv_kwh,
+            remaining_hours=remaining_hours,
+            talon_w=self._baseline_est.talon_w,
+            sheddable=sheddable,
+            min_shed_power_w=self._evening_shed_min_power_w,
+        )
 
     def _equaliser_bias(self, snapshot: Snapshot, grid_w: float) -> float:
         """Grid-setpoint offer from the SoC equaliser (0 W when inactive).

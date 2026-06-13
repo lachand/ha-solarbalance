@@ -15,6 +15,8 @@
           "baseline_window_start_h": "Talon: night window start (h)",
           "baseline_window_end_h": "Talon: night window end (h)",
           "load_control_enabled": "Enable load control (switches)",
+          "evening_shed_enabled": "End-of-day shedding (battery-charge priority)",
+          "evening_shed_min_power_w": "Shedding: min power of a \"big\" load (W)",
           "pv_forecast_entity": "PV forecast entity (optional)",
           "weather_warning_entity": "Météo-France warning entity (optional)"
         },
@@ -44,6 +46,8 @@
           "baseline_window_start_h": "Talon: night window start (h)",
           "baseline_window_end_h": "Talon: night window end (h)",
           "load_control_enabled": "Enable load control (switches)",
+          "evening_shed_enabled": "End-of-day shedding (battery-charge priority)",
+          "evening_shed_min_power_w": "Shedding: min power of a \"big\" load (W)",
           "pv_forecast_entity": "PV forecast entity (optional)",
           "weather_warning_entity": "Météo-France warning entity (optional)"
         }
@@ -122,7 +126,8 @@
     "binary_sensor": {
       "storm_mode": { "name": "Storm Mode" },
       "weather_warning": { "name": "Weather Warning" },
-      "degraded": { "name": "Degraded Mode" }
+      "degraded": { "name": "Degraded Mode" },
+      "evening_shed": { "name": "Battery-priority shedding" }
     }
   },
   "services": {

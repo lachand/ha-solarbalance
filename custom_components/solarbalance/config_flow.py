@@ -12,6 +12,8 @@ from .const import (
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
+    CONF_EVENING_SHED_ENABLED,
+    CONF_EVENING_SHED_MIN_POWER_W,
     CONF_GRID_FILTER_SAMPLES,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
@@ -33,6 +35,7 @@ from .const import (
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
+    DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_PHASES,
@@ -127,6 +130,14 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_LOAD_CONTROL_ENABLED,
                 default=d.get(CONF_LOAD_CONTROL_ENABLED, False),
             ): bool,
+            vol.Optional(
+                CONF_EVENING_SHED_ENABLED,
+                default=d.get(CONF_EVENING_SHED_ENABLED, False),
+            ): bool,
+            vol.Optional(
+                CONF_EVENING_SHED_MIN_POWER_W,
+                default=d.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
             vol.Optional(
                 CONF_SOC_EQUALISER_ENABLED,
                 default=d.get(CONF_SOC_EQUALISER_ENABLED, False),

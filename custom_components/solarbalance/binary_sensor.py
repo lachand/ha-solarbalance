@@ -30,6 +30,7 @@ async def async_setup_entry(
         StormModeBinarySensor(coordinator, entry),
         WeatherWarningBinarySensor(coordinator, entry),
         DegradedBinarySensor(coordinator, entry),
+        EveningShedBinarySensor(coordinator, entry),
     ])
 
 
@@ -86,3 +87,30 @@ class DegradedBinarySensor(_SBBinarySensor):
     @property
     def is_on(self) -> bool:
         return self.coordinator.is_degraded
+
+
+class EveningShedBinarySensor(_SBBinarySensor):
+    """True when big loads are being shed to prioritise battery charging."""
+
+    _attr_translation_key = "evening_shed"
+    _attr_icon = "mdi:transmission-tower-off"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "evening_shed")
+
+    @property
+    def is_on(self) -> bool:
+        shed = self.coordinator.evening_shed
+        return bool(shed and shed.active)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        shed = self.coordinator.evening_shed
+        if shed is None:
+            return None
+        return {
+            "shed_loads": sorted(shed.shed_load_names),
+            "battery_deficit_kwh": round(shed.deficit_kwh, 2),
+            "pv_for_charge_kwh": round(shed.pv_for_charge_kwh, 2),
+            "reason": shed.reason,
+        }
