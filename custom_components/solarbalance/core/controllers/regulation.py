@@ -39,6 +39,32 @@ def resolve_fleet_target_w(
     return base + steering_w
 
 
+def predictive_steering_w(
+    *,
+    base_target_w: float,
+    planner_w: float,
+    is_cheap: bool,
+    is_expensive: bool,
+) -> float:
+    """Bias toward the planner setpoint, but only in the tariff-beneficial direction.
+
+    Returns the bias to add to the fleet target so it moves toward ``planner_w``:
+
+    - in a cheap window, only *more charge* (import to store cheap energy);
+    - in an expensive window, only *more discharge* (avoid buying at peak).
+
+    Otherwise 0 — zero-injection keeps full control. With a flat tariff (no cheap
+    nor expensive window) this is always 0, so active control is inert until a
+    time-of-use tariff is configured. The result is still slew- and
+    grid-constraint-limited by the caller.
+    """
+    if is_cheap and planner_w > base_target_w:
+        return planner_w - base_target_w
+    if is_expensive and planner_w < base_target_w:
+        return planner_w - base_target_w
+    return 0.0
+
+
 def apply_slew_limit(
     target_w: float,
     last_target_w: float | None,

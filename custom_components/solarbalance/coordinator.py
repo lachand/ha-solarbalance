@@ -31,6 +31,7 @@ from .const import (
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
+    CONF_PREDICTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
@@ -78,7 +79,11 @@ from .core.controllers.evening_shed import (
     evaluate_evening_shed,
 )
 from .core.controllers.load_dispatch import LoadCommand, LoadDispatchController
-from .core.controllers.regulation import apply_slew_limit, resolve_fleet_target_w
+from .core.controllers.regulation import (
+    apply_slew_limit,
+    predictive_steering_w,
+    resolve_fleet_target_w,
+)
 from .core.controllers.soc_equaliser import SocEqualiserController
 from .core.controllers.zero_injection import (
     PerPhaseZeroInjectionController,
@@ -223,6 +228,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._load_publisher = LoadPublisher(
             hass, loads, enabled=bool(cfg.get(CONF_LOAD_CONTROL_ENABLED, False))
         )
+        self._predictive_control_enabled = bool(cfg.get(CONF_PREDICTIVE_CONTROL_ENABLED, False))
         self._evening_shed_enabled = bool(cfg.get(CONF_EVENING_SHED_ENABLED, False))
         self._evening_shed_min_power_w = float(
             cfg.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W)
@@ -890,12 +896,32 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         absolute_target_w = sum(
             t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values()
         )
+        # Active predictive control: nudge the fleet toward the planner setpoint,
+        # but only in the tariff-beneficial direction (charge in cheap windows,
+        # discharge in expensive ones). Inert with a flat tariff. The equaliser
+        # itself acts via the ZI setpoint, not this power bias.
+        steering_w = 0.0
+        if self._predictive_control_enabled and self._plan is not None:
+            base_target_w = (
+                current_fleet_w + zi_correction_w if zi_regulating else absolute_target_w
+            )
+            ts = snapshot.timestamp
+            steering_w = predictive_steering_w(
+                base_target_w=base_target_w,
+                planner_w=self._plan.first_setpoint_w,
+                is_cheap=self._tariff.is_cheap_window(
+                    ts, threshold=DEFAULT_COST_MIN_CHEAP_THRESHOLD
+                ),
+                is_expensive=self._tariff.is_expensive_window(
+                    ts, threshold=DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD
+                ),
+            )
         total_power_w = resolve_fleet_target_w(
             zi_regulating=zi_regulating,
             current_fleet_w=current_fleet_w,
             zi_correction_w=zi_correction_w,
             absolute_target_w=absolute_target_w,
-            steering_w=0.0,  # equaliser now acts via the ZI setpoint, not a power bias
+            steering_w=steering_w,
         )
 
         # Apply grid constraints: clamp the aggregate battery target so the

@@ -31,6 +31,7 @@ CONF_EVENING_SHED_ENABLED: Final = "evening_shed_enabled"
 CONF_EVENING_SHED_MIN_POWER_W: Final = "evening_shed_min_power_w"
 CONF_IMPORT_PRICE: Final = "import_price"
 CONF_EXPORT_PRICE: Final = "export_price"
+CONF_PREDICTIVE_CONTROL_ENABLED: Final = "predictive_control_enabled"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10

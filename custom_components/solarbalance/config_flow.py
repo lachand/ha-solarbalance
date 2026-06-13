@@ -20,6 +20,7 @@ from .const import (
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_PHASES,
+    CONF_PREDICTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
     CONF_PV_FORECAST_ENTITY,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
@@ -137,6 +138,10 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_EVENING_SHED_ENABLED,
                 default=d.get(CONF_EVENING_SHED_ENABLED, False),
+            ): bool,
+            vol.Optional(
+                CONF_PREDICTIVE_CONTROL_ENABLED,
+                default=d.get(CONF_PREDICTIVE_CONTROL_ENABLED, False),
             ): bool,
             vol.Optional(
                 CONF_EVENING_SHED_MIN_POWER_W,
