@@ -127,7 +127,8 @@
       "storm_mode": { "name": "Mode tempête" },
       "weather_warning": { "name": "Vigilance météo" },
       "degraded": { "name": "Mode dégradé" },
-      "evening_shed": { "name": "Délestage priorité batterie" }
+      "evening_shed": { "name": "Délestage priorité batterie" },
+      "ev_fast_charge": { "name": "Charge rapide voiture (assistée)" }
     }
   },
   "services": {

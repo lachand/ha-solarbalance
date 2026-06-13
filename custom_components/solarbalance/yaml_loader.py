@@ -169,6 +169,11 @@ _LOAD_SCHEMA = vol.Schema(
         vol.Optional("step_w", default=1): vol.Coerce(int),
         vol.Optional("power_set_entity"): str,
         vol.Optional("actual_power_entity"): str,
+        # EV fast-charge assist
+        vol.Optional("fast_charge", default=False): bool,
+        vol.Optional("min_charge_w"): vol.Coerce(int),
+        vol.Optional("assist_floor_soc_pct"): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+        vol.Optional("pause_when_inefficient", default=True): bool,
     }
 )
 
@@ -309,6 +314,10 @@ def _build_load(raw: Mapping[str, Any]) -> Load:
         step_w=raw.get("step_w", 1),
         power_set_entity=raw.get("power_set_entity"),
         actual_power_entity=raw.get("actual_power_entity"),
+        fast_charge=raw.get("fast_charge", False),
+        min_charge_w=raw.get("min_charge_w"),
+        assist_floor_soc_pct=raw.get("assist_floor_soc_pct"),
+        pause_when_inefficient=raw.get("pause_when_inefficient", True),
     )
 
 

@@ -127,7 +127,8 @@
       "storm_mode": { "name": "Storm Mode" },
       "weather_warning": { "name": "Weather Warning" },
       "degraded": { "name": "Degraded Mode" },
-      "evening_shed": { "name": "Battery-priority shedding" }
+      "evening_shed": { "name": "Battery-priority shedding" },
+      "ev_fast_charge": { "name": "EV fast charge (assisted)" }
     }
   },
   "services": {

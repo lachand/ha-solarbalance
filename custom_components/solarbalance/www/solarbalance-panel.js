@@ -140,6 +140,7 @@ class SolarBalancePanel extends HTMLElement {
       weather: id("weather_warning", "binary_sensor.solarbalance_weather_warning"),
       degraded: id("degraded", "binary_sensor.solarbalance_degraded"),
       eveningShed: id("evening_shed", "binary_sensor.solarbalance_battery_priority_shedding"),
+      evFastCharge: id("ev_fast_charge", "binary_sensor.solarbalance_ev_fast_charge_assisted"),
       gridFiltered: id("grid_filtered", "sensor.solarbalance_grid_power_filtered"),
       target: id("regulation_target", "sensor.solarbalance_regulation_target"),
       ziCorr: id("zi_correction", "sensor.solarbalance_zero_injection_correction"),
@@ -506,6 +507,9 @@ class SolarBalancePanel extends HTMLElement {
           loads.length ? " (" + loads.join(", ") + ")" : ""
         }${def != null ? `, déficit ${def} kWh` : ""}.`
       );
+    }
+    if (this._badge(this._E.evFastCharge)) {
+      msgs.push("⚡ Charge rapide voiture assistée par les batteries (PV récupérable).");
     }
     if (!msgs.length) return "";
     const cls = this._badge(this._E.degraded) ? "err" : "warn";

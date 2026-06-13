@@ -285,6 +285,14 @@ class Load:
     power_set_entity: str | None = None
     actual_power_entity: str | None = None
 
+    # EV fast-charge assist: prefer an efficient charge rate (avoid lossy slow
+    # charging), drawing from the batteries when the PV surplus is short, as long
+    # as the forecast can still refill them. See controllers/ev_fast_charge.py.
+    fast_charge: bool = False
+    min_charge_w: int | None = None  # efficient floor; below it, assist or pause
+    assist_floor_soc_pct: float | None = None  # battery SoC floor for the assist
+    pause_when_inefficient: bool = True  # pause rather than slow-charge when short
+
     def __post_init__(self) -> None:
         if self.control_type is LoadControlType.ON_OFF:
             if self.nominal_power_w is None or self.switch_entity is None:

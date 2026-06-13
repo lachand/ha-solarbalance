@@ -31,6 +31,7 @@ async def async_setup_entry(
         WeatherWarningBinarySensor(coordinator, entry),
         DegradedBinarySensor(coordinator, entry),
         EveningShedBinarySensor(coordinator, entry),
+        EvFastChargeBinarySensor(coordinator, entry),
     ])
 
 
@@ -113,4 +114,34 @@ class EveningShedBinarySensor(_SBBinarySensor):
             "battery_deficit_kwh": round(shed.deficit_kwh, 2),
             "pv_for_charge_kwh": round(shed.pv_for_charge_kwh, 2),
             "reason": shed.reason,
+        }
+
+
+class EvFastChargeBinarySensor(_SBBinarySensor):
+    """True when an EV is being fast-charged with battery assistance."""
+
+    _attr_translation_key = "ev_fast_charge"
+    _attr_icon = "mdi:ev-station"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "ev_fast_charge")
+
+    @property
+    def is_on(self) -> bool:
+        return any(d.reason == "assist" for d in self.coordinator.fast_charge.values())
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        decisions = self.coordinator.fast_charge
+        if not decisions:
+            return None
+        return {
+            name: {
+                "target_w": round(d.target_w, 0),
+                "reason": d.reason,
+                "gate_ok": d.gate_ok,
+                "battery_deficit_kwh": round(d.battery_deficit_kwh, 2),
+                "pv_recovery_kwh": round(d.pv_recovery_kwh, 2),
+            }
+            for name, d in decisions.items()
         }

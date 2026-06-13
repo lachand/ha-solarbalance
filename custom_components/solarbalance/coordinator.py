@@ -66,6 +66,7 @@ from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.baseline import NightBaselineEstimator
 from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
+from .core.controllers.ev_fast_charge import FastChargeDecision, evaluate_fast_charge
 from .core.controllers.evening_shed import (
     BatteryChargeNeed,
     ShedDecision,
@@ -217,6 +218,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             cfg.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W)
         )
         self._evening_shed: ShedDecision | None = None
+        self._fast_charge: dict[str, FastChargeDecision] = {}
 
         # Indirect SoC equaliser — only meaningful when at least one battery is
         # declared non-controllable (reports state but cannot be commanded).
@@ -343,11 +345,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         priorities: list[str] = cfg.get(CONF_PRIORITIES, list(_STRATEGY_CLASSES))
         subscribed_kva = int(cfg.get(CONF_SUBSCRIBED_POWER_KVA, 6))
         self._subscribed_power_w = float(subscribed_kva * 1000) if subscribed_kva > 0 else None
-        backup_reserve_pct = float(
+        self._backup_reserve_soc_pct = float(
             cfg.get(CONF_BACKUP_RESERVE_SOC_PCT, DEFAULT_BACKUP_RESERVE_SOC_PCT)
         )
         self._arbiter = self._build_arbiter(
-            priorities, devices, loads, tariff, subscribed_kva, backup_reserve_pct
+            priorities, devices, loads, tariff, subscribed_kva, self._backup_reserve_soc_pct
         )
 
     # ------------------------------------------------------------------ public
@@ -568,6 +570,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def evening_shed(self) -> ShedDecision | None:
         """Last evening battery-priority shedding decision (None before first tick)."""
         return self._evening_shed
+
+    @property
+    def fast_charge(self) -> dict[str, FastChargeDecision]:
+        """Last EV fast-charge decisions, keyed by load name."""
+        return self._fast_charge
 
     @property
     def subscribed_power_w(self) -> float | None:
@@ -880,22 +887,24 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # controllable fleet's current power (matching per_battery_w), not all
         # batteries, so the automatic battery's power does not leak in.
         load_states = {ls.name: ls for ls in snapshot.loads}
+        surplus_w = max(
+            0.0,
+            -snapshot.grid_power_w - sum(balancing_result.per_battery_w.values()) + current_fleet_w,
+        )
         dispatch_result = self._load_dispatch.dispatch(
-            available_surplus_w=max(
-                0.0,
-                -snapshot.grid_power_w
-                - sum(balancing_result.per_battery_w.values())
-                + current_fleet_w,
-            ),
+            available_surplus_w=surplus_w,
             states=load_states,
             now=snapshot.timestamp,
         )
+        commands = dispatch_result.commands
+        # EV fast-charge assist: prefer an efficient (battery-assisted) charge rate
+        # over a lossy slow charge, while the forecast can still refill the batteries.
+        commands = self._apply_fast_charge(commands, snapshot, surplus_w)
         # Evening battery-priority shedding: force big interruptible loads off so
         # the remaining PV charges the batteries to SoC max. Always evaluated for
         # observability; only applied when load control is enabled.
         shed = self._evaluate_evening_shed(snapshot)
         self._evening_shed = shed
-        commands = dispatch_result.commands
         if shed.active:
             commands = tuple(
                 LoadCommand(load_name=c.load_name, on=False, rationale="evening_shed")
@@ -963,12 +972,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 values[entity_id] = float(state.state)
         return build_pv_w_by_hour(self._forecast, values, horizon_h=24)
 
-    def _evaluate_evening_shed(self, snapshot: Snapshot) -> ShedDecision:
-        """Assemble inputs and evaluate the evening battery-priority shedding."""
-        # Remaining PV energy & production hours from the forecast (hour 0 = now).
+    def _remaining_production(self, snapshot: Snapshot) -> tuple[float, float]:
+        """Remaining forecast PV (kWh) and production hours from now (hour 0 = now)."""
         pv_by_hour = self._forecast_pv_by_hour(snapshot)
-        local = dt_util.as_local(snapshot.timestamp)
-        frac_left = max(0.0, 1.0 - local.minute / 60.0)
+        frac_left = max(0.0, 1.0 - dt_util.as_local(snapshot.timestamp).minute / 60.0)
         remaining_pv_kwh = 0.0
         remaining_hours = 0.0
         for h, w in enumerate(pv_by_hour):
@@ -977,7 +984,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             weight = frac_left if h == 0 else 1.0
             remaining_pv_kwh += w * weight / 1000.0
             remaining_hours += weight
+        return remaining_pv_kwh, remaining_hours
 
+    def _battery_charge_needs(self, snapshot: Snapshot) -> list[BatteryChargeNeed]:
+        """Charge headroom of each available controllable battery."""
         soc_by_device = {b.device_name: b for b in snapshot.batteries}
         needs: list[BatteryChargeNeed] = []
         for device in self._devices:
@@ -995,7 +1005,20 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     usable_capacity_kwh=float(usable),
                 )
             )
+        return needs
 
+    def _controllable_avg_soc(self, snapshot: Snapshot) -> float | None:
+        """Mean SoC of the available controllable battery fleet, or None."""
+        soc = [
+            b.soc_pct
+            for b in snapshot.batteries
+            if b.available and b.device_name in self._controllable_battery_names
+        ]
+        return sum(soc) / len(soc) if soc else None
+
+    def _evaluate_evening_shed(self, snapshot: Snapshot) -> ShedDecision:
+        """Assemble inputs and evaluate the evening battery-priority shedding."""
+        remaining_pv_kwh, remaining_hours = self._remaining_production(snapshot)
         sheddable = [
             (load.name, float(_load_nominal_w(load)))
             for load in self._loads
@@ -1003,13 +1026,77 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         ]
         return evaluate_evening_shed(
             enabled=self._evening_shed_enabled,
-            batteries=needs,
+            batteries=self._battery_charge_needs(snapshot),
             remaining_pv_kwh=remaining_pv_kwh,
             remaining_hours=remaining_hours,
             talon_w=self._baseline_est.talon_w,
             sheddable=sheddable,
             min_shed_power_w=self._evening_shed_min_power_w,
         )
+
+    def _apply_fast_charge(
+        self, commands: tuple[LoadCommand, ...], snapshot: Snapshot, surplus_w: float
+    ) -> tuple[LoadCommand, ...]:
+        """Override fast-charge EV commands to prefer an efficient (battery-assisted) rate."""
+        ev_loads = [load for load in self._loads if load.fast_charge]
+        if not ev_loads:
+            self._fast_charge = {}
+            return commands
+
+        remaining_pv_kwh, remaining_hours = self._remaining_production(snapshot)
+        needs = self._battery_charge_needs(snapshot)
+        avg_soc = self._controllable_avg_soc(snapshot)
+        by_name = {c.load_name: c for c in commands}
+        decisions: dict[str, FastChargeDecision] = {}
+        for load in ev_loads:
+            min_charge_w = float(load.min_charge_w or 0)
+            max_charge_w = _load_nominal_w(load)
+            if min_charge_w <= 0.0 or max_charge_w <= 0.0:
+                continue  # mis-declared; leave dispatch untouched
+            floor = (
+                load.assist_floor_soc_pct
+                if load.assist_floor_soc_pct is not None
+                else self._backup_reserve_soc_pct
+            )
+            decision = evaluate_fast_charge(
+                enabled=True,
+                surplus_w=surplus_w,
+                min_charge_w=min_charge_w,
+                max_charge_w=max_charge_w,
+                batteries=needs,
+                avg_soc_pct=avg_soc,
+                assist_floor_soc_pct=float(floor),
+                remaining_pv_kwh=remaining_pv_kwh,
+                remaining_hours=remaining_hours,
+                talon_w=self._baseline_est.talon_w,
+                pause_when_inefficient=load.pause_when_inefficient,
+            )
+            decisions[load.name] = decision
+            if decision.override:
+                by_name[load.name] = self._command_for_power(load, decision.target_w)
+        self._fast_charge = decisions
+        return tuple(by_name.values())
+
+    @staticmethod
+    def _command_for_power(load: Load, target_w: float) -> LoadCommand:
+        """Build a LoadCommand realising ``target_w`` for a stepped/modulating load."""
+        if target_w <= 0.0:
+            return LoadCommand(
+                load_name=load.name, on=False, step_level=0, rationale="fast_charge_pause"
+            )
+        if load.control_type is LoadControlType.STEPPED and load.steps:
+            fitting = [s for s in load.steps if s.power_w <= target_w]
+            step = max(fitting, key=lambda s: s.power_w) if fitting else min(
+                load.steps, key=lambda s: s.power_w
+            )
+            return LoadCommand(
+                load_name=load.name,
+                on=True,
+                step_level=step.level,
+                power_w=float(step.power_w),
+                rationale="fast_charge",
+            )
+        return LoadCommand(load_name=load.name, on=True, power_w=target_w, rationale="fast_charge")
 
     def _equaliser_bias(self, snapshot: Snapshot, grid_w: float) -> float:
         """Grid-setpoint offer from the SoC equaliser (0 W when inactive).
