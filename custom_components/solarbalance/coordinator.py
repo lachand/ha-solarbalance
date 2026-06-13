@@ -1481,9 +1481,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if device.battery is None:
                 continue
             bat = device.battery
+            # Raise the discharge floor to the storm target: batteries we cannot
+            # command to charge (discharge-only controllable, e.g. an all-in-one
+            # station) are then never discharged and fill from PV surplus on their
+            # own — the only lever we have to push them toward SoC max.
+            storm_floor = min(DEFAULT_STORM_TARGET_SOC_PCT, float(bat.soc_max_pct))
             targets[device.name] = BatteryTarget(
-                soc_min_pct=float(bat.soc_min_pct),
-                soc_max_pct=DEFAULT_STORM_TARGET_SOC_PCT,
+                soc_min_pct=storm_floor,
+                soc_max_pct=float(bat.soc_max_pct),
                 preferred_power_w=float(bat.max_charge_power_w),
             )
         storm_decision = Decision(
