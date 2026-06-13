@@ -21,6 +21,8 @@
           "export_price": "Prix injection (€/kWh)",
           "predictive_control_enabled": "Contrôle prédictif actif (pilotage batteries selon tarifs)",
           "pv_forecast_entity": "Entité prévision PV (optionnel)",
+          "pv_forecast_tomorrow_entity": "Entité prévision PV demain (optionnel)",
+          "forecast_safety_factor": "Facteur de sécurité prévision (0-1)",
           "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
         },
         "data_description": {
@@ -55,6 +57,8 @@
           "export_price": "Prix injection (€/kWh)",
           "predictive_control_enabled": "Contrôle prédictif actif (pilotage batteries selon tarifs)",
           "pv_forecast_entity": "Entité prévision PV (optionnel)",
+          "pv_forecast_tomorrow_entity": "Entité prévision PV demain (optionnel)",
+          "forecast_safety_factor": "Facteur de sécurité prévision (0-1)",
           "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
         }
       }

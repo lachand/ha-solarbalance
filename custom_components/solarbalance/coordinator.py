@@ -27,12 +27,14 @@ from .const import (
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
     CONF_EXPORT_PRICE,
+    CONF_FORECAST_SAFETY_FACTOR,
     CONF_GRID_FILTER_SAMPLES,
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_PREDICTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
+    CONF_PV_FORECAST_TOMORROW_ENTITY,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
     CONF_SOC_EQUALISER_KP_W_PER_PCT,
@@ -52,6 +54,7 @@ from .const import (
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_EXPORT_PRICE,
+    DEFAULT_FORECAST_SAFETY_FACTOR,
     DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
@@ -223,6 +226,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             )
         self._forecast = forecast
         self._pv_forecast_entity: str | None = cfg.get("pv_forecast_entity") or None
+        self._pv_forecast_tomorrow_entity: str | None = (
+            cfg.get(CONF_PV_FORECAST_TOMORROW_ENTITY) or None
+        )
+        self._forecast_safety_factor = float(
+            cfg.get(CONF_FORECAST_SAFETY_FACTOR, DEFAULT_FORECAST_SAFETY_FACTOR)
+        )
         self._mode: HemsMode = HemsMode.NORMAL
         self._pre_degraded_mode: HemsMode = HemsMode.NORMAL
         self._battery_override: _BatteryOverride | None = None
@@ -1110,46 +1119,54 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             return dt_util.parse_datetime(value)
         return None
 
-    def _entity_pv_forecast_by_hour(self, now: datetime) -> list[float]:
-        """Hourly PV power (W, 24 h from the current hour) from the forecast entity.
+    def _entity_pv_forecast_by_hour(
+        self, now: datetime, *, estimate: str = "pv_estimate"
+    ) -> list[float]:
+        """Hourly PV power (W, 24 h from the current hour) from the forecast entities.
 
+        Reads the today (and optional tomorrow) entities and concatenates them.
         Supports Solcast (``detailedHourly`` / ``detailedForecast`` with
-        ``pv_estimate`` in kW) and Forecast.Solar (``watts`` dict, W). Returns an
-        empty list when nothing usable is found.
+        ``pv_estimate`` in kW; ``estimate`` selects ``pv_estimate`` /
+        ``pv_estimate10``) and Forecast.Solar (``watts`` dict, W — P50 only).
+        Returns an empty list when nothing usable is found.
         """
-        if not self._pv_forecast_entity:
-            return []
-        state = self.hass.states.get(self._pv_forecast_entity)
-        if state is None:
-            return []
-        attrs = state.attributes
         samples: list[tuple[datetime, float]] = []
-        for key in ("detailedHourly", "detailedForecast", "forecast"):
-            seq = attrs.get(key)
-            if isinstance(seq, list) and seq:
-                for item in seq:
-                    if not isinstance(item, dict):
-                        continue
-                    dt = self._coerce_dt(
-                        item.get("period_start") or item.get("datetime") or item.get("time")
-                    )
-                    raw = item.get("pv_estimate")
-                    in_kw = raw is not None
-                    if raw is None:
-                        raw = item.get("power") or item.get("watts") or item.get("value")
-                    if dt is None or raw is None:
+        for entity_id in (self._pv_forecast_entity, self._pv_forecast_tomorrow_entity):
+            if not entity_id:
+                continue
+            state = self.hass.states.get(entity_id)
+            if state is None:
+                continue
+            attrs = state.attributes
+            found_list = False
+            for key in ("detailedHourly", "detailedForecast", "forecast"):
+                seq = attrs.get(key)
+                if isinstance(seq, list) and seq:
+                    found_list = True
+                    for item in seq:
+                        if not isinstance(item, dict):
+                            continue
+                        dt = self._coerce_dt(
+                            item.get("period_start") or item.get("datetime") or item.get("time")
+                        )
+                        raw = item.get(estimate)
+                        in_kw = raw is not None
+                        if raw is None and estimate == "pv_estimate":
+                            raw = item.get("power") or item.get("watts") or item.get("value")
+                        if dt is None or raw is None:
+                            continue
+                        with contextlib.suppress(TypeError, ValueError):
+                            w = float(raw) * (1000.0 if in_kw else 1.0)
+                            samples.append((dt, max(0.0, w)))
+                    break
+            watts = attrs.get("watts")
+            if not found_list and estimate == "pv_estimate" and isinstance(watts, dict):
+                for key_dt, val in watts.items():
+                    dt = self._coerce_dt(key_dt)
+                    if dt is None:
                         continue
                     with contextlib.suppress(TypeError, ValueError):
-                        w = float(raw) * (1000.0 if in_kw else 1.0)
-                        samples.append((dt, max(0.0, w)))
-                break
-        if not samples and isinstance(attrs.get("watts"), dict):
-            for key_dt, val in attrs["watts"].items():
-                dt = self._coerce_dt(key_dt)
-                if dt is None:
-                    continue
-                with contextlib.suppress(TypeError, ValueError):
-                    samples.append((dt, max(0.0, float(val))))
+                        samples.append((dt, max(0.0, float(val))))
         if not samples:
             return []
         hour0 = dt_util.as_local(now).replace(minute=0, second=0, microsecond=0)
@@ -1162,19 +1179,38 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 counts[offset] += 1
         return [buckets[i] / counts[i] if counts[i] else 0.0 for i in range(24)]
 
-    def _remaining_production(self, snapshot: Snapshot) -> tuple[float, float]:
-        """Remaining forecast PV (kWh) and production hours from now (hour 0 = now)."""
-        pv_by_hour = self._forecast_pv_by_hour(snapshot)
-        frac_left = max(0.0, 1.0 - dt_util.as_local(snapshot.timestamp).minute / 60.0)
-        remaining_pv_kwh = 0.0
-        remaining_hours = 0.0
+    @staticmethod
+    def _integrate_remaining(pv_by_hour: list[float], frac_left: float) -> tuple[float, float]:
+        """Sum a per-hour W profile into (kWh, hours), weighting the current hour."""
+        kwh = 0.0
+        hours = 0.0
         for h, w in enumerate(pv_by_hour):
             if w <= 0.0:
                 continue
             weight = frac_left if h == 0 else 1.0
-            remaining_pv_kwh += w * weight / 1000.0
-            remaining_hours += weight
-        return remaining_pv_kwh, remaining_hours
+            kwh += w * weight / 1000.0
+            hours += weight
+        return kwh, hours
+
+    def _remaining_production(self, snapshot: Snapshot) -> tuple[float, float]:
+        """Conservative remaining PV (kWh) and production hours from now.
+
+        Uses the P50 profile for the hour count, but a *conservative* energy
+        estimate for decisions: the populated Solcast P10 when available, else
+        the P50 discounted by ``forecast_safety_factor`` — so shed / fast-charge
+        decisions don't over-trust an optimistic forecast.
+        """
+        frac_left = max(0.0, 1.0 - dt_util.as_local(snapshot.timestamp).minute / 60.0)
+        p50_kwh, hours = self._integrate_remaining(self._forecast_pv_by_hour(snapshot), frac_left)
+        p10 = self._entity_pv_forecast_by_hour(snapshot.timestamp, estimate="pv_estimate10")
+        p10_kwh, _ = self._integrate_remaining(p10, frac_left) if p10 else (0.0, 0.0)
+        # Use P10 only when it is meaningfully populated (free Solcast often
+        # returns all-zero P10); otherwise discount the P50.
+        if p10_kwh >= 0.3 * p50_kwh and p10_kwh > 0.0:
+            conservative_kwh = p10_kwh
+        else:
+            conservative_kwh = p50_kwh * self._forecast_safety_factor
+        return conservative_kwh, hours
 
     def _battery_charge_needs(self, snapshot: Snapshot) -> list[BatteryChargeNeed]:
         """Charge headroom of each available controllable battery."""

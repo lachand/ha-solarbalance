@@ -32,6 +32,8 @@ CONF_EVENING_SHED_MIN_POWER_W: Final = "evening_shed_min_power_w"
 CONF_IMPORT_PRICE: Final = "import_price"
 CONF_EXPORT_PRICE: Final = "export_price"
 CONF_PREDICTIVE_CONTROL_ENABLED: Final = "predictive_control_enabled"
+CONF_PV_FORECAST_TOMORROW_ENTITY: Final = "pv_forecast_tomorrow_entity"
+CONF_FORECAST_SAFETY_FACTOR: Final = "forecast_safety_factor"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10
@@ -71,6 +73,10 @@ DEFAULT_EVENING_SHED_MIN_POWER_W: Final = 500
 # planner when no richer tariff is configured. User-editable in the options.
 DEFAULT_IMPORT_PRICE: Final = 0.25
 DEFAULT_EXPORT_PRICE: Final = 0.10
+
+# Conservative discount applied to the P50 PV forecast for shed / fast-charge
+# decisions (when a populated P10 is unavailable). 1.0 = trust P50 fully.
+DEFAULT_FORECAST_SAFETY_FACTOR: Final = 0.85
 
 # Strategy defaults — see SPECIFICATIONS §6.1 and docs/technical.md
 DEFAULT_BACKUP_RESERVE_SOC_PCT: Final = 20.0

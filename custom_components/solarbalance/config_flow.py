@@ -15,6 +15,7 @@ from .const import (
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
     CONF_EXPORT_PRICE,
+    CONF_FORECAST_SAFETY_FACTOR,
     CONF_GRID_FILTER_SAMPLES,
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
@@ -23,6 +24,7 @@ from .const import (
     CONF_PREDICTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
     CONF_PV_FORECAST_ENTITY,
+    CONF_PV_FORECAST_TOMORROW_ENTITY,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
     CONF_SOC_EQUALISER_KP_W_PER_PCT,
@@ -40,6 +42,7 @@ from .const import (
     DEFAULT_BASELINE_WINDOW_START_H,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_EXPORT_PRICE,
+    DEFAULT_FORECAST_SAFETY_FACTOR,
     DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
@@ -56,6 +59,13 @@ from .const import (
 from .core.models import StrategyKind
 
 _LOGGER = logging.getLogger(__name__)
+
+# Optional entity selectors whose empty string is normalised to None.
+_OPTIONAL_ENTITY_KEYS = (
+    CONF_PV_FORECAST_ENTITY,
+    CONF_PV_FORECAST_TOMORROW_ENTITY,
+    CONF_WEATHER_WARNING_ENTITY,
+)
 
 _DEFAULT_PRIORITIES = [
     StrategyKind.SELF_CONSUMPTION.value,
@@ -123,6 +133,14 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_PV_FORECAST_ENTITY,
                 default=d.get(CONF_PV_FORECAST_ENTITY, ""),
             ): str,
+            vol.Optional(
+                CONF_PV_FORECAST_TOMORROW_ENTITY,
+                default=d.get(CONF_PV_FORECAST_TOMORROW_ENTITY, ""),
+            ): str,
+            vol.Optional(
+                CONF_FORECAST_SAFETY_FACTOR,
+                default=d.get(CONF_FORECAST_SAFETY_FACTOR, DEFAULT_FORECAST_SAFETY_FACTOR),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=1.0)),
             vol.Optional(
                 CONF_WEATHER_WARNING_ENTITY,
                 default=d.get(CONF_WEATHER_WARNING_ENTITY, ""),
@@ -203,7 +221,7 @@ class SolarBalanceConfigFlow(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             # Normalise empty strings to None for optional entity selectors.
-            for key in (CONF_PV_FORECAST_ENTITY, CONF_WEATHER_WARNING_ENTITY):
+            for key in _OPTIONAL_ENTITY_KEYS:
                 if user_input.get(key) == "":
                     user_input[key] = None
             user_input.setdefault(CONF_PRIORITIES, _DEFAULT_PRIORITIES)
@@ -227,7 +245,7 @@ class SolarBalanceOptionsFlow(OptionsFlow):
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         if user_input is not None:
-            for key in (CONF_PV_FORECAST_ENTITY, CONF_WEATHER_WARNING_ENTITY):
+            for key in _OPTIONAL_ENTITY_KEYS:
                 if user_input.get(key) == "":
                     user_input[key] = None
             return self.async_create_entry(title="", data=user_input)

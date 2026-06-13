@@ -21,6 +21,8 @@
           "export_price": "Export price (€/kWh)",
           "predictive_control_enabled": "Active predictive control (tariff-driven battery steering)",
           "pv_forecast_entity": "PV forecast entity (optional)",
+          "pv_forecast_tomorrow_entity": "PV forecast entity tomorrow (optional)",
+          "forecast_safety_factor": "Forecast safety factor (0-1)",
           "weather_warning_entity": "Météo-France warning entity (optional)"
         },
         "data_description": {
@@ -55,6 +57,8 @@
           "export_price": "Export price (€/kWh)",
           "predictive_control_enabled": "Active predictive control (tariff-driven battery steering)",
           "pv_forecast_entity": "PV forecast entity (optional)",
+          "pv_forecast_tomorrow_entity": "PV forecast entity tomorrow (optional)",
+          "forecast_safety_factor": "Forecast safety factor (0-1)",
           "weather_warning_entity": "Météo-France warning entity (optional)"
         }
       }
