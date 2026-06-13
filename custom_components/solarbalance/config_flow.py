@@ -9,6 +9,7 @@ from homeassistant.core import callback
 
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_GRID_FILTER_SAMPLES,
     CONF_MAX_RAMP_W,
     CONF_PHASES,
@@ -26,6 +27,7 @@ from .const import (
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_KP,
     CONF_ZERO_INJECTION_SETPOINT_W,
+    DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_PHASES,
@@ -92,6 +94,10 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 CONF_SUBSCRIBED_POWER_KVA,
                 default=d.get(CONF_SUBSCRIBED_POWER_KVA, 6),
             ): vol.All(int, vol.Range(min=3, max=36)),
+            vol.Optional(
+                CONF_BACKUP_RESERVE_SOC_PCT,
+                default=d.get(CONF_BACKUP_RESERVE_SOC_PCT, DEFAULT_BACKUP_RESERVE_SOC_PCT),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
             vol.Optional(
                 CONF_PV_FORECAST_ENTITY,
                 default=d.get(CONF_PV_FORECAST_ENTITY, ""),

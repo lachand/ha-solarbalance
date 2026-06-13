@@ -11,6 +11,7 @@
           "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
           "phases": "Nombre de phases",
           "subscribed_power_kva": "Puissance souscrite (kVA)",
+          "backup_reserve_soc_pct": "Réserve backup (SoC %)",
           "pv_forecast_entity": "Entité prévision PV (optionnel)",
           "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
         },
@@ -36,6 +37,7 @@
           "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
           "phases": "Nombre de phases",
           "subscribed_power_kva": "Puissance souscrite (kVA)",
+          "backup_reserve_soc_pct": "Réserve backup (SoC %)",
           "pv_forecast_entity": "Entité prévision PV (optionnel)",
           "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
         }

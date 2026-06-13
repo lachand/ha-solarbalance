@@ -19,6 +19,7 @@ from .adapters.entity_reader import EntityReader
 from .adapters.watchdog import EntityWatchdog
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_GRID_FILTER_SAMPLES,
     CONF_MAX_RAMP_W,
     CONF_PRIORITIES,
@@ -302,7 +303,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         priorities: list[str] = cfg.get(CONF_PRIORITIES, list(_STRATEGY_CLASSES))
         subscribed_kva = int(cfg.get(CONF_SUBSCRIBED_POWER_KVA, 6))
         self._subscribed_power_w = float(subscribed_kva * 1000) if subscribed_kva > 0 else None
-        self._arbiter = self._build_arbiter(priorities, devices, loads, tariff, subscribed_kva)
+        backup_reserve_pct = float(
+            cfg.get(CONF_BACKUP_RESERVE_SOC_PCT, DEFAULT_BACKUP_RESERVE_SOC_PCT)
+        )
+        self._arbiter = self._build_arbiter(
+            priorities, devices, loads, tariff, subscribed_kva, backup_reserve_pct
+        )
 
     # ------------------------------------------------------------------ public
 
@@ -1038,6 +1044,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         loads: list[Load],
         tariff: TariffConfig | None,
         subscribed_power_kva: int = 6,
+        backup_reserve_soc_pct: float = DEFAULT_BACKUP_RESERVE_SOC_PCT,
     ) -> Arbiter:
         strategies = []
         for kind in priorities:
@@ -1054,7 +1061,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     expensive_threshold=DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
                 )
             elif kind == StrategyKind.BACKUP.value:
-                strat = cls(devices, loads, reserve_soc_pct=DEFAULT_BACKUP_RESERVE_SOC_PCT)
+                strat = cls(devices, loads, reserve_soc_pct=backup_reserve_soc_pct)
             elif kind == StrategyKind.PEAK_SHAVING.value:
                 # Convert kVA subscription to W; use None only when kVA is 0
                 max_import_w: float | None = (

@@ -23,6 +23,7 @@ CONF_SOC_EQUALISER_PROBE_STEP_W: Final = "soc_equaliser_probe_step_w"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"
 CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
+CONF_BACKUP_RESERVE_SOC_PCT: Final = "backup_reserve_soc_pct"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10
@@ -51,7 +52,7 @@ DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1
 
 # Strategy defaults — see SPECIFICATIONS §6.1 and docs/technical.md
-DEFAULT_BACKUP_RESERVE_SOC_PCT: Final = 30.0
+DEFAULT_BACKUP_RESERVE_SOC_PCT: Final = 20.0
 DEFAULT_COST_MIN_CHEAP_THRESHOLD: Final = 0.15   # €/kWh
 DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD: Final = 0.25  # €/kWh
 

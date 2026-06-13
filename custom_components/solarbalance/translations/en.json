@@ -11,6 +11,7 @@
           "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
           "phases": "Electrical phases",
           "subscribed_power_kva": "Subscribed power (kVA)",
+          "backup_reserve_soc_pct": "Backup reserve (SoC %)",
           "pv_forecast_entity": "PV forecast entity (optional)",
           "weather_warning_entity": "Météo-France warning entity (optional)"
         },
@@ -36,6 +37,7 @@
           "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
           "phases": "Electrical phases",
           "subscribed_power_kva": "Subscribed power (kVA)",
+          "backup_reserve_soc_pct": "Backup reserve (SoC %)",
           "pv_forecast_entity": "PV forecast entity (optional)",
           "weather_warning_entity": "Météo-France warning entity (optional)"
         }
