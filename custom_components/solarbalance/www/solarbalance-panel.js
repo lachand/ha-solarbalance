@@ -19,7 +19,7 @@
 
 const HISTORY_REFRESH_MS = 60000; // re-fetch history at most this often
 const TICK_MS = 30000; // periodic re-render (freshness + history refresh)
-const FUTURE_CAP_H = 6; // how far ahead to draw the PV forecast
+const FUTURE_CAP_H = 12; // how far ahead to draw the PV forecast
 
 class SolarBalancePanel extends HTMLElement {
   constructor() {

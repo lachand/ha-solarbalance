@@ -205,6 +205,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             default_export_price=float(cfg.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE)),
         )
         self._forecast = forecast
+        self._pv_forecast_entity: str | None = cfg.get("pv_forecast_entity") or None
         self._mode: HemsMode = HemsMode.NORMAL
         self._pre_degraded_mode: HemsMode = HemsMode.NORMAL
         self._battery_override: _BatteryOverride | None = None
@@ -219,7 +220,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             devices,
             meters,
             loads,
-            pv_forecast_entity=cfg.get("pv_forecast_entity") or None,
+            pv_forecast_entity=self._pv_forecast_entity,
             weather_warning_entity=cfg.get("weather_warning_entity") or None,
         )
         self._publisher = DecisionPublisher()
@@ -1051,16 +1052,82 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         Falls back to a flat current value when no ``forecast`` block is declared.
         """
-        if self._forecast is None:
-            return [snapshot.pv_forecast_now_w] if snapshot.pv_forecast_now_w is not None else []
-        values: dict[str, float] = {}
-        for entity_id in self._forecast.entities:
-            state = self.hass.states.get(entity_id)
-            if state is None or state.state in {"unavailable", "unknown", ""}:
-                continue
-            with contextlib.suppress(ValueError, TypeError):
-                values[entity_id] = float(state.state)
-        return build_pv_w_by_hour(self._forecast, values, horizon_h=24)
+        if self._forecast is not None:
+            values: dict[str, float] = {}
+            for entity_id in self._forecast.entities:
+                state = self.hass.states.get(entity_id)
+                if state is None or state.state in {"unavailable", "unknown", ""}:
+                    continue
+                with contextlib.suppress(ValueError, TypeError):
+                    values[entity_id] = float(state.state)
+            return build_pv_w_by_hour(self._forecast, values, horizon_h=24)
+        # No manual forecast block: derive an hourly profile from a Solcast /
+        # Forecast.Solar entity attribute when available, else a flat estimate.
+        entity_profile = self._entity_pv_forecast_by_hour(snapshot.timestamp)
+        if entity_profile:
+            return entity_profile
+        return [snapshot.pv_forecast_now_w] if snapshot.pv_forecast_now_w is not None else []
+
+    @staticmethod
+    def _coerce_dt(value: object) -> datetime | None:
+        """Best-effort parse of a forecast timestamp (datetime or ISO string)."""
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            return dt_util.parse_datetime(value)
+        return None
+
+    def _entity_pv_forecast_by_hour(self, now: datetime) -> list[float]:
+        """Hourly PV power (W, 24 h from the current hour) from the forecast entity.
+
+        Supports Solcast (``detailedHourly`` / ``detailedForecast`` with
+        ``pv_estimate`` in kW) and Forecast.Solar (``watts`` dict, W). Returns an
+        empty list when nothing usable is found.
+        """
+        if not self._pv_forecast_entity:
+            return []
+        state = self.hass.states.get(self._pv_forecast_entity)
+        if state is None:
+            return []
+        attrs = state.attributes
+        samples: list[tuple[datetime, float]] = []
+        for key in ("detailedHourly", "detailedForecast", "forecast"):
+            seq = attrs.get(key)
+            if isinstance(seq, list) and seq:
+                for item in seq:
+                    if not isinstance(item, dict):
+                        continue
+                    dt = self._coerce_dt(
+                        item.get("period_start") or item.get("datetime") or item.get("time")
+                    )
+                    raw = item.get("pv_estimate")
+                    in_kw = raw is not None
+                    if raw is None:
+                        raw = item.get("power") or item.get("watts") or item.get("value")
+                    if dt is None or raw is None:
+                        continue
+                    with contextlib.suppress(TypeError, ValueError):
+                        w = float(raw) * (1000.0 if in_kw else 1.0)
+                        samples.append((dt, max(0.0, w)))
+                break
+        if not samples and isinstance(attrs.get("watts"), dict):
+            for key_dt, val in attrs["watts"].items():
+                dt = self._coerce_dt(key_dt)
+                if dt is None:
+                    continue
+                with contextlib.suppress(TypeError, ValueError):
+                    samples.append((dt, max(0.0, float(val))))
+        if not samples:
+            return []
+        hour0 = dt_util.as_local(now).replace(minute=0, second=0, microsecond=0)
+        buckets = [0.0] * 24
+        counts = [0] * 24
+        for dt, w in samples:
+            offset = int((dt_util.as_local(dt) - hour0).total_seconds() // 3600)
+            if 0 <= offset < 24:
+                buckets[offset] += w
+                counts[offset] += 1
+        return [buckets[i] / counts[i] if counts[i] else 0.0 for i in range(24)]
 
     def _remaining_production(self, snapshot: Snapshot) -> tuple[float, float]:
         """Remaining forecast PV (kWh) and production hours from now (hour 0 = now)."""
