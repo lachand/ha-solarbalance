@@ -115,6 +115,15 @@ async def test_stepped_with_switch_turns_on_and_sets_level() -> None:
     assert calls[1] == ("number", "set_value", {"entity_id": "number.ev_amps", "value": 16.0})
 
 
+async def test_stepped_without_switch_off_writes_level_zero() -> None:
+    hass = _hass()
+    pub = LoadPublisher(hass, [_stepped()], enabled=True)  # no switch_entity
+    await pub.apply([LoadCommand(load_name="rad", on=False, step_level=0)])
+    assert _calls(hass) == [
+        ("number", "set_value", {"entity_id": "number.rad_level", "value": 0.0})
+    ]
+
+
 async def test_stepped_with_switch_off_cuts_switch_without_setting_level() -> None:
     hass = _hass()
     pub = LoadPublisher(hass, [_stepped_with_switch()], enabled=True)
