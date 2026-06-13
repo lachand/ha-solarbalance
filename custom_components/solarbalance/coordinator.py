@@ -301,6 +301,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Build ordered strategy list from config
         priorities: list[str] = cfg.get(CONF_PRIORITIES, list(_STRATEGY_CLASSES))
         subscribed_kva = int(cfg.get(CONF_SUBSCRIBED_POWER_KVA, 6))
+        self._subscribed_power_w = float(subscribed_kva * 1000) if subscribed_kva > 0 else None
         self._arbiter = self._build_arbiter(priorities, devices, loads, tariff, subscribed_kva)
 
     # ------------------------------------------------------------------ public
@@ -417,6 +418,30 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     except (ValueError, TypeError):
                         pass
         return round(self._energy.grid_export_kwh, 3)
+
+    @property
+    def subscribed_power_w(self) -> float | None:
+        """Subscribed grid power (W), from the configured kVA. None if unset."""
+        return self._subscribed_power_w
+
+    @property
+    def pv_forecast_hourly(self) -> list[dict[str, float | str]]:
+        """Hourly PV power forecast from the configured ``forecast`` block.
+
+        Each item is ``{"start": ISO8601 hour start, "w": forecast power}``.
+        Hour 0 is the current hour. Empty when no forecast is configured.
+        """
+        snap = self.data
+        if snap is None:
+            return []
+        pv_by_hour = self._forecast_pv_by_hour(snap)
+        if not pv_by_hour:
+            return []
+        base = snap.timestamp.replace(minute=0, second=0, microsecond=0)
+        return [
+            {"start": (base + timedelta(hours=h)).isoformat(), "w": round(v, 1)}
+            for h, v in enumerate(pv_by_hour)
+        ]
 
     def set_force_override(
         self,

@@ -205,6 +205,12 @@ class SolarBalanceGridPowerSensor(_SolarBalanceSensor):
         snap: Snapshot | None = self.coordinator.data
         return round(snap.grid_power_w, 1) if snap else None
 
+    @property
+    def extra_state_attributes(self) -> dict[str, float] | None:
+        """Expose subscribed grid power so the panel can draw a load gauge."""
+        sub = self.coordinator.subscribed_power_w
+        return {"subscribed_power_w": sub} if sub is not None else None
+
 
 class SolarBalancePvPowerSensor(_SolarBalanceSensor):
     """Total PV production power."""
@@ -222,6 +228,12 @@ class SolarBalancePvPowerSensor(_SolarBalanceSensor):
     def native_value(self) -> float | None:
         snap: Snapshot | None = self.coordinator.data
         return round(snap.pv_total_w, 1) if snap else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        """Expose the hourly PV forecast so the panel can overlay it."""
+        fc = self.coordinator.pv_forecast_hourly
+        return {"pv_forecast_hourly": fc} if fc else None
 
 
 class SolarBalanceBatteryPowerSensor(_SolarBalanceSensor):
