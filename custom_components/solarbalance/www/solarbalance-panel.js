@@ -537,6 +537,24 @@ class SolarBalancePanel extends HTMLElement {
     return Array.isArray(sched) ? sched : [];
   }
 
+  _planSummary(sched) {
+    // Merge consecutive slots into charge / hold / discharge ranges and phrase them.
+    const hh = (iso) => new Date(iso).getHours().toString().padStart(2, "0") + "h";
+    const cls = (p) => (p > 50 ? "charge" : p < -50 ? "discharge" : "hold");
+    const segs = [];
+    for (const s of sched) {
+      const c = cls(s.battery_power_w || 0);
+      const last = segs[segs.length - 1];
+      if (last && last.c === c) last.end = s.start;
+      else segs.push({ c, start: s.start, end: s.start });
+    }
+    const labels = { charge: "🔋 Charge", discharge: "⚡ Décharge", hold: "⏸️ Maintien" };
+    const parts = segs
+      .filter((seg) => seg.c !== "hold")
+      .map((seg) => `${labels[seg.c]} ${hh(seg.start)}–${hh(seg.end)}`);
+    return parts.length ? parts.join(" · ") : "Aucune action batterie planifiée";
+  }
+
   _predictions() {
     // Hide the advisory plan under a flat tariff: with no time-of-use signal its
     // charge recommendations are meaningless (and not applied).
@@ -600,6 +618,7 @@ class SolarBalancePanel extends HTMLElement {
     return `
       <section class="card pred-card">
         <h3>Prédictions (advisory) — 24 h</h3>
+        <div class="plan-summary">${this._planSummary(sched)}</div>
         <svg viewBox="0 0 ${W} ${H}" class="pred-chart" preserveAspectRatio="none" role="img">
           <line x1="${padL}" y1="${by0.toFixed(1)}" x2="${W - padR}" y2="${by0.toFixed(
       1
@@ -860,6 +879,7 @@ class SolarBalancePanel extends HTMLElement {
 
         /* Predictions */
         .pred-card { margin-bottom:12px; }
+        .plan-summary { font-size:.9rem; color:var(--secondary-text-color); margin-bottom:8px; }
         .pred-chart { width:100%; height:auto; display:block; }
         .bar-chg { fill:var(--success-color,#27ae60); opacity:.65; }
         .bar-dis { fill:var(--error-color,#e74c3c); opacity:.6; }
