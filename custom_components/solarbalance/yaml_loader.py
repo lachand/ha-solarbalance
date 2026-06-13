@@ -12,6 +12,7 @@ from typing import Any
 
 import voluptuous as vol
 from homeassistant.exceptions import ConfigEntryError
+from homeassistant.helpers import config_validation as cv
 
 from .core.forecast import ForecastConfig, ForecastUnit
 from .core.models import (
@@ -41,6 +42,10 @@ _SIGN_CONVENTION = vol.In([c.value for c in PowerSignConvention])
 _METER_KIND = vol.In([k.value for k in MeterKind])
 _LOAD_CONTROL = vol.In([c.value for c in LoadControlType])
 _HHMM = vol.Match(r"^([01]\d|2[0-3]):[0-5]\d$", msg="Must be HH:MM (e.g. 06:00)")
+# Strict entity_id (requires a domain, e.g. number.x) for control/write entities,
+# so a typo like "ef_60605_backup_reserve" is rejected at load instead of failing
+# silently every tick.
+_ENTITY = cv.entity_id
 
 # ---------------------------------------------------------------------------
 # Role sub-schemas
@@ -66,10 +71,10 @@ _BATTERY_SCHEMA = vol.Schema(
         vol.Optional("usable_capacity_kwh"): vol.Coerce(float),
         vol.Optional("controllable", default=True): bool,
         vol.Optional("active_control_enabled", default=False): bool,
-        vol.Optional("discharge_power_setpoint_entity"): str,
-        vol.Optional("charge_power_setpoint_entity"): str,
-        vol.Optional("mode_setpoint_entity"): str,
-        vol.Optional("reserve_soc_setpoint_entity"): str,
+        vol.Optional("discharge_power_setpoint_entity"): _ENTITY,
+        vol.Optional("charge_power_setpoint_entity"): _ENTITY,
+        vol.Optional("mode_setpoint_entity"): _ENTITY,
+        vol.Optional("reserve_soc_setpoint_entity"): _ENTITY,
         vol.Optional("ac_charge_limit_w"): vol.Coerce(int),
     }
 )
@@ -83,7 +88,7 @@ _MPPT_SCHEMA = vol.Schema(
         vol.Optional("current_entity"): str,
         vol.Optional("feeds", default=[]): [str],
         vol.Optional("active_control_enabled", default=False): bool,
-        vol.Optional("power_limit_setpoint_entity"): str,
+        vol.Optional("power_limit_setpoint_entity"): _ENTITY,
     }
 )
 
@@ -160,16 +165,16 @@ _LOAD_SCHEMA = vol.Schema(
         vol.Optional("deadline_constraint"): _DEADLINE_SCHEMA,
         # on_off fields
         vol.Optional("nominal_power_w"): vol.Coerce(int),
-        vol.Optional("switch_entity"): str,
+        vol.Optional("switch_entity"): _ENTITY,
         # stepped fields
         vol.Optional("steps", default=[]): [_STEP_SCHEMA],
-        vol.Optional("level_entity"): str,
+        vol.Optional("level_entity"): _ENTITY,
         # modulating fields
         vol.Optional("min_power_w"): vol.Coerce(int),
         vol.Optional("max_power_w"): vol.Coerce(int),
         vol.Optional("step_w", default=1): vol.Coerce(int),
-        vol.Optional("power_set_entity"): str,
-        vol.Optional("actual_power_entity"): str,
+        vol.Optional("power_set_entity"): _ENTITY,
+        vol.Optional("actual_power_entity"): _ENTITY,
         # EV fast-charge assist
         vol.Optional("fast_charge", default=False): bool,
         vol.Optional("min_charge_w"): vol.Coerce(int),
@@ -213,8 +218,8 @@ _TARIFF_SCHEMA = vol.Schema(
         vol.Optional("export_price"): vol.Coerce(float),
         vol.Optional("import_price"): vol.Coerce(float),  # flat
         vol.Optional("slots", default=[]): [_TARIFF_SLOT_SCHEMA],  # hc_hp
-        vol.Optional("color_entity"): str,  # tempo (today's colour)
-        vol.Optional("color_tomorrow_entity"): str,  # tempo (tomorrow, for red-day prep)
+        vol.Optional("color_entity"): _ENTITY,  # tempo (today's colour)
+        vol.Optional("color_tomorrow_entity"): _ENTITY,  # tempo (tomorrow, for red-day prep)
         vol.Optional("prices"): {vol.In(["blue", "white", "red"]): _TEMPO_PRICE_SCHEMA},  # tempo
     }
 )

@@ -77,6 +77,7 @@ Full guide: [`docs/getting-started.md`](docs/getting-started.md).
 ## Documentation
 
 - [Specifications](docs/SPECIFICATIONS.md) — full design document
+- [Configuration reference](docs/configuration-reference.md) — every option (UI + YAML)
 - [Getting started](docs/getting-started.md) — first setup in 15 minutes
 - [Device mapping](docs/device-mapping.md) — guide per equipment type
 - [Strategies](docs/strategies.md) — algorithm details

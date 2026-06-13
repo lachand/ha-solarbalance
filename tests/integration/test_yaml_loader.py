@@ -70,3 +70,34 @@ def test_invalid_forecast_unit_rejected() -> None:
     raw = {"forecast": {"unit": "joules", "hours": [{"hour": 0, "entity": "sensor.now"}]}}
     with pytest.raises(ConfigEntryError):
         parse_yaml_config(raw)
+
+
+def _stream_battery(reserve: str) -> dict:
+    return {
+        "devices": [
+            {
+                "name": "stream",
+                "roles": {
+                    "battery": {
+                        "capacity_kwh": 3.9,
+                        "max_charge_power_w": 1200,
+                        "max_discharge_power_w": 2300,
+                        "soc_entity": "sensor.stream_soc",
+                        "power_entity": "sensor.stream_power",
+                        "reserve_soc_setpoint_entity": reserve,
+                    }
+                },
+            }
+        ]
+    }
+
+
+def test_setpoint_entity_without_domain_rejected() -> None:
+    # The exact bug class: "ef_60605_backup_reserve" (no domain) must be rejected.
+    with pytest.raises(ConfigEntryError):
+        parse_yaml_config(_stream_battery("ef_60605_backup_reserve"))
+
+
+def test_valid_setpoint_entity_accepted() -> None:
+    devices, *_rest = parse_yaml_config(_stream_battery("number.ef_60605_backup_reserve"))
+    assert devices[0].battery.reserve_soc_setpoint_entity == "number.ef_60605_backup_reserve"
