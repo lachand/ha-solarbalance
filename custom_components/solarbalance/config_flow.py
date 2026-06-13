@@ -35,6 +35,7 @@ from .const import (
     CONF_TEMPO_RED_PREP_ENABLED,
     CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
+    CONF_VACATION_SOC_MAX_PCT,
     CONF_WEATHER_WARNING_ENTITY,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
@@ -56,6 +57,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
+    DEFAULT_VACATION_SOC_MAX_PCT,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
     DOMAIN,
@@ -176,6 +178,10 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_TEMPO_RED_PREP_SOC_PCT,
                 default=d.get(CONF_TEMPO_RED_PREP_SOC_PCT, DEFAULT_TEMPO_RED_PREP_SOC_PCT),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+            vol.Optional(
+                CONF_VACATION_SOC_MAX_PCT,
+                default=d.get(CONF_VACATION_SOC_MAX_PCT, DEFAULT_VACATION_SOC_MAX_PCT),
             ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
             vol.Optional(
                 CONF_EVENING_SHED_MIN_POWER_W,

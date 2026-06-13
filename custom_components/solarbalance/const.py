@@ -37,6 +37,7 @@ CONF_FORECAST_SAFETY_FACTOR: Final = "forecast_safety_factor"
 CONF_NOTIFICATIONS_ENABLED: Final = "notifications_enabled"
 CONF_TEMPO_RED_PREP_ENABLED: Final = "tempo_red_prep_enabled"
 CONF_TEMPO_RED_PREP_SOC_PCT: Final = "tempo_red_prep_soc_pct"
+CONF_VACATION_SOC_MAX_PCT: Final = "vacation_soc_max_pct"
 
 # Defaults
 DEFAULT_TICK_INTERVAL_S: Final = 10
@@ -84,6 +85,10 @@ DEFAULT_FORECAST_SAFETY_FACTOR: Final = 0.85
 # Target SoC to pre-charge controllable batteries to, during the off-peak window
 # preceding a Tempo red day (grid-charged at the cheap HC price).
 DEFAULT_TEMPO_RED_PREP_SOC_PCT: Final = 100.0
+
+# Vacation mode: cap charging at this SoC to limit calendar ageing while away
+# (self-consume from solar, never grid-charge).
+DEFAULT_VACATION_SOC_MAX_PCT: Final = 60.0
 
 # Strategy defaults — see SPECIFICATIONS §6.1 and docs/technical.md
 DEFAULT_BACKUP_RESERVE_SOC_PCT: Final = 20.0

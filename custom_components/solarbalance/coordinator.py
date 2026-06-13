@@ -45,6 +45,7 @@ from .const import (
     CONF_TEMPO_RED_PREP_ENABLED,
     CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
+    CONF_VACATION_SOC_MAX_PCT,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_KP,
@@ -68,6 +69,7 @@ from .const import (
     DEFAULT_STORM_TARGET_SOC_PCT,
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
+    DEFAULT_VACATION_SOC_MAX_PCT,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
     DOMAIN,
@@ -276,6 +278,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         self._tempo_color_tomorrow_entity: str | None = (
             (tariff_spec or {}).get("color_tomorrow_entity") if tariff_spec else None
+        )
+        self._vacation_soc_max_pct = float(
+            cfg.get(CONF_VACATION_SOC_MAX_PCT, DEFAULT_VACATION_SOC_MAX_PCT)
         )
         self._evening_shed_min_power_w = float(
             cfg.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W)
@@ -920,12 +925,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         else:
             result = self._arbiter.run(snapshot)
 
-        # Apply zero-injection correction when it owns regulation: only in NORMAL
-        # mode, and not while pre-charging from the grid for a red day (storm /
-        # override / red-prep drive batteries with explicit intent).
+        # Apply zero-injection correction when it owns regulation: in NORMAL and
+        # VACATION (self-consume from solar, never grid-charge), but not while
+        # pre-charging from the grid for a red day (storm / override / red-prep
+        # drive batteries with explicit intent).
         zi_correction_w = 0.0
         eq_bias_w = 0.0
-        zi_regulating = self._zi_enabled and self._mode is HemsMode.NORMAL and not red_prep
+        zi_regulating = (
+            self._zi_enabled
+            and self._mode in (HemsMode.NORMAL, HemsMode.VACATION)
+            and not red_prep
+        )
         if zi_regulating:
             # Indirect SoC equaliser (cascaded): offer a surplus/deficit by biasing
             # the ZI setpoint, so the single ZI loop produces the extra fleet
@@ -1044,6 +1054,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 total_power_w,
                 -gc.max_export_w - grid_filtered_w + current_fleet_w,
             )
+
+        # Vacation mode: cap charging at the vacation SoC ceiling to limit calendar
+        # ageing while away. Discharge stays allowed; only the charge direction is
+        # blocked once the controllable fleet reaches the ceiling.
+        if self._mode is HemsMode.VACATION:
+            avg_soc = self._controllable_avg_soc(snapshot)
+            if avg_soc is not None and avg_soc >= self._vacation_soc_max_pct:
+                total_power_w = min(total_power_w, 0.0)
 
         # Slew-rate limit: cap how far the command may move per tick. Hard safety
         # belt against limit cycles given the battery's actuation lag.

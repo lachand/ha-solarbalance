@@ -23,6 +23,7 @@
           "notifications_enabled": "Notifications (dégradé, surcharge, délestage)",
           "tempo_red_prep_enabled": "Tempo : pré-charge avant un jour rouge",
           "tempo_red_prep_soc_pct": "Tempo : SoC cible avant jour rouge (%)",
+          "vacation_soc_max_pct": "Vacances : SoC max (plafond charge, %)",
           "pv_forecast_entity": "Entité prévision PV (optionnel)",
           "pv_forecast_tomorrow_entity": "Entité prévision PV demain (optionnel)",
           "forecast_safety_factor": "Facteur de sécurité prévision (0-1)",
@@ -62,6 +63,7 @@
           "notifications_enabled": "Notifications (dégradé, surcharge, délestage)",
           "tempo_red_prep_enabled": "Tempo : pré-charge avant un jour rouge",
           "tempo_red_prep_soc_pct": "Tempo : SoC cible avant jour rouge (%)",
+          "vacation_soc_max_pct": "Vacances : SoC max (plafond charge, %)",
           "pv_forecast_entity": "Entité prévision PV (optionnel)",
           "pv_forecast_tomorrow_entity": "Entité prévision PV demain (optionnel)",
           "forecast_safety_factor": "Facteur de sécurité prévision (0-1)",
@@ -77,7 +79,7 @@
         "state": {
           "normal": "Normal",
           "storm": "Tempête",
-          "vacation": "Vacances (non implémenté)",
+          "vacation": "Vacances",
           "paused": "En pause",
           "degraded": "Dégradé",
           "manual_override": "Override manuel"
@@ -128,7 +130,7 @@
         "state": {
           "normal": "Normal",
           "storm": "Tempête",
-          "vacation": "Vacances (non implémenté)",
+          "vacation": "Vacances",
           "paused": "En pause",
           "degraded": "Dégradé",
           "manual_override": "Override manuel"

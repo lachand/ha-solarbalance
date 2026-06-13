@@ -586,7 +586,7 @@ function ht(r) {
   return {
     normal: "Normal",
     storm: "Tempête",
-    vacation: "Vacances (non implémenté)",
+    vacation: "Vacances",
     self_consumption: "Auto-conso",
     cost_min: "Coût min",
     revenue_max: "Revenu max",
