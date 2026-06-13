@@ -64,6 +64,7 @@ async def async_setup_entry(
         SolarBalancePvEnergyTodaySensor(coordinator, entry),
         SolarBalanceGridImportTodaySensor(coordinator, entry),
         SolarBalanceGridExportTodaySensor(coordinator, entry),
+        SolarBalanceConsumptionTodaySensor(coordinator, entry),
         SolarBalanceBaselineNightSensor(coordinator, entry),
     ]
 
@@ -335,6 +336,24 @@ class SolarBalanceGridImportTodaySensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float | None:
         return self.coordinator.daily_grid_import_kwh
+
+
+class SolarBalanceConsumptionTodaySensor(_SolarBalanceSensor):
+    """Total house consumption energy today (pv + grid - battery), integrated."""
+
+    _attr_translation_key = "consumption_today"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:home-lightning-bolt"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "consumption_today")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.daily_consumption_kwh
 
 
 class SolarBalanceBaselineNightSensor(_SolarBalanceSensor):

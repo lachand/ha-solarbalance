@@ -23,10 +23,19 @@ class DailyEnergyAccumulator:
     pv_kwh: float = 0.0
     grid_import_kwh: float = 0.0
     grid_export_kwh: float = 0.0
+    consumption_kwh: float = 0.0
     _day: date | None = field(default=None, repr=False)
     _last_ts: datetime | None = field(default=None, repr=False)
 
-    def update(self, *, now: datetime, local_date: date, pv_w: float, grid_w: float) -> None:
+    def update(
+        self,
+        *,
+        now: datetime,
+        local_date: date,
+        pv_w: float,
+        grid_w: float,
+        battery_w: float = 0.0,
+    ) -> None:
         """Integrate one sample.
 
         Args:
@@ -34,11 +43,14 @@ class DailyEnergyAccumulator:
             local_date: Local calendar date of ``now`` — drives the midnight reset.
             pv_w: Total PV power (W); only the positive part is integrated.
             grid_w: Grid power (W, positive = import); only import is integrated.
+            battery_w: Aggregate battery power (W, positive = charging). Used to
+                derive total house consumption ``pv + grid - battery``.
         """
         if self._day != local_date:
             self.pv_kwh = 0.0
             self.grid_import_kwh = 0.0
             self.grid_export_kwh = 0.0
+            self.consumption_kwh = 0.0
             self._day = local_date
             self._last_ts = now
             return
@@ -53,6 +65,7 @@ class DailyEnergyAccumulator:
         self.pv_kwh += max(0.0, pv_w) * dt_h / 1000.0
         self.grid_import_kwh += max(0.0, grid_w) * dt_h / 1000.0
         self.grid_export_kwh += max(0.0, -grid_w) * dt_h / 1000.0
+        self.consumption_kwh += max(0.0, pv_w + grid_w - battery_w) * dt_h / 1000.0
 
     @property
     def day(self) -> date | None:
@@ -66,6 +79,7 @@ class DailyEnergyAccumulator:
         pv_kwh: float,
         grid_import_kwh: float,
         grid_export_kwh: float = 0.0,
+        consumption_kwh: float = 0.0,
     ) -> None:
         """Seed persisted totals (e.g. after a restart).
 
@@ -77,3 +91,4 @@ class DailyEnergyAccumulator:
         self.pv_kwh = pv_kwh
         self.grid_import_kwh = grid_import_kwh
         self.grid_export_kwh = grid_export_kwh
+        self.consumption_kwh = consumption_kwh

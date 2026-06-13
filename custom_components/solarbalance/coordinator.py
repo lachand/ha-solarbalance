@@ -9,6 +9,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -372,9 +373,91 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 pv_kwh=float(energy["pv_kwh"]),
                 grid_import_kwh=float(energy["grid_import_kwh"]),
                 grid_export_kwh=float(energy.get("grid_export_kwh", 0.0)),
+                consumption_kwh=float(energy.get("consumption_kwh", 0.0)),
             )
         except (KeyError, ValueError, TypeError):
             _LOGGER.warning("SolarBalance: could not restore persisted daily energy")
+
+        # Prefer recomputing today's totals from the recorder (covers a reload
+        # mid-day more accurately than the periodic Store snapshot). Falls back
+        # silently to the Store value above when no history is available.
+        await self._recompute_daily_from_recorder()
+
+    async def _recompute_daily_from_recorder(self) -> None:
+        """Rebuild today's daily totals by replaying recorder history since midnight.
+
+        Reads the integration's own aggregate sensors (pv/grid/battery power),
+        which carry exactly the values the live integrator uses. A merged,
+        forward-filled timeline is replayed through :class:`DailyEnergyAccumulator`
+        so PV / import / export / consumption are consistent. No history → no-op
+        (the Store-restored value stands).
+        """
+        from homeassistant.components.recorder import get_instance, history
+        from homeassistant.helpers import entity_registry as er
+
+        reg = er.async_get(self.hass)
+        ids: dict[str, str] = {}
+        for suffix in ("pv_power", "grid_power", "battery_power"):
+            eid = reg.async_get_entity_id("sensor", DOMAIN, f"{self._entry.entry_id}_{suffix}")
+            if eid is None:
+                return  # our sensors not registered yet — keep Store value
+            ids[suffix] = eid
+
+        now = dt_util.now()
+        midnight = dt_util.start_of_local_day(now)
+        try:
+            states = await get_instance(self.hass).async_add_executor_job(
+                history.get_significant_states,
+                self.hass,
+                midnight,
+                now,
+                list(ids.values()),
+                None,  # filters
+                True,  # include_start_time_state: carry the value as of midnight
+                False,  # significant_changes_only: integrate every change accurately
+            )
+        except (HomeAssistantError, KeyError, ValueError, TypeError):
+            return
+        if not states:
+            return
+
+        # Build a merged, time-sorted event stream: (timestamp, signal, value).
+        events: list[tuple[datetime, str, float]] = []
+        for suffix, eid in ids.items():
+            for st in states.get(eid, []):
+                if st.state in ("unknown", "unavailable", "", None):
+                    continue
+                with contextlib.suppress(ValueError, TypeError):
+                    events.append((st.last_updated, suffix, float(st.state)))
+        if not events:
+            return
+        events.sort(key=lambda e: e[0])
+
+        # Reset today's counters and replay forward-filled samples from midnight.
+        self._energy.restore(
+            day=midnight.date(),
+            pv_kwh=0.0,
+            grid_import_kwh=0.0,
+            grid_export_kwh=0.0,
+            consumption_kwh=0.0,
+        )
+        last = {"pv_power": 0.0, "grid_power": 0.0, "battery_power": 0.0}
+        for ts, signal, value in events:
+            last[signal] = value
+            self._energy.update(
+                now=ts,
+                local_date=dt_util.as_local(ts).date(),
+                pv_w=last["pv_power"],
+                grid_w=last["grid_power"],
+                battery_w=last["battery_power"],
+            )
+        _LOGGER.debug(
+            "Recomputed daily energy from recorder: pv=%.2f import=%.2f export=%.2f conso=%.2f kWh",
+            self._energy.pv_kwh,
+            self._energy.grid_import_kwh,
+            self._energy.grid_export_kwh,
+            self._energy.consumption_kwh,
+        )
 
     def _persisted_state(self) -> dict[str, Any]:
         """Build the dict written to the Store (daily energy counters)."""
@@ -384,6 +467,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 "pv_kwh": round(self._energy.pv_kwh, 4),
                 "grid_import_kwh": round(self._energy.grid_import_kwh, 4),
                 "grid_export_kwh": round(self._energy.grid_export_kwh, 4),
+                "consumption_kwh": round(self._energy.consumption_kwh, 4),
             },
             "baseline": {
                 "talon_w": (
@@ -446,6 +530,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     except (ValueError, TypeError):
                         pass
         return round(self._energy.grid_export_kwh, 3)
+
+    @property
+    def daily_consumption_kwh(self) -> float | None:
+        """Today's total house consumption energy (kWh), integrated internally."""
+        return round(self._energy.consumption_kwh, 3)
 
     @property
     def subscribed_power_w(self) -> float | None:
@@ -531,6 +620,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             local_date=local_now.date(),
             pv_w=snapshot.pv_total_w,
             grid_w=snapshot.grid_power_w,
+            battery_w=snapshot.battery_power_total_w,
         )
         self._baseline_est.update(
             local_time=local_now.time(),

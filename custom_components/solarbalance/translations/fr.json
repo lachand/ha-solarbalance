@@ -82,6 +82,7 @@
       "pv_energy_today": { "name": "Énergie PV aujourd'hui" },
       "grid_import_today": { "name": "Soutirage réseau aujourd'hui" },
       "grid_export_today": { "name": "Injection réseau aujourd'hui" },
+      "consumption_today": { "name": "Consommation totale aujourd'hui" },
       "baseline_night": { "name": "Talon de consommation (nuit)" },
       "battery_setpoint_charge": { "name": "Consigne de charge" },
       "battery_setpoint_discharge": { "name": "Consigne de décharge" },

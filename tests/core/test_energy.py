@@ -55,6 +55,31 @@ def test_restore_seeds_grid_export() -> None:
     assert acc.grid_export_kwh == 2.0
 
 
+def test_consumption_integrates_pv_plus_grid_minus_battery() -> None:
+    acc = DailyEnergyAccumulator()
+    d = _ts(0).date()
+    # House load = pv + grid - battery_charge = 1000 + 600 - 400 = 1200 W.
+    acc.update(now=_ts(0), local_date=d, pv_w=1000.0, grid_w=600.0, battery_w=400.0)  # seed
+    acc.update(now=_ts(10), local_date=d, pv_w=1000.0, grid_w=600.0, battery_w=400.0)
+    assert acc.consumption_kwh == pytest.approx(1200.0 * (10 / 60) / 1000)
+
+
+def test_consumption_clamped_non_negative() -> None:
+    acc = DailyEnergyAccumulator()
+    d = _ts(0).date()
+    # pv + grid - battery negative (battery discharging into export) → 0.
+    acc.update(now=_ts(0), local_date=d, pv_w=0.0, grid_w=-500.0, battery_w=-100.0)
+    acc.update(now=_ts(10), local_date=d, pv_w=0.0, grid_w=-500.0, battery_w=-100.0)
+    assert acc.consumption_kwh == 0.0
+
+
+def test_restore_seeds_consumption() -> None:
+    acc = DailyEnergyAccumulator()
+    d = _ts(0).date()
+    acc.restore(day=d, pv_kwh=1.0, grid_import_kwh=0.5, grid_export_kwh=2.0, consumption_kwh=3.0)
+    assert acc.consumption_kwh == 3.0
+
+
 def test_resets_at_local_midnight() -> None:
     acc = DailyEnergyAccumulator()
     d0 = _ts(0).date()
