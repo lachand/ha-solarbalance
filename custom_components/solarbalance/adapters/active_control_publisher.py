@@ -82,6 +82,28 @@ class ActiveControlPublisher:
         self._last_mode: dict[str, str] = {}
         self._last_reserve: dict[str, float] = {}
 
+        # Catch a common misconfiguration early: a setpoint entity_id without a
+        # domain (e.g. "ef_60605_backup_reserve" instead of "number.ef_...").
+        for name, m in managed.items():
+            for label, eid in (
+                ("charge", m.charge_entity),
+                ("discharge", m.discharge_entity),
+                ("mode", m.mode_entity),
+            ):
+                if eid is not None and "." not in eid:
+                    _LOGGER.warning(
+                        "Active control: %s %s_setpoint_entity %r has no domain "
+                        "(expected e.g. number.%s) — writes will fail",
+                        name, label, eid, eid,
+                    )
+        for name, eid in {**self._pv_limit_entities, **self._reserve_entities}.items():
+            if "." not in eid:
+                _LOGGER.warning(
+                    "Active control: %s setpoint entity %r has no domain "
+                    "(expected e.g. number.%s) — writes will fail",
+                    name, eid, eid,
+                )
+
     @property
     def enabled(self) -> bool:
         """True when at least one device has an active-control entity."""
