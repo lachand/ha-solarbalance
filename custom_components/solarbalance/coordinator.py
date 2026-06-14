@@ -1313,8 +1313,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     value = item.get("value")
                     if start is None or end is None or value is None:
                         continue
-                    if start <= dt < end:
-                        with contextlib.suppress(ValueError, TypeError):
+                    # Guard the comparison too: a naive/aware mismatch (some
+                    # integrations expose tz-less timestamps) would otherwise
+                    # raise and crash the update loop — skip the bad item instead.
+                    with contextlib.suppress(ValueError, TypeError):
+                        if start <= dt < end:
                             return float(value)
             return None
 

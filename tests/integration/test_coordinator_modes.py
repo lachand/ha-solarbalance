@@ -121,3 +121,19 @@ async def test_spot_hourly_prices(hass: HomeAssistant) -> None:
     assert coord._tariff.current_import_price(t10) == 0.12
     assert coord._tariff.current_import_price(t11) == 0.40
     assert coord._tariff.current_import_price(t13) == 0.30
+
+
+@pytest.mark.asyncio
+async def test_spot_naive_timestamps_do_not_crash(hass: HomeAssistant) -> None:
+    from custom_components.solarbalance.const import CONF_SPOT_PRICE_ENTITY, CONF_TARIFF_TYPE
+    # Naive (tz-less) start/end must not raise on comparison → fall back to state.
+    raw = [{"start": "2026-06-14T10:00:00", "end": "2026-06-14T11:00:00", "value": 0.12}]
+    hass.states.async_set("sensor.spot", "0.30", {"raw_today": raw})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_TARIFF_TYPE: "spot", CONF_SPOT_PRICE_ENTITY: "sensor.spot"},
+    )
+    entry.add_to_hass(hass)
+    coord = SolarBalanceCoordinator(hass, entry, [], [], [])
+    aware = datetime(2026, 6, 14, 10, 30, tzinfo=UTC)
+    assert coord._tariff.current_import_price(aware) == 0.30  # fell back, no crash
