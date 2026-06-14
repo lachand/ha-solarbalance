@@ -37,12 +37,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-06-14
+
+### Added
+
+- **Configuration des appareils dans l'UI (config subentries)** — ajout via « + Ajouter » de l'intégration, sans YAML ni redémarrage : types **Batterie**, **Batterie + onduleur**, **Onduleur / MPPT**, **Consommateur** (on/off, stepped, modulating) et **Compteur** (PDL/PV/conso). Listes déroulantes d'entités filtrées par domaine + infobulles par champ. Validé/construit par les mêmes builders que le YAML.
+- **Migration YAML → UI** — au premier démarrage, les `devices`/`meters`/`loads` du YAML sont convertis en subentries éditables ; les subentries deviennent ensuite la source de référence (remplacement du YAML).
+- **Vue « Journée »** du panneau — sélecteur 1 h / 6 h / 24 h / **Jour** (minuit → minuit), avec la prévision PV jusqu'à la fin de journée.
+- **Production PV restante** — `sensor.solarbalance_pv_remaining_today` (énergie prévue jusqu'à minuit) + tuile « PV restant » dans le panneau.
+
 ### Fixed
 
 - **Fenêtres tarifaires en heure locale** — le tick passait `snapshot.timestamp` (UTC) au tarif, qui compare l'heure locale ; HC/HP, Tempo, cheap/expensive, pré-charge jour rouge et le coût étaient décalés de l'offset UTC. Conversion en heure locale à tous les sites d'appel.
+- **Talon persistant au reload** — flush du Store au déchargement de l'intégration (le talon devenait indisponible après un rechargement).
 - **`reset()` arrête tous les loads** — il ne coupait que les loads on/off ; les loads stepped (EV) / modulating restaient actifs après une pause/suspension.
-- **Pré-charge Tempo** — le test « cible atteinte » comparait au SoC cible brut (100 % par défaut) ; une batterie plafonnée à 95 % n'atteignait jamais la cible et restait en charge réseau toute la fenêtre HC. Compare désormais à `min(cible, soc_max)`.
-- **Résumé du plan (panneau)** — les plages étaient trop courtes d'un créneau (ex. « 02h–04h » au lieu de « 02h–05h »).
+- **Pré-charge Tempo** — comparaison « cible atteinte » contre `min(cible, soc_max)` (une batterie plafonnée à 95 % restait sinon en charge réseau toute la fenêtre HC).
+- **Tarif spot** — comparaison horaire robuste aux horodatages sans fuseau (évite un plantage de la boucle).
+- **Résumé du plan (panneau)** — plages trop courtes d'un créneau (« 02h–04h » → « 02h–05h »).
 
 ## [1.2.0] — 2026-06-14
 
@@ -84,6 +95,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.3.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/solarbalance/ha-solarbalance/releases/tag/v1.0.0
