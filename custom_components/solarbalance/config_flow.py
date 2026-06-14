@@ -315,7 +315,9 @@ class SolarBalanceConfigFlow(ConfigFlow, domain=DOMAIN):
         """Device/equipment types addable from the UI via 'Add'."""
         return {
             "battery": BatterySubentryFlowHandler,
+            "mppt": MpptSubentryFlowHandler,
             "load": LoadSubentryFlowHandler,
+            "meter": MeterSubentryFlowHandler,
         }
 
 
@@ -610,4 +612,147 @@ class LoadSubentryFlowHandler(ConfigSubentryFlow):
                 return self.async_create_entry(title=str(user_input["name"]), data=load)
         return self.async_show_form(
             step_id="user", data_schema=_load_subentry_schema(user_input or {}), errors=errors
+        )
+
+
+def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
+    roles = d.get("roles", {})
+    m = roles.get("mppt", d)  # accept flat or device-shaped defaults
+    return vol.Schema(
+        {
+            vol.Required("name", default=d.get("name", "")): selector.TextSelector(),
+            vol.Required("peak_power_w", default=m.get("peak_power_w")): _num(
+                0, step=50, unit="W"
+            ),
+            vol.Required("power_entity", default=m.get("power_entity")): _entity("sensor"),
+            vol.Optional(
+                "daily_energy_entity", default=m.get("daily_energy_entity", "")
+            ): _entity("sensor"),
+            vol.Optional(
+                "active_control_enabled", default=m.get("active_control_enabled", False)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                "power_limit_setpoint_entity", default=m.get("power_limit_setpoint_entity", "")
+            ): _entity("number", "input_number"),
+        }
+    )
+
+
+_MPPT_ROLE_KEYS = (
+    "peak_power_w", "power_entity", "daily_energy_entity",
+    "active_control_enabled", "power_limit_setpoint_entity",
+)
+
+
+def _mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
+    mppt: dict[str, Any] = {}
+    for key in _MPPT_ROLE_KEYS:
+        val = user_input.get(key)
+        if val in (None, ""):
+            continue
+        mppt[key] = val
+    return {"name": user_input["name"], "roles": {"mppt": mppt}}
+
+
+class MpptSubentryFlowHandler(ConfigSubentryFlow):
+    """Add or reconfigure a PV inverter / MPPT from the UI."""
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        from .yaml_loader import build_device_from_dict
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            device = _mppt_input_to_device(user_input)
+            try:
+                build_device_from_dict(device)
+            except (vol.Invalid, ValueError, KeyError) as exc:
+                _LOGGER.warning("Invalid mppt subentry: %s", exc)
+                errors["base"] = "invalid_device"
+            else:
+                return self.async_create_entry(title=str(user_input["name"]), data=device)
+        return self.async_show_form(
+            step_id="user", data_schema=_mppt_subentry_schema(user_input or {}), errors=errors
+        )
+
+
+def _meter_subentry_schema(d: dict[str, Any]) -> vol.Schema:
+    from .core.models import MeterKind
+
+    return vol.Schema(
+        {
+            vol.Required("name", default=d.get("name", "")): selector.TextSelector(),
+            vol.Required(
+                "kind", default=d.get("kind", MeterKind.PDL.value)
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[k.value for k in MeterKind], translation_key="meter_kind"
+                )
+            ),
+            vol.Required("power_entity", default=d.get("power_entity")): _entity("sensor"),
+            vol.Optional("phases", default=d.get("phases", 1)): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=["1", "3"])
+            ),
+            vol.Optional(
+                "per_phase_zi", default=d.get("per_phase_zi", False)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                "power_l1_entity", default=d.get("power_l1_entity", "")
+            ): _entity("sensor"),
+            vol.Optional(
+                "power_l2_entity", default=d.get("power_l2_entity", "")
+            ): _entity("sensor"),
+            vol.Optional(
+                "power_l3_entity", default=d.get("power_l3_entity", "")
+            ): _entity("sensor"),
+            vol.Optional(
+                "daily_import_energy_entity", default=d.get("daily_import_energy_entity", "")
+            ): _entity("sensor"),
+            vol.Optional(
+                "daily_export_energy_entity", default=d.get("daily_export_energy_entity", "")
+            ): _entity("sensor"),
+        }
+    )
+
+
+_METER_KEYS = (
+    "name", "kind", "power_entity", "per_phase_zi", "power_l1_entity", "power_l2_entity",
+    "power_l3_entity", "daily_import_energy_entity", "daily_export_energy_entity",
+)
+
+
+def _meter_input_to_dict(user_input: dict[str, Any]) -> dict[str, Any]:
+    meter: dict[str, Any] = {}
+    for key in _METER_KEYS:
+        val = user_input.get(key)
+        if val in (None, ""):
+            continue
+        meter[key] = val
+    # phases is a string from the select; coerce to int for the schema.
+    if user_input.get("phases") not in (None, ""):
+        meter["phases"] = int(user_input["phases"])
+    return meter
+
+
+class MeterSubentryFlowHandler(ConfigSubentryFlow):
+    """Add or reconfigure a power meter (PDL/PV/consumption) from the UI."""
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        from .yaml_loader import build_meter_from_dict
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                meter = _meter_input_to_dict(user_input)
+                build_meter_from_dict(meter)
+            except (vol.Invalid, ValueError, KeyError) as exc:
+                _LOGGER.warning("Invalid meter subentry: %s", exc)
+                errors["base"] = "invalid_meter"
+            else:
+                return self.async_create_entry(title=str(user_input["name"]), data=meter)
+        return self.async_show_form(
+            step_id="user", data_schema=_meter_subentry_schema(user_input or {}), errors=errors
         )

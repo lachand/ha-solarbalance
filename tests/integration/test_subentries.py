@@ -115,3 +115,46 @@ def test_bad_steps_raise() -> None:
 
     with pytest.raises(ValueError):
         _parse_steps("6-1380")  # missing ':'
+
+
+def test_mppt_input_and_build() -> None:
+    from custom_components.solarbalance.config_flow import _mppt_input_to_device
+    from custom_components.solarbalance.yaml_loader import build_device_from_dict
+
+    ui = {
+        "name": "onduleur",
+        "peak_power_w": 1000,
+        "power_entity": "sensor.pv",
+        "active_control_enabled": True,
+        "power_limit_setpoint_entity": "number.limit",
+    }
+    device = _mppt_input_to_device(ui)
+    built = build_device_from_dict(device)
+    assert built.mppt is not None and built.mppt.peak_power_w == 1000
+
+
+def test_meter_input_coerces_phases_and_builds() -> None:
+    from custom_components.solarbalance.config_flow import _meter_input_to_dict
+    from custom_components.solarbalance.yaml_loader import build_meter_from_dict
+
+    ui = {"name": "pdl", "kind": "pdl", "power_entity": "sensor.grid", "phases": "3"}
+    meter = _meter_input_to_dict(ui)
+    assert meter["phases"] == 3  # coerced from select string
+    built = build_meter_from_dict(meter)
+    assert built.name == "pdl"
+
+
+def test_build_from_subentries_mixed_types() -> None:
+    bat = {"name": "b", "roles": {"battery": {
+        "capacity_kwh": 5.0, "max_charge_power_w": 1000, "max_discharge_power_w": 1000,
+        "soc_entity": "sensor.s", "power_entity": "sensor.p",
+    }}}
+    mppt = {"name": "m", "roles": {"mppt": {"peak_power_w": 800, "power_entity": "sensor.pv"}}}
+    meter = {"name": "pdl", "kind": "pdl", "power_entity": "sensor.grid"}
+    ld = {"name": "wh", "control_type": "on_off", "priority": 1, "nominal_power_w": 2000,
+          "switch_entity": "switch.wh"}
+    entry = _entry_with_subentries(
+        _sub("battery", bat), _sub("mppt", mppt), _sub("meter", meter), _sub("load", ld)
+    )
+    devices, meters, loads = _build_from_subentries(entry)
+    assert len(devices) == 2 and len(meters) == 1 and len(loads) == 1

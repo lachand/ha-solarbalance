@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -30,6 +31,7 @@ PLATFORMS: list[str] = [
 COORDINATOR_KEY = "coordinator"
 # Key used to store YAML-parsed config (devices, meters, loads) set by async_setup
 YAML_CONFIG_KEY = "yaml_config"
+YAML_RAW_KEY = "yaml_raw"
 
 _CARD_URL = "/solarbalance_card/solarbalance-card.js"
 _CARD_REGISTERED_KEY = "_card_frontend_registered"
@@ -100,12 +102,17 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     await _register_panel(hass)
     raw = config.get(DOMAIN)
     if raw:
+        from .yaml_loader import SOLARBALANCE_SCHEMA
+
         try:
             devices, meters, loads, forecast, tariff_spec = parse_yaml_config(raw)
         except Exception as exc:
             _LOGGER.error("SolarBalance YAML error: %s", exc)
             return False
         hass.data[DOMAIN][YAML_CONFIG_KEY] = (devices, meters, loads, forecast, tariff_spec)
+        # Keep the validated raw dicts for a one-time YAML → UI subentry migration.
+        with contextlib.suppress(Exception):
+            hass.data[DOMAIN][YAML_RAW_KEY] = SOLARBALANCE_SCHEMA(dict(raw))
         _LOGGER.debug(
             "SolarBalance YAML: %d device(s), %d meter(s), %d load(s)",
             len(devices),
@@ -201,16 +208,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _register_card_frontend(hass)
 
     yaml_cfg = hass.data[DOMAIN].get(YAML_CONFIG_KEY)
-    devices, meters, loads, forecast, tariff_spec = (
+    yaml_devices, yaml_meters, yaml_loads, forecast, tariff_spec = (
         yaml_cfg if yaml_cfg else ([], [], [], None, None)
     )
 
-    # Devices/loads/meters added from the UI (config subentries) extend the YAML
-    # set. Built with the same builders, so the engine treats them identically.
-    sub_devices, sub_meters, sub_loads = _build_from_subentries(entry)
-    devices = [*devices, *sub_devices]
-    meters = [*meters, *sub_meters]
-    loads = [*loads, *sub_loads]
+    # One-time migration: if YAML declares equipment but no UI subentries exist
+    # yet, convert the YAML into subentries so they become editable in the UI.
+    if not entry.subentries and (yaml_devices or yaml_meters or yaml_loads):
+        _migrate_yaml_to_subentries(hass, entry)
+
+    # Subentries (UI) are authoritative once present and fully replace YAML;
+    # otherwise fall back to the YAML-built equipment. Built with the same
+    # builders either way, so the engine treats them identically.
+    if entry.subentries:
+        devices, meters, loads = _build_from_subentries(entry)
+    else:
+        devices, meters, loads = yaml_devices, yaml_meters, yaml_loads
 
     coordinator = SolarBalanceCoordinator(
         hass, entry, devices, meters, loads, forecast=forecast, tariff_spec=tariff_spec
@@ -250,6 +263,48 @@ def _build_from_subentries(
                 sub.subentry_type, sub.title, exc,
             )
     return devices, meters, loads
+
+
+def _migrate_yaml_to_subentries(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Create UI subentries from the validated YAML (one-time, on first setup)."""
+    import uuid
+
+    from homeassistant.config_entries import ConfigSubentry
+
+    validated = hass.data.get(DOMAIN, {}).get(YAML_RAW_KEY)
+    if not validated:
+        return
+
+    def _add(subentry_type: str, data: dict[str, Any], title: str) -> None:
+        hass.config_entries.async_add_subentry(
+            entry,
+            ConfigSubentry(
+                data=data,
+                subentry_type=subentry_type,
+                title=title,
+                unique_id=None,
+                subentry_id=uuid.uuid4().hex,
+            ),
+        )
+
+    for dev in validated.get("devices", []):
+        roles = dev.get("roles", {})
+        if "battery" in roles and "mppt" not in roles and "inverter" not in roles:
+            stype = "battery"
+        elif "mppt" in roles and "battery" not in roles and "inverter" not in roles:
+            stype = "mppt"
+        else:
+            stype = "device"  # combined/inverter: editable by delete+recreate
+        _add(stype, dict(dev), str(dev.get("name", "device")))
+    for load in validated.get("loads", []):
+        _add("load", dict(load), str(load.get("name", "load")))
+    for meter in validated.get("meters", []):
+        _add("meter", dict(meter), str(meter.get("name", "meter")))
+    _LOGGER.info(
+        "SolarBalance: migrated YAML to %d UI subentries — you can now remove the "
+        "devices/meters/loads from configuration.yaml",
+        len(entry.subentries),
+    )
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:

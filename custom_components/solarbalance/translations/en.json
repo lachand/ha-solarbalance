@@ -172,9 +172,62 @@
         }
       },
       "error": { "invalid_load": "Invalid configuration — check the type, the entities (domain required) and the steps format (level:watts)." }
+    },
+    "mppt": {
+      "initiate_flow": { "user": "Add an inverter / MPPT" },
+      "entry_type": "Inverter / MPPT",
+      "step": {
+        "user": {
+          "title": "Solar inverter (MPPT)",
+          "description": "Declare an inverter/micro-inverter. Curtailment needs active control + a limit entity.",
+          "data": {
+            "name": "Name",
+            "peak_power_w": "Peak power (W)",
+            "power_entity": "Production power entity (W)",
+            "daily_energy_entity": "Daily energy entity",
+            "active_control_enabled": "Active curtailment (limit output)",
+            "power_limit_setpoint_entity": "Output limit entity (number, W)"
+          },
+          "data_description": {
+            "peak_power_w": "Inverter max power; the curtailment upper bound.",
+            "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment)."
+          }
+        }
+      },
+      "error": { "invalid_device": "Invalid inverter configuration — check the entities (domain required)." }
+    },
+    "meter": {
+      "initiate_flow": { "user": "Add a meter" },
+      "entry_type": "Meter",
+      "step": {
+        "user": {
+          "title": "Power meter",
+          "description": "Declare a meter. The PDL (grid connection point) drives zero-injection regulation.",
+          "data": {
+            "name": "Name",
+            "kind": "Meter kind",
+            "power_entity": "Signed power entity (+ import / − export)",
+            "phases": "Phases",
+            "per_phase_zi": "Per-phase zero-injection",
+            "power_l1_entity": "Power L1",
+            "power_l2_entity": "Power L2",
+            "power_l3_entity": "Power L3",
+            "daily_import_energy_entity": "Daily import energy",
+            "daily_export_energy_entity": "Daily export energy"
+          },
+          "data_description": {
+            "kind": "pdl = grid connection point ; pv ; consumption ; subcircuit.",
+            "power_entity": "Must be POSITIVE on import, NEGATIVE on export (e.g. Shelly 3EM)."
+          }
+        }
+      },
+      "error": { "invalid_meter": "Invalid meter configuration — check the kind and the power entity." }
     }
   },
   "selector": {
+    "meter_kind": {
+      "options": { "pdl": "PDL (grid)", "pv": "PV", "consumption": "Consumption", "subcircuit": "Subcircuit" }
+    },
     "chemistry": {
       "options": { "lifepo4": "LiFePO4", "nmc": "NMC", "leadacid": "Lead-acid", "other": "Other" }
     },

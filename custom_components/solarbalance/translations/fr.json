@@ -172,9 +172,62 @@
         }
       },
       "error": { "invalid_load": "Configuration invalide — vérifiez le type, les entités (domaine requis) et le format des paliers (niveau:watts)." }
+    },
+    "mppt": {
+      "initiate_flow": { "user": "Ajouter un onduleur / MPPT" },
+      "entry_type": "Onduleur / MPPT",
+      "step": {
+        "user": {
+          "title": "Onduleur solaire (MPPT)",
+          "description": "Déclarez un onduleur/micro-onduleur. Le bridage nécessite le contrôle actif + une entité de limite.",
+          "data": {
+            "name": "Nom",
+            "peak_power_w": "Puissance crête (W)",
+            "power_entity": "Entité puissance produite (W)",
+            "daily_energy_entity": "Entité énergie du jour",
+            "active_control_enabled": "Bridage actif (limiter la sortie)",
+            "power_limit_setpoint_entity": "Entité limite de sortie (number, W)"
+          },
+          "data_description": {
+            "peak_power_w": "Puissance max de l'onduleur ; borne haute du bridage.",
+            "power_limit_setpoint_entity": "number/W que l'onduleur obéit comme limite de sortie (bridage zéro-injection)."
+          }
+        }
+      },
+      "error": { "invalid_device": "Configuration onduleur invalide — vérifiez les entités (domaine requis)." }
+    },
+    "meter": {
+      "initiate_flow": { "user": "Ajouter un compteur" },
+      "entry_type": "Compteur",
+      "step": {
+        "user": {
+          "title": "Compteur de puissance",
+          "description": "Déclarez un compteur. Le PDL (point de livraison) pilote la régulation zéro-injection.",
+          "data": {
+            "name": "Nom",
+            "kind": "Type de compteur",
+            "power_entity": "Entité puissance signée (+ soutiré / − injecté)",
+            "phases": "Nombre de phases",
+            "per_phase_zi": "Zéro-injection par phase",
+            "power_l1_entity": "Puissance L1",
+            "power_l2_entity": "Puissance L2",
+            "power_l3_entity": "Puissance L3",
+            "daily_import_energy_entity": "Énergie soutirée du jour",
+            "daily_export_energy_entity": "Énergie injectée du jour"
+          },
+          "data_description": {
+            "kind": "pdl = point de livraison (réseau) ; pv ; consumption ; subcircuit.",
+            "power_entity": "Doit être POSITIF en soutirage, NÉGATIF en injection (ex. Shelly 3EM)."
+          }
+        }
+      },
+      "error": { "invalid_meter": "Configuration compteur invalide — vérifiez le type et l'entité de puissance." }
     }
   },
   "selector": {
+    "meter_kind": {
+      "options": { "pdl": "PDL (réseau)", "pv": "PV", "consumption": "Consommation", "subcircuit": "Sous-circuit" }
+    },
     "chemistry": {
       "options": { "lifepo4": "LiFePO4", "nmc": "NMC", "leadacid": "Plomb", "other": "Autre" }
     },
