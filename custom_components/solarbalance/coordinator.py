@@ -1292,11 +1292,40 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def _make_spot_price_provider(
         self, entity_id: str
     ) -> Callable[[datetime], float | None]:
-        """Build a spot-price provider reading the configured price sensor (€/kWh)."""
+        """Build a spot-price provider reading the configured price sensor (€/kWh).
 
-        def _provider(_dt: datetime) -> float | None:
+        Prefers the hourly ``raw_today`` / ``raw_tomorrow`` attributes (Nordpool /
+        EPEX) so the price is resolved for the *requested* hour — this is what
+        lets the planner arbitrage on a dynamic tariff. Falls back to the sensor's
+        current state value when no hourly data matches.
+        """
+
+        def _hourly(state_attrs: Mapping[str, Any], dt: datetime) -> float | None:
+            for key in ("raw_today", "raw_tomorrow"):
+                raw = state_attrs.get(key)
+                if not isinstance(raw, list):
+                    continue
+                for item in raw:
+                    if not isinstance(item, dict):
+                        continue
+                    start = self._coerce_dt(item.get("start"))
+                    end = self._coerce_dt(item.get("end"))
+                    value = item.get("value")
+                    if start is None or end is None or value is None:
+                        continue
+                    if start <= dt < end:
+                        with contextlib.suppress(ValueError, TypeError):
+                            return float(value)
+            return None
+
+        def _provider(dt: datetime) -> float | None:
             state = self.hass.states.get(entity_id)
-            if state is None or state.state in {"unavailable", "unknown", ""}:
+            if state is None:
+                return None
+            hourly = _hourly(state.attributes, dt)
+            if hourly is not None:
+                return hourly
+            if state.state in {"unavailable", "unknown", ""}:
                 return None
             try:
                 return float(state.state)

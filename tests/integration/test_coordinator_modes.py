@@ -99,3 +99,25 @@ async def test_tariff_misconfig_falls_back_to_flat(hass: HomeAssistant) -> None:
     coord = SolarBalanceCoordinator(hass, entry, [], [], [])
     assert coord.tariff_time_varying is False  # degraded to flat
     assert coord.current_import_price is not None
+
+
+@pytest.mark.asyncio
+async def test_spot_hourly_prices(hass: HomeAssistant) -> None:
+    from custom_components.solarbalance.const import CONF_SPOT_PRICE_ENTITY, CONF_TARIFF_TYPE
+    raw = [
+        {"start": "2026-06-14T10:00:00+00:00", "end": "2026-06-14T11:00:00+00:00", "value": 0.12},
+        {"start": "2026-06-14T11:00:00+00:00", "end": "2026-06-14T12:00:00+00:00", "value": 0.40},
+    ]
+    hass.states.async_set("sensor.spot", "0.30", {"raw_today": raw})
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_TARIFF_TYPE: "spot", CONF_SPOT_PRICE_ENTITY: "sensor.spot"},
+    )
+    entry.add_to_hass(hass)
+    coord = SolarBalanceCoordinator(hass, entry, [], [], [])
+    t10 = datetime(2026, 6, 14, 10, 30, tzinfo=UTC)
+    t11 = datetime(2026, 6, 14, 11, 30, tzinfo=UTC)
+    t13 = datetime(2026, 6, 14, 13, 30, tzinfo=UTC)  # no raw entry → current state
+    assert coord._tariff.current_import_price(t10) == 0.12
+    assert coord._tariff.current_import_price(t11) == 0.40
+    assert coord._tariff.current_import_price(t13) == 0.30
