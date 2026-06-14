@@ -37,6 +37,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.3.3] — 2026-06-14
+
+### Added
+
+- **Capteurs batterie rattachés à leur subentry** — les capteurs par batterie (consigne charge/décharge, SoC, puissance, température, cycles, SoH) sont désormais enregistrés sous le subentry de l'appareil correspondant, donc regroupés sous cet appareil dans l'UI au lieu d'apparaître sous « Devices that don't belong to a sub-entry ». Repli sur l'appareil principal pour les équipements venant du YAML (sans subentry).
+
 ## [1.3.2] — 2026-06-14
 
 ### Added
@@ -116,6 +122,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.3.3]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.2.0...v1.3.0

@@ -230,6 +230,57 @@ def test_meter_prefill_coerces_phases_to_str() -> None:
     assert prefill["phases"] == "3"  # select option is a string
 
 
+async def test_battery_sensors_linked_to_subentry(hass) -> None:
+    """Per-battery sensors must register under their device's UI subentry."""
+    from homeassistant.config_entries import ConfigSubentryData
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.solarbalance.const import (
+        CONF_PHASES,
+        CONF_PRIORITIES,
+        CONF_SUBSCRIBED_POWER_KVA,
+        CONF_TICK_INTERVAL_S,
+        DOMAIN,
+    )
+    from custom_components.solarbalance.core.models import StrategyKind
+
+    battery = ConfigSubentryData(
+        subentry_type="battery",
+        title="stream",
+        unique_id=None,
+        data={
+            "name": "stream",
+            "roles": {"battery": {
+                "capacity_kwh": 3.92, "max_charge_power_w": 1200, "max_discharge_power_w": 2300,
+                "soc_entity": "sensor.stream_soc", "power_entity": "sensor.stream_power",
+            }},
+        },
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_TICK_INTERVAL_S: 10,
+            CONF_PHASES: 1,
+            CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_PRIORITIES: [k.value for k in StrategyKind],
+        },
+        subentries_data=[battery],
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    sub_id = next(iter(entry.subentries))
+    reg = er.async_get(hass)
+    battery_entities = [
+        e for e in reg.entities.values()
+        if e.config_entry_id == entry.entry_id and "_stream_" in e.unique_id
+    ]
+    assert battery_entities, "no per-battery sensors registered"
+    assert all(e.config_subentry_id == sub_id for e in battery_entities)
+
+
 def test_optional_empty_fields_pass_schema_validation() -> None:
     """Re-submitting a prefilled form with blank optional entity/number fields
     must validate (regression: 'Entity is neither a valid entity ID nor a valid

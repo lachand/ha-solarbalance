@@ -53,6 +53,7 @@ async def async_setup_entry(
     """Set up SolarBalance sensors from a config entry."""
     coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
 
+    # Service-level sensors live on the main HEMS device (no subentry).
     entities: list[SensorEntity] = [
         SolarBalanceModeSensor(coordinator, entry),
         SolarBalanceDominantStrategySensor(coordinator, entry),
@@ -71,25 +72,6 @@ async def async_setup_entry(
         SolarBalanceDailySavingsSensor(coordinator, entry),
         SolarBalanceCurrentImportPriceSensor(coordinator, entry),
     ]
-
-    # Per-battery setpoint + state (SoC / power / temperature) sensors
-    for device in coordinator._devices:
-        if device.battery is not None:
-            entities += [
-                SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "charge"),
-                SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "discharge"),
-                SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "soc"),
-                SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "power"),
-            ]
-            if device.battery.temperature_entity is not None:
-                entities.append(
-                    SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "temperature")
-                )
-            if device.battery.cycles_entity is not None:
-                entities += [
-                    SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "cycles"),
-                    SolarBalanceBatterySohSensor(coordinator, entry, device.name),
-                ]
 
     # Regulation diagnostics (help tune the loop; entity-category diagnostic)
     entities += [
@@ -121,6 +103,38 @@ async def async_setup_entry(
         ]
 
     async_add_entities(entities)
+
+    # Per-battery setpoint + state sensors, attached to the device's UI subentry
+    # so they group under that device (instead of "no sub-entry"). Falls back to
+    # the main device when the equipment came from YAML (no subentry).
+    sub_by_name = {
+        sub.data["name"]: sub_id
+        for sub_id, sub in entry.subentries.items()
+        if sub.data.get("name")
+    }
+    for device in coordinator._devices:
+        if device.battery is None:
+            continue
+        dev_entities: list[SensorEntity] = [
+            SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "charge"),
+            SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "discharge"),
+            SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "soc"),
+            SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "power"),
+        ]
+        if device.battery.temperature_entity is not None:
+            dev_entities.append(
+                SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "temperature")
+            )
+        if device.battery.cycles_entity is not None:
+            dev_entities += [
+                SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "cycles"),
+                SolarBalanceBatterySohSensor(coordinator, entry, device.name),
+            ]
+        sub_id = sub_by_name.get(device.name)
+        if sub_id is not None:
+            async_add_entities(dev_entities, config_subentry_id=sub_id)
+        else:
+            async_add_entities(dev_entities)
 
 
 # ---------------------------------------------------------------------------
