@@ -132,11 +132,54 @@
         }
       },
       "error": { "invalid_device": "Invalid battery configuration — check the entities (domain required, e.g. number.x) and setpoints." }
+    },
+    "load": {
+      "initiate_flow": { "user": "Add a load" },
+      "entry_type": "Load",
+      "step": {
+        "user": {
+          "title": "Controllable load",
+          "description": "Declare a load (water heater, EV…). Fields depend on the control type.",
+          "data": {
+            "name": "Name",
+            "control_type": "Control type",
+            "priority": "Priority (1 = highest)",
+            "interruptible": "Interruptible (sheddable)",
+            "switch_entity": "On/off switch",
+            "actual_power_entity": "Measured power entity",
+            "nominal_power_w": "Nominal power (W) — on/off",
+            "level_entity": "Level entity — stepped (e.g. amperage)",
+            "steps": "Steps — stepped (e.g. 6:1380, 8:1840, 10:2300)",
+            "power_set_entity": "Power setpoint entity — modulating",
+            "min_power_w": "Min power (W) — modulating",
+            "max_power_w": "Max power (W) — modulating",
+            "min_on_duration_s": "Min on duration (s)",
+            "min_off_duration_s": "Min off duration (s)",
+            "fast_charge": "Assisted fast charge (EV)",
+            "min_charge_w": "Fast charge: efficient floor (W)",
+            "assist_floor_soc_pct": "Fast charge: min battery SoC to assist (%)",
+            "pause_when_inefficient": "Fast charge: pause rather than slow-charge",
+            "deadline_kwh": "Deadline: required energy (kWh)",
+            "deadline_before": "Deadline: before time (HH:MM)"
+          },
+          "data_description": {
+            "control_type": "on_off (switch), stepped (levels, e.g. EV by amperage), modulating (continuous power).",
+            "steps": "For stepped: comma-separated 'level:watts'. The level is written to the level entity (e.g. the amperage).",
+            "switch_entity": "Actually stops charging (useful when setting amperage to 0 does not).",
+            "fast_charge": "Prefer an efficient fast charge + battery assist (when recoverable) over a lossy slow charge.",
+            "deadline_before": "Target time (e.g. 07:00). With the required energy, forces a grid charge if solar is insufficient."
+          }
+        }
+      },
+      "error": { "invalid_load": "Invalid configuration — check the type, the entities (domain required) and the steps format (level:watts)." }
     }
   },
   "selector": {
     "chemistry": {
       "options": { "lifepo4": "LiFePO4", "nmc": "NMC", "leadacid": "Lead-acid", "other": "Other" }
+    },
+    "load_control_type": {
+      "options": { "on_off": "On/off", "stepped": "Stepped", "modulating": "Modulating" }
     },
     "power_sign_convention": {
       "options": {

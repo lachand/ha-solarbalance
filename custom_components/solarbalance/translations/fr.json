@@ -132,11 +132,54 @@
         }
       },
       "error": { "invalid_device": "Configuration de batterie invalide — vérifiez les entités (domaine requis, ex. number.x) et les consignes." }
+    },
+    "load": {
+      "initiate_flow": { "user": "Ajouter un consommateur" },
+      "entry_type": "Consommateur",
+      "step": {
+        "user": {
+          "title": "Consommateur pilotable",
+          "description": "Déclarez un consommateur (chauffe-eau, voiture…). Les champs dépendent du type de contrôle.",
+          "data": {
+            "name": "Nom",
+            "control_type": "Type de contrôle",
+            "priority": "Priorité (1 = max)",
+            "interruptible": "Interruptible (délestable)",
+            "switch_entity": "Interrupteur on/off",
+            "actual_power_entity": "Entité puissance mesurée",
+            "nominal_power_w": "Puissance nominale (W) — on/off",
+            "level_entity": "Entité de niveau — stepped (ex. ampérage)",
+            "steps": "Paliers — stepped (ex. 6:1380, 8:1840, 10:2300)",
+            "power_set_entity": "Entité consigne puissance — modulating",
+            "min_power_w": "Puissance min (W) — modulating",
+            "max_power_w": "Puissance max (W) — modulating",
+            "min_on_duration_s": "Durée min d'allumage (s)",
+            "min_off_duration_s": "Durée min d'extinction (s)",
+            "fast_charge": "Charge rapide assistée (EV)",
+            "min_charge_w": "Charge rapide : seuil efficace (W)",
+            "assist_floor_soc_pct": "Charge rapide : SoC batterie mini pour assister (%)",
+            "pause_when_inefficient": "Charge rapide : pause plutôt que charge lente",
+            "deadline_kwh": "Échéance : énergie requise (kWh)",
+            "deadline_before": "Échéance : avant l'heure (HH:MM)"
+          },
+          "data_description": {
+            "control_type": "on_off (switch), stepped (paliers, ex. voiture par ampérage), modulating (puissance continue).",
+            "steps": "Pour stepped : liste 'niveau:watts' séparée par des virgules. Le niveau est écrit dans l'entité de niveau (ex. l'ampérage).",
+            "switch_entity": "Coupe réellement la charge (utile si mettre l'ampérage à 0 ne l'arrête pas).",
+            "fast_charge": "Privilégie une charge rapide efficace + assistance batterie (si récupérable), plutôt qu'une charge lente.",
+            "deadline_before": "Heure cible (ex. 07:00). Avec l'énergie requise, force une charge réseau si le solaire ne suffit pas."
+          }
+        }
+      },
+      "error": { "invalid_load": "Configuration invalide — vérifiez le type, les entités (domaine requis) et le format des paliers (niveau:watts)." }
     }
   },
   "selector": {
     "chemistry": {
       "options": { "lifepo4": "LiFePO4", "nmc": "NMC", "leadacid": "Plomb", "other": "Autre" }
+    },
+    "load_control_type": {
+      "options": { "on_off": "Tout ou rien", "stepped": "Par paliers", "modulating": "Modulant" }
     },
     "power_sign_convention": {
       "options": {

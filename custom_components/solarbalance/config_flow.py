@@ -313,7 +313,10 @@ class SolarBalanceConfigFlow(ConfigFlow, domain=DOMAIN):
         cls, config_entry: Any
     ) -> dict[str, type[ConfigSubentryFlow]]:
         """Device/equipment types addable from the UI via 'Add'."""
-        return {"battery": BatterySubentryFlowHandler}
+        return {
+            "battery": BatterySubentryFlowHandler,
+            "load": LoadSubentryFlowHandler,
+        }
 
 
 class SolarBalanceOptionsFlow(OptionsFlow):
@@ -472,4 +475,139 @@ class BatterySubentryFlowHandler(ConfigSubentryFlow):
                 return self.async_create_entry(title=str(user_input["name"]), data=device)
         return self.async_show_form(
             step_id="user", data_schema=_battery_subentry_schema(user_input or {}), errors=errors
+        )
+
+
+def _parse_steps(text: str) -> list[dict[str, int]]:
+    """Parse a 'level:power, level:power' string into stepped-load steps."""
+    steps: list[dict[str, int]] = []
+    for part in text.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        level_s, sep, power_s = part.partition(":")
+        if not sep:
+            raise ValueError(f"step {part!r} must be 'level:power_w'")
+        steps.append({"level": int(level_s.strip()), "power_w": int(power_s.strip())})
+    return steps
+
+
+_LOAD_FLAT_KEYS = (
+    "name", "control_type", "priority", "interruptible", "switch_entity",
+    "actual_power_entity", "nominal_power_w", "level_entity", "power_set_entity",
+    "min_power_w", "max_power_w", "fast_charge", "min_charge_w", "assist_floor_soc_pct",
+    "pause_when_inefficient", "min_on_duration_s", "min_off_duration_s",
+)
+
+
+def _load_subentry_schema(d: dict[str, Any]) -> vol.Schema:
+    from .core.models import LoadControlType
+
+    steps_default = ", ".join(
+        f"{s['level']}:{s['power_w']}" for s in d.get("steps", [])
+    ) if d.get("steps") else d.get("steps_text", "")
+    dl = d.get("deadline_constraint") or {}
+    return vol.Schema(
+        {
+            vol.Required("name", default=d.get("name", "")): selector.TextSelector(),
+            vol.Required(
+                "control_type", default=d.get("control_type", LoadControlType.ON_OFF.value)
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[c.value for c in LoadControlType], translation_key="load_control_type"
+                )
+            ),
+            vol.Optional("priority", default=d.get("priority", 5)): _num(1, 99, 1),
+            vol.Optional(
+                "interruptible", default=d.get("interruptible", True)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                "switch_entity", default=d.get("switch_entity", "")
+            ): _entity("switch", "input_boolean"),
+            vol.Optional(
+                "actual_power_entity", default=d.get("actual_power_entity", "")
+            ): _entity("sensor"),
+            vol.Optional(
+                "nominal_power_w", default=d.get("nominal_power_w", "")
+            ): _num(0, step=50, unit="W"),
+            vol.Optional(
+                "level_entity", default=d.get("level_entity", "")
+            ): _entity("number", "input_number", "select", "input_select"),
+            vol.Optional("steps", default=steps_default): selector.TextSelector(),
+            vol.Optional(
+                "power_set_entity", default=d.get("power_set_entity", "")
+            ): _entity("number", "input_number"),
+            vol.Optional("min_power_w", default=d.get("min_power_w", "")): _num(
+                0, step=50, unit="W"
+            ),
+            vol.Optional("max_power_w", default=d.get("max_power_w", "")): _num(
+                0, step=50, unit="W"
+            ),
+            vol.Optional("min_on_duration_s", default=d.get("min_on_duration_s", 0)): _num(
+                0, step=30, unit="s"
+            ),
+            vol.Optional("min_off_duration_s", default=d.get("min_off_duration_s", 0)): _num(
+                0, step=30, unit="s"
+            ),
+            vol.Optional(
+                "fast_charge", default=d.get("fast_charge", False)
+            ): selector.BooleanSelector(),
+            vol.Optional("min_charge_w", default=d.get("min_charge_w", "")): _num(
+                0, step=50, unit="W"
+            ),
+            vol.Optional(
+                "assist_floor_soc_pct", default=d.get("assist_floor_soc_pct", "")
+            ): _num(0, 100, 1, "%"),
+            vol.Optional(
+                "pause_when_inefficient", default=d.get("pause_when_inefficient", True)
+            ): selector.BooleanSelector(),
+            vol.Optional("deadline_kwh", default=dl.get("kwh_required", "")): _num(
+                0, step=0.5, unit="kWh"
+            ),
+            vol.Optional(
+                "deadline_before", default=dl.get("before_time", "")
+            ): selector.TextSelector(),
+        }
+    )
+
+
+def _load_input_to_dict(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Assemble UI input into a load dict (shape consumed by _build_load)."""
+    load: dict[str, Any] = {}
+    for key in _LOAD_FLAT_KEYS:
+        val = user_input.get(key)
+        if val in (None, ""):
+            continue
+        load[key] = val
+    steps_text = (user_input.get("steps") or "").strip()
+    if steps_text:
+        load["steps"] = _parse_steps(steps_text)
+    req = user_input.get("deadline_kwh")
+    before = (user_input.get("deadline_before") or "").strip()
+    if req not in (None, "") and before:
+        load["deadline_constraint"] = {"kwh_required": req, "before_time": before}
+    return load
+
+
+class LoadSubentryFlowHandler(ConfigSubentryFlow):
+    """Add or reconfigure a controllable load from the UI."""
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Collect the load fields, validate, and create the subentry."""
+        from .yaml_loader import build_load_from_dict
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                load = _load_input_to_dict(user_input)
+                build_load_from_dict(load)
+            except (vol.Invalid, ValueError, KeyError) as exc:
+                _LOGGER.warning("Invalid load subentry: %s", exc)
+                errors["base"] = "invalid_load"
+            else:
+                return self.async_create_entry(title=str(user_input["name"]), data=load)
+        return self.async_show_form(
+            step_id="user", data_schema=_load_subentry_schema(user_input or {}), errors=errors
         )

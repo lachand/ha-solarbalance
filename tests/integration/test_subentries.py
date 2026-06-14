@@ -62,3 +62,56 @@ def test_build_from_subentries_skips_invalid() -> None:
     entry = _entry_with_subentries(_sub("battery", bad))
     devices, _meters, _loads = _build_from_subentries(entry)
     assert devices == []  # invalid subentry skipped, no crash
+
+
+def test_load_input_parses_steps_and_deadline() -> None:
+    from custom_components.solarbalance.config_flow import _load_input_to_dict
+    from custom_components.solarbalance.yaml_loader import build_load_from_dict
+
+    ui = {
+        "name": "voiture",
+        "control_type": "stepped",
+        "priority": 5,
+        "interruptible": True,
+        "switch_entity": "switch.borne",
+        "level_entity": "number.borne_amperage",
+        "steps": "6:1380, 8:1840, 10:2300",
+        "fast_charge": True,
+        "min_charge_w": 2300,
+        "assist_floor_soc_pct": 50,
+        "deadline_kwh": 10,
+        "deadline_before": "07:00",
+    }
+    load = _load_input_to_dict(ui)
+    assert load["steps"] == [
+        {"level": 6, "power_w": 1380},
+        {"level": 8, "power_w": 1840},
+        {"level": 10, "power_w": 2300},
+    ]
+    assert load["deadline_constraint"] == {"kwh_required": 10, "before_time": "07:00"}
+    built = build_load_from_dict(load)
+    assert built.fast_charge is True
+    assert built.deadline_constraint is not None
+
+
+def test_load_subentry_builds_via_assembler() -> None:
+    data = {
+        "name": "wh",
+        "control_type": "on_off",
+        "priority": 3,
+        "nominal_power_w": 2000,
+        "switch_entity": "switch.wh",
+    }
+    entry = _entry_with_subentries(_sub("load", data, "wh"))
+    devices, meters, loads = _build_from_subentries(entry)
+    assert len(loads) == 1 and loads[0].name == "wh"
+    assert not devices and not meters
+
+
+def test_bad_steps_raise() -> None:
+    import pytest
+
+    from custom_components.solarbalance.config_flow import _parse_steps
+
+    with pytest.raises(ValueError):
+        _parse_steps("6-1380")  # missing ':'
