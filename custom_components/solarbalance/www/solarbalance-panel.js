@@ -61,7 +61,14 @@ class SolarBalancePanel extends HTMLElement {
   }
 
   _onClick(ev) {
-    const btn = ev.composedPath().find((n) => n.dataset && n.dataset.h);
+    const path = ev.composedPath();
+    // Per-load "do not shed" toggle.
+    const toggle = path.find((n) => n.dataset && n.dataset.toggle);
+    if (toggle && this._hass) {
+      this._hass.callService("switch", "toggle", { entity_id: toggle.dataset.toggle });
+      return;
+    }
+    const btn = path.find((n) => n.dataset && n.dataset.h);
     if (!btn) return;
     const raw = btn.dataset.h;
     const w = raw === "day" ? "day" : Number(raw);
@@ -202,6 +209,42 @@ class SolarBalancePanel extends HTMLElement {
       dev[metric] = eid;
     }
     return out;
+  }
+
+  /** Per-load "do not shed" override switches, one per interruptible load. */
+  _shedSwitches() {
+    const out = [];
+    const h = this._hass;
+    if (!h || !h.entities) return out;
+    for (const eid in h.entities) {
+      const e = h.entities[eid];
+      if (!e || e.platform !== "solarbalance" || e.translation_key !== "shed_exempt") continue;
+      const s = this._stateObj(eid);
+      out.push({
+        eid,
+        name: e.device_id ? this._deviceName(e.device_id) : eid,
+        on: !!(s && s.state === "on"),
+      });
+    }
+    return out.sort((a, b) => (a.name > b.name ? 1 : -1));
+  }
+
+  _loadsCard() {
+    const sw = this._shedSwitches();
+    if (!sw.length) return "";
+    const rows = sw
+      .map(
+        (s) => `
+        <div class="load-toggle">
+          <span>${s.name}</span>
+          <button class="toggle ${s.on ? "on" : ""}" data-toggle="${s.eid}"
+                  title="Exempter ce consommateur du délestage et de la pause charge rapide">
+            ${s.on ? "🔓 Ne pas délester" : "🔌 Délestable"}
+          </button>
+        </div>`
+      )
+      .join("");
+    return `<div class="card"><h3>Consommateurs</h3>${rows}</div>`;
   }
 
   // ---- History (WebSocket) ------------------------------------------------
@@ -843,6 +886,8 @@ class SolarBalancePanel extends HTMLElement {
 
           ${this._loadGauge()}
 
+          ${this._loadsCard()}
+
           <div class="card">
             <h3>Régulation</h3>
             ${this._row("Réseau (filtré)", this._fmt(E.gridFiltered, 0, "W"))}
@@ -970,6 +1015,16 @@ class SolarBalancePanel extends HTMLElement {
         .load-body { display:flex; align-items:center; gap:14px; }
         .load-v { font-size:1.1rem; font-weight:600; }
         .load-l { font-size:.72rem; color:var(--secondary-text-color); }
+
+        /* Per-load shed-exempt toggles */
+        .load-toggle { display:flex; align-items:center; justify-content:space-between;
+                gap:10px; padding:6px 0; border-bottom:1px solid var(--divider-color,#eee);
+                font-size:.9rem; }
+        .load-toggle:last-child { border-bottom:none; }
+        .toggle { border:none; border-radius:14px; padding:5px 12px; cursor:pointer;
+                font-size:.8rem; background:var(--secondary-background-color);
+                color:var(--secondary-text-color); white-space:nowrap; }
+        .toggle.on { background:var(--warning-color,#f5a623); color:#1b1b1b; font-weight:600; }
 
         /* Per-device */
         .dev-body { display:flex; align-items:center; gap:12px; }

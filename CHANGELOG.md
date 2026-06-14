@@ -37,6 +37,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.3.5] — 2026-06-14
+
+### Added
+
+- **Toggles « Ne pas délester » dans le panneau** — une carte « Consommateurs » liste chaque consommateur interruptible avec un bouton bascule pour activer/couper l'exemption de délestage directement depuis le panneau (appelle le service `switch.toggle` sur l'entité correspondante).
+
 ## [1.3.4] — 2026-06-14
 
 ### Added
@@ -128,6 +134,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.3.5]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.1...v1.3.2
