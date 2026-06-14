@@ -179,3 +179,16 @@ class TestBuildTariff:
         assert t.is_off_peak(_dt(3)) is True  # 03:00 in HC (22:00-06:00)
         assert t.is_off_peak(_dt(23)) is True  # 23:00 in HC
         assert t.is_off_peak(_dt(12)) is False  # midday is HP
+
+    def test_spot_requires_price_provider(self) -> None:
+        with pytest.raises(ValueError, match="spot_price_provider"):
+            build_tariff({"type": "spot"})
+
+    def test_spot_applies_markup(self) -> None:
+        t = build_tariff(
+            {"type": "spot", "markup": 0.05, "export_price": 0.10},
+            spot_price_provider=lambda _dt: 0.20,
+        )
+        assert t.current_import_price(_dt(12)) == pytest.approx(0.25)  # 0.20 + markup
+        assert t.current_export_price(_dt(12)) == pytest.approx(0.10)
+        assert t.is_expensive_window(_dt(12), threshold=0.20) is True

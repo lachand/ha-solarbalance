@@ -226,10 +226,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             spec.setdefault("export_price", flat_export)
             spec.setdefault("import_price", flat_import)
             color_entity = spec.get("color_entity")
+            price_entity = spec.get("price_entity")
             self._tariff = build_tariff(
                 spec,
                 color_provider=self._make_tempo_color_provider(color_entity)
                 if color_entity
+                else None,
+                spot_price_provider=self._make_spot_price_provider(price_entity)
+                if price_entity
                 else None,
             )
         else:
@@ -1198,6 +1202,22 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         def _provider(_dt: datetime) -> TempoColor:
             state = self.hass.states.get(entity_id)
             return parse_tempo_color(state.state if state else None)
+
+        return _provider
+
+    def _make_spot_price_provider(
+        self, entity_id: str
+    ) -> Callable[[datetime], float | None]:
+        """Build a spot-price provider reading the configured price sensor (€/kWh)."""
+
+        def _provider(_dt: datetime) -> float | None:
+            state = self.hass.states.get(entity_id)
+            if state is None or state.state in {"unavailable", "unknown", ""}:
+                return None
+            try:
+                return float(state.state)
+            except (ValueError, TypeError):
+                return None
 
         return _provider
 

@@ -214,13 +214,18 @@ _TEMPO_PRICE_SCHEMA = vol.Schema(
 
 _TARIFF_SCHEMA = vol.Schema(
     {
-        vol.Optional("type", default="flat"): vol.In(["flat", "hc_hp", "tempo"]),
+        vol.Optional("type", default="flat"): vol.In(["flat", "hc_hp", "tempo", "spot"]),
         vol.Optional("export_price"): vol.Coerce(float),
         vol.Optional("import_price"): vol.Coerce(float),  # flat
         vol.Optional("slots", default=[]): [_TARIFF_SLOT_SCHEMA],  # hc_hp
         vol.Optional("color_entity"): _ENTITY,  # tempo (today's colour)
         vol.Optional("color_tomorrow_entity"): _ENTITY,  # tempo (tomorrow, for red-day prep)
         vol.Optional("prices"): {vol.In(["blue", "white", "red"]): _TEMPO_PRICE_SCHEMA},  # tempo
+        # spot (EPEX / Nordpool): a sensor giving the current price + a markup.
+        vol.Optional("price_entity"): _ENTITY,
+        vol.Optional("markup"): vol.Coerce(float),
+        vol.Optional("price_cap"): vol.Coerce(float),
+        vol.Optional("price_floor"): vol.Coerce(float),
     }
 )
 

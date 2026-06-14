@@ -388,14 +388,27 @@ def build_tariff(
     spec: Mapping[str, object],
     *,
     color_provider: Callable[[datetime], TempoColor] | None = None,
+    spot_price_provider: Callable[[datetime], float | None] | None = None,
 ) -> Tariff:
     """Build a tariff resolver from a validated ``tariff:`` block.
 
-    ``type`` is one of ``flat`` | ``hc_hp`` | ``tempo``. For ``tempo`` a
-    ``color_provider`` (reading the configured colour entity) must be supplied.
+    ``type`` is one of ``flat`` | ``hc_hp`` | ``tempo`` | ``spot``. ``tempo``
+    needs a ``color_provider`` and ``spot`` a ``spot_price_provider`` (both read
+    the configured HA entities).
     """
     kind = str(spec.get("type", "flat"))
     export_price = float(spec.get("export_price", 0.0) or 0.0)
+
+    if kind == "spot":
+        if spot_price_provider is None:
+            raise ValueError("spot tariff requires a spot_price_provider")
+        return EpexSpotTariff(
+            spot_price_provider,
+            markup=float(spec.get("markup", 0.0) or 0.0),
+            export_price=export_price,
+            price_cap=spec.get("price_cap"),  # type: ignore[arg-type]
+            price_floor=spec.get("price_floor"),  # type: ignore[arg-type]
+        )
 
     if kind == "hc_hp":
         slots = spec.get("slots") or []
