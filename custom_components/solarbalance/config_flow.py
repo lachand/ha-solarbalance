@@ -457,28 +457,98 @@ def _battery_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
     return {"name": user_input["name"], "roles": {"battery": battery}}
 
 
-class BatterySubentryFlowHandler(ConfigSubentryFlow):
-    """Add or reconfigure a battery device from the UI."""
+def _battery_flat(data: dict[str, Any]) -> dict[str, Any]:
+    """Flatten a stored battery device dict back to the form's flat field shape."""
+    flat = {k: v for k, v in data.items() if k != "roles"}
+    flat.update(data.get("roles", {}).get("battery", {}))
+    return flat
+
+
+class _EquipmentSubentryFlow(ConfigSubentryFlow):
+    """Shared add + reconfigure flow for an equipment subentry.
+
+    Subclasses define how UI input maps to the stored dict (``_to_data``), how
+    to validate it (``_build``), the form schema (``_schema``), and how a stored
+    dict is flattened back to form defaults (``_prefill``). Both ``user`` (add)
+    and ``reconfigure`` (edit) steps reuse the same validation; reconfigure
+    updates the existing subentry in place instead of creating a new one.
+    """
+
+    _error_key = "invalid_device"
+
+    def _to_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    def _build(self, data: dict[str, Any]) -> None:
+        raise NotImplementedError
+
+    def _schema(self, defaults: dict[str, Any]) -> vol.Schema:
+        raise NotImplementedError
+
+    def _prefill(self, data: dict[str, Any]) -> dict[str, Any]:
+        return dict(data)
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """Collect the battery fields, validate, and create the subentry."""
+        return await self._show("user", user_input)
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        return await self._show("reconfigure", user_input)
+
+    async def _show(
+        self, step_id: str, user_input: dict[str, Any] | None
+    ) -> SubentryFlowResult:
+        errors: dict[str, str] = {}
+        defaults: dict[str, Any] = user_input or {}
+        if user_input is not None:
+            try:
+                data = self._to_data(user_input)
+                self._build(data)
+            except (vol.Invalid, ValueError, KeyError) as exc:
+                _LOGGER.warning("Invalid %s subentry: %s", self._subentry_type, exc)
+                errors["base"] = self._error_key
+            else:
+                title = str(user_input["name"])
+                if step_id == "reconfigure":
+                    return self.async_update_and_abort(
+                        self._get_entry(),
+                        self._get_reconfigure_subentry(),
+                        title=title,
+                        data=data,
+                    )
+                return self.async_create_entry(title=title, data=data)
+        elif step_id == "reconfigure":
+            defaults = self._prefill(self._get_reconfigure_subentry().data)
+        return self.async_show_form(
+            step_id=step_id, data_schema=self._schema(defaults), errors=errors
+        )
+
+
+class _DeviceSubentryFlow(_EquipmentSubentryFlow):
+    """Equipment flow whose stored dict is a device (battery / mppt / both)."""
+
+    _error_key = "invalid_device"
+
+    def _build(self, data: dict[str, Any]) -> None:
         from .yaml_loader import build_device_from_dict
 
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            device = _battery_input_to_device(user_input)
-            try:
-                build_device_from_dict(device)
-            except (vol.Invalid, ValueError, KeyError) as exc:
-                _LOGGER.warning("Invalid battery subentry: %s", exc)
-                errors["base"] = "invalid_device"
-            else:
-                return self.async_create_entry(title=str(user_input["name"]), data=device)
-        return self.async_show_form(
-            step_id="user", data_schema=_battery_subentry_schema(user_input or {}), errors=errors
-        )
+        build_device_from_dict(data)
+
+
+class BatterySubentryFlowHandler(_DeviceSubentryFlow):
+    """Add or reconfigure a battery device from the UI."""
+
+    def _to_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
+        return _battery_input_to_device(user_input)
+
+    def _schema(self, defaults: dict[str, Any]) -> vol.Schema:
+        return _battery_subentry_schema(defaults)
+
+    def _prefill(self, data: dict[str, Any]) -> dict[str, Any]:
+        return _battery_flat(data)
 
 
 def _parse_steps(text: str) -> list[dict[str, int]]:
@@ -592,28 +662,21 @@ def _load_input_to_dict(user_input: dict[str, Any]) -> dict[str, Any]:
     return load
 
 
-class LoadSubentryFlowHandler(ConfigSubentryFlow):
+class LoadSubentryFlowHandler(_EquipmentSubentryFlow):
     """Add or reconfigure a controllable load from the UI."""
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        """Collect the load fields, validate, and create the subentry."""
+    _error_key = "invalid_load"
+
+    def _to_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
+        return _load_input_to_dict(user_input)
+
+    def _build(self, data: dict[str, Any]) -> None:
         from .yaml_loader import build_load_from_dict
 
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            try:
-                load = _load_input_to_dict(user_input)
-                build_load_from_dict(load)
-            except (vol.Invalid, ValueError, KeyError) as exc:
-                _LOGGER.warning("Invalid load subentry: %s", exc)
-                errors["base"] = "invalid_load"
-            else:
-                return self.async_create_entry(title=str(user_input["name"]), data=load)
-        return self.async_show_form(
-            step_id="user", data_schema=_load_subentry_schema(user_input or {}), errors=errors
-        )
+        build_load_from_dict(data)
+
+    def _schema(self, defaults: dict[str, Any]) -> vol.Schema:
+        return _load_subentry_schema(defaults)
 
 
 def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
@@ -655,27 +718,14 @@ def _mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
     return {"name": user_input["name"], "roles": {"mppt": mppt}}
 
 
-class MpptSubentryFlowHandler(ConfigSubentryFlow):
+class MpptSubentryFlowHandler(_DeviceSubentryFlow):
     """Add or reconfigure a PV inverter / MPPT from the UI."""
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        from .yaml_loader import build_device_from_dict
+    def _to_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
+        return _mppt_input_to_device(user_input)
 
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            device = _mppt_input_to_device(user_input)
-            try:
-                build_device_from_dict(device)
-            except (vol.Invalid, ValueError, KeyError) as exc:
-                _LOGGER.warning("Invalid mppt subentry: %s", exc)
-                errors["base"] = "invalid_device"
-            else:
-                return self.async_create_entry(title=str(user_input["name"]), data=device)
-        return self.async_show_form(
-            step_id="user", data_schema=_mppt_subentry_schema(user_input or {}), errors=errors
-        )
+    def _schema(self, defaults: dict[str, Any]) -> vol.Schema:
+        return _mppt_subentry_schema(defaults)
 
 
 def _meter_subentry_schema(d: dict[str, Any]) -> vol.Schema:
@@ -736,27 +786,28 @@ def _meter_input_to_dict(user_input: dict[str, Any]) -> dict[str, Any]:
     return meter
 
 
-class MeterSubentryFlowHandler(ConfigSubentryFlow):
+class MeterSubentryFlowHandler(_EquipmentSubentryFlow):
     """Add or reconfigure a power meter (PDL/PV/consumption) from the UI."""
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
+    _error_key = "invalid_meter"
+
+    def _to_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
+        return _meter_input_to_dict(user_input)
+
+    def _build(self, data: dict[str, Any]) -> None:
         from .yaml_loader import build_meter_from_dict
 
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            try:
-                meter = _meter_input_to_dict(user_input)
-                build_meter_from_dict(meter)
-            except (vol.Invalid, ValueError, KeyError) as exc:
-                _LOGGER.warning("Invalid meter subentry: %s", exc)
-                errors["base"] = "invalid_meter"
-            else:
-                return self.async_create_entry(title=str(user_input["name"]), data=meter)
-        return self.async_show_form(
-            step_id="user", data_schema=_meter_subentry_schema(user_input or {}), errors=errors
-        )
+        build_meter_from_dict(data)
+
+    def _schema(self, defaults: dict[str, Any]) -> vol.Schema:
+        return _meter_subentry_schema(defaults)
+
+    def _prefill(self, data: dict[str, Any]) -> dict[str, Any]:
+        # ``phases`` is stored as int but the select options are strings.
+        prefill = dict(data)
+        if "phases" in prefill:
+            prefill["phases"] = str(prefill["phases"])
+        return prefill
 
 
 def _battery_mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
@@ -805,26 +856,18 @@ def _battery_mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
     return device
 
 
-class BatteryMpptSubentryFlowHandler(ConfigSubentryFlow):
-    """Add a device that is both a battery and a PV inverter (single form)."""
+class BatteryMpptSubentryFlowHandler(_DeviceSubentryFlow):
+    """Add or reconfigure a device that is both a battery and a PV inverter."""
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
-        from .yaml_loader import build_device_from_dict
+    def _to_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
+        return _battery_mppt_input_to_device(user_input)
 
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            device = _battery_mppt_input_to_device(user_input)
-            try:
-                build_device_from_dict(device)
-            except (vol.Invalid, ValueError, KeyError) as exc:
-                _LOGGER.warning("Invalid battery+mppt subentry: %s", exc)
-                errors["base"] = "invalid_device"
-            else:
-                return self.async_create_entry(title=str(user_input["name"]), data=device)
-        return self.async_show_form(
-            step_id="user",
-            data_schema=_battery_mppt_subentry_schema(user_input or {}),
-            errors=errors,
-        )
+    def _schema(self, defaults: dict[str, Any]) -> vol.Schema:
+        return _battery_mppt_subentry_schema(defaults)
+
+    def _prefill(self, data: dict[str, Any]) -> dict[str, Any]:
+        # Flatten the battery role to top-level fields, keep roles.mppt for the
+        # prefixed MPPT fields the schema reads from ``roles.mppt``.
+        prefill = _battery_flat(data)
+        prefill["roles"] = {"mppt": data.get("roles", {}).get("mppt", {})}
+        return prefill

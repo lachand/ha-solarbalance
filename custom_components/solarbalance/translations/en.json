@@ -92,7 +92,9 @@
   },
   "config_subentries": {
     "battery": {
-      "initiate_flow": { "user": "Add a battery" },
+      "initiate_flow": {
+        "user": "Add a battery"
+      },
       "entry_type": "Battery",
       "step": {
         "user": {
@@ -129,12 +131,51 @@
             "reserve_soc_setpoint_entity": "number/% the device obeys as its min SoC; raised to the target in storm mode. E.g. number.ef_60605_backup_reserve",
             "ac_charge_limit_w": "Max power absorbed from AC (SoC equaliser)."
           }
+        },
+        "reconfigure": {
+          "title": "Battery",
+          "description": "Declare a battery. Setpoint fields are only needed if you enable active control.",
+          "data": {
+            "name": "Name",
+            "capacity_kwh": "Capacity (kWh)",
+            "max_charge_power_w": "Max charge power (W)",
+            "max_discharge_power_w": "Max discharge power (W)",
+            "soc_entity": "SoC entity (%)",
+            "power_entity": "Power entity (W)",
+            "temperature_entity": "Temperature entity",
+            "cycles_entity": "Cycles entity",
+            "soc_min_pct": "Minimum SoC (%)",
+            "soc_max_pct": "Maximum SoC (%)",
+            "usable_capacity_kwh": "Usable capacity (kWh)",
+            "chemistry": "Chemistry",
+            "power_sign_convention": "Power sign convention",
+            "controllable": "Controllable",
+            "active_control_enabled": "Active control (write setpoints)",
+            "charge_power_setpoint_entity": "Charge setpoint (number)",
+            "discharge_power_setpoint_entity": "Discharge setpoint (number)",
+            "mode_setpoint_entity": "Mode setpoint (select)",
+            "reserve_soc_setpoint_entity": "Device reserve / min-SoC (number %)",
+            "ac_charge_limit_w": "AC charge limit (W)"
+          },
+          "data_description": {
+            "capacity_kwh": "Nominal capacity. E.g. 3.92",
+            "soc_entity": "State-of-charge sensor in %. E.g. sensor.ef_60605_battery_level",
+            "power_entity": "Signed power sensor. Must be POSITIVE while charging (else flip the convention).",
+            "power_sign_convention": "charge_positive = positive while charging. Otherwise discharge_positive.",
+            "active_control_enabled": "If on, SolarBalance writes setpoints (requires a controllable battery and the setpoint entities).",
+            "reserve_soc_setpoint_entity": "number/% the device obeys as its min SoC; raised to the target in storm mode. E.g. number.ef_60605_backup_reserve",
+            "ac_charge_limit_w": "Max power absorbed from AC (SoC equaliser)."
+          }
         }
       },
-      "error": { "invalid_device": "Invalid battery configuration — check the entities (domain required, e.g. number.x) and setpoints." }
+      "error": {
+        "invalid_device": "Invalid battery configuration — check the entities (domain required, e.g. number.x) and setpoints."
+      }
     },
     "load": {
-      "initiate_flow": { "user": "Add a load" },
+      "initiate_flow": {
+        "user": "Add a load"
+      },
       "entry_type": "Load",
       "step": {
         "user": {
@@ -169,12 +210,49 @@
             "fast_charge": "Prefer an efficient fast charge + battery assist (when recoverable) over a lossy slow charge.",
             "deadline_before": "Target time (e.g. 07:00). With the required energy, forces a grid charge if solar is insufficient."
           }
+        },
+        "reconfigure": {
+          "title": "Controllable load",
+          "description": "Declare a load (water heater, EV…). Fields depend on the control type.",
+          "data": {
+            "name": "Name",
+            "control_type": "Control type",
+            "priority": "Priority (1 = highest)",
+            "interruptible": "Interruptible (sheddable)",
+            "switch_entity": "On/off switch",
+            "actual_power_entity": "Measured power entity",
+            "nominal_power_w": "Nominal power (W) — on/off",
+            "level_entity": "Level entity — stepped (e.g. amperage)",
+            "steps": "Steps — stepped (e.g. 6:1380, 8:1840, 10:2300)",
+            "power_set_entity": "Power setpoint entity — modulating",
+            "min_power_w": "Min power (W) — modulating",
+            "max_power_w": "Max power (W) — modulating",
+            "min_on_duration_s": "Min on duration (s)",
+            "min_off_duration_s": "Min off duration (s)",
+            "fast_charge": "Assisted fast charge (EV)",
+            "min_charge_w": "Fast charge: efficient floor (W)",
+            "assist_floor_soc_pct": "Fast charge: min battery SoC to assist (%)",
+            "pause_when_inefficient": "Fast charge: pause rather than slow-charge",
+            "deadline_kwh": "Deadline: required energy (kWh)",
+            "deadline_before": "Deadline: before time (HH:MM)"
+          },
+          "data_description": {
+            "control_type": "on_off (switch), stepped (levels, e.g. EV by amperage), modulating (continuous power).",
+            "steps": "For stepped: comma-separated 'level:watts'. The level is written to the level entity (e.g. the amperage).",
+            "switch_entity": "Actually stops charging (useful when setting amperage to 0 does not).",
+            "fast_charge": "Prefer an efficient fast charge + battery assist (when recoverable) over a lossy slow charge.",
+            "deadline_before": "Target time (e.g. 07:00). With the required energy, forces a grid charge if solar is insufficient."
+          }
         }
       },
-      "error": { "invalid_load": "Invalid configuration — check the type, the entities (domain required) and the steps format (level:watts)." }
+      "error": {
+        "invalid_load": "Invalid configuration — check the type, the entities (domain required) and the steps format (level:watts)."
+      }
     },
     "mppt": {
-      "initiate_flow": { "user": "Add an inverter / MPPT" },
+      "initiate_flow": {
+        "user": "Add an inverter / MPPT"
+      },
       "entry_type": "Inverter / MPPT",
       "step": {
         "user": {
@@ -192,12 +270,32 @@
             "peak_power_w": "Inverter max power; the curtailment upper bound.",
             "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment)."
           }
+        },
+        "reconfigure": {
+          "title": "Solar inverter (MPPT)",
+          "description": "Declare an inverter/micro-inverter. Curtailment needs active control + a limit entity.",
+          "data": {
+            "name": "Name",
+            "peak_power_w": "Peak power (W)",
+            "power_entity": "Production power entity (W)",
+            "daily_energy_entity": "Daily energy entity",
+            "active_control_enabled": "Active curtailment (limit output)",
+            "power_limit_setpoint_entity": "Output limit entity (number, W)"
+          },
+          "data_description": {
+            "peak_power_w": "Inverter max power; the curtailment upper bound.",
+            "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment)."
+          }
         }
       },
-      "error": { "invalid_device": "Invalid inverter configuration — check the entities (domain required)." }
+      "error": {
+        "invalid_device": "Invalid inverter configuration — check the entities (domain required)."
+      }
     },
     "meter": {
-      "initiate_flow": { "user": "Add a meter" },
+      "initiate_flow": {
+        "user": "Add a meter"
+      },
       "entry_type": "Meter",
       "step": {
         "user": {
@@ -219,12 +317,36 @@
             "kind": "pdl = grid connection point ; pv ; consumption ; subcircuit.",
             "power_entity": "Must be POSITIVE on import, NEGATIVE on export (e.g. Shelly 3EM)."
           }
+        },
+        "reconfigure": {
+          "title": "Power meter",
+          "description": "Declare a meter. The PDL (grid connection point) drives zero-injection regulation.",
+          "data": {
+            "name": "Name",
+            "kind": "Meter kind",
+            "power_entity": "Signed power entity (+ import / − export)",
+            "phases": "Phases",
+            "per_phase_zi": "Per-phase zero-injection",
+            "power_l1_entity": "Power L1",
+            "power_l2_entity": "Power L2",
+            "power_l3_entity": "Power L3",
+            "daily_import_energy_entity": "Daily import energy",
+            "daily_export_energy_entity": "Daily export energy"
+          },
+          "data_description": {
+            "kind": "pdl = grid connection point ; pv ; consumption ; subcircuit.",
+            "power_entity": "Must be POSITIVE on import, NEGATIVE on export (e.g. Shelly 3EM)."
+          }
         }
       },
-      "error": { "invalid_meter": "Invalid meter configuration — check the kind and the power entity." }
+      "error": {
+        "invalid_meter": "Invalid meter configuration — check the kind and the power entity."
+      }
     },
     "battery_mppt": {
-      "initiate_flow": { "user": "Add a battery + inverter" },
+      "initiate_flow": {
+        "user": "Add a battery + inverter"
+      },
       "entry_type": "Battery + inverter",
       "step": {
         "user": {
@@ -262,20 +384,72 @@
             "mppt_power_entity": "Power produced by the device's PV input.",
             "mppt_power_limit_setpoint_entity": "number/W to curtail PV output (zero-injection)."
           }
+        },
+        "reconfigure": {
+          "title": "Battery + inverter (single device)",
+          "description": "For an all-in-one device (e.g. a station with PV input): battery fields then inverter fields (prefixed 'MPPT').",
+          "data": {
+            "name": "Name",
+            "capacity_kwh": "Capacity (kWh)",
+            "max_charge_power_w": "Max charge power (W)",
+            "max_discharge_power_w": "Max discharge power (W)",
+            "soc_entity": "SoC entity (%)",
+            "power_entity": "Battery power entity (W)",
+            "temperature_entity": "Temperature entity",
+            "cycles_entity": "Cycles entity",
+            "soc_min_pct": "Minimum SoC (%)",
+            "soc_max_pct": "Maximum SoC (%)",
+            "usable_capacity_kwh": "Usable capacity (kWh)",
+            "chemistry": "Chemistry",
+            "power_sign_convention": "Power sign convention",
+            "controllable": "Controllable",
+            "active_control_enabled": "Battery active control",
+            "charge_power_setpoint_entity": "Charge setpoint (number)",
+            "discharge_power_setpoint_entity": "Discharge setpoint (number)",
+            "mode_setpoint_entity": "Mode setpoint (select)",
+            "reserve_soc_setpoint_entity": "Reserve / min-SoC (number %)",
+            "ac_charge_limit_w": "AC charge limit (W)",
+            "mppt_peak_power_w": "MPPT: peak power (W)",
+            "mppt_power_entity": "MPPT: production power entity (W)",
+            "mppt_daily_energy_entity": "MPPT: daily energy",
+            "mppt_active_control_enabled": "MPPT: active curtailment",
+            "mppt_power_limit_setpoint_entity": "MPPT: output limit entity (number, W)"
+          },
+          "data_description": {
+            "power_entity": "Signed battery power. Must be POSITIVE while charging.",
+            "mppt_power_entity": "Power produced by the device's PV input.",
+            "mppt_power_limit_setpoint_entity": "number/W to curtail PV output (zero-injection)."
+          }
         }
       },
-      "error": { "invalid_device": "Invalid configuration — check the battery and inverter entities (domain required)." }
+      "error": {
+        "invalid_device": "Invalid configuration — check the battery and inverter entities (domain required)."
+      }
     }
   },
   "selector": {
     "meter_kind": {
-      "options": { "pdl": "PDL (grid)", "pv": "PV", "consumption": "Consumption", "subcircuit": "Subcircuit" }
+      "options": {
+        "pdl": "PDL (grid)",
+        "pv": "PV",
+        "consumption": "Consumption",
+        "subcircuit": "Subcircuit"
+      }
     },
     "chemistry": {
-      "options": { "lifepo4": "LiFePO4", "nmc": "NMC", "leadacid": "Lead-acid", "other": "Other" }
+      "options": {
+        "lifepo4": "LiFePO4",
+        "nmc": "NMC",
+        "leadacid": "Lead-acid",
+        "other": "Other"
+      }
     },
     "load_control_type": {
-      "options": { "on_off": "On/off", "stepped": "Stepped", "modulating": "Modulating" }
+      "options": {
+        "on_off": "On/off",
+        "stepped": "Stepped",
+        "modulating": "Modulating"
+      }
     },
     "power_sign_convention": {
       "options": {
@@ -310,34 +484,90 @@
           "manual_override": "Manual Override"
         }
       },
-      "grid_power": { "name": "Grid Power" },
-      "pv_power": { "name": "PV Power" },
-      "battery_power": { "name": "Battery Power" },
-      "baseline_consumption": { "name": "Baseline Consumption" },
-      "battery_soc_avg": { "name": "Battery SoC Average" },
-      "pv_energy_today": { "name": "PV Energy Today" },
-      "grid_import_today": { "name": "Grid Import Today" },
-      "grid_export_today": { "name": "Grid Export Today" },
-      "consumption_today": { "name": "Total Consumption Today" },
-      "pv_remaining_today": { "name": "Remaining PV Production Today" },
-      "daily_cost": { "name": "Grid cost today" },
-      "daily_savings": { "name": "Savings today" },
-      "current_import_price": { "name": "Current import price" },
-      "baseline_night": { "name": "Standby baseline (night)" },
-      "battery_setpoint_charge": { "name": "Charge setpoint" },
-      "battery_setpoint_discharge": { "name": "Discharge setpoint" },
-      "batt_soc": { "name": "SoC" },
-      "batt_power": { "name": "Power" },
-      "batt_temperature": { "name": "Temperature" },
-      "batt_cycles": { "name": "Cycles" },
-      "batt_soh": { "name": "State of Health (SoH)" },
-      "regulation_target": { "name": "Regulation target" },
-      "zi_correction": { "name": "Zero-injection correction" },
-      "equaliser_offer": { "name": "SoC equaliser offer" },
-      "grid_filtered": { "name": "Grid power (filtered)" },
-      "pv_output_limit": { "name": "PV output limit" },
-      "planner_recommended_power": { "name": "Planner recommended power (advisory)" },
-      "planner_expected_cost": { "name": "Planner expected cost (advisory)" }
+      "grid_power": {
+        "name": "Grid Power"
+      },
+      "pv_power": {
+        "name": "PV Power"
+      },
+      "battery_power": {
+        "name": "Battery Power"
+      },
+      "baseline_consumption": {
+        "name": "Baseline Consumption"
+      },
+      "battery_soc_avg": {
+        "name": "Battery SoC Average"
+      },
+      "pv_energy_today": {
+        "name": "PV Energy Today"
+      },
+      "grid_import_today": {
+        "name": "Grid Import Today"
+      },
+      "grid_export_today": {
+        "name": "Grid Export Today"
+      },
+      "consumption_today": {
+        "name": "Total Consumption Today"
+      },
+      "pv_remaining_today": {
+        "name": "Remaining PV Production Today"
+      },
+      "daily_cost": {
+        "name": "Grid cost today"
+      },
+      "daily_savings": {
+        "name": "Savings today"
+      },
+      "current_import_price": {
+        "name": "Current import price"
+      },
+      "baseline_night": {
+        "name": "Standby baseline (night)"
+      },
+      "battery_setpoint_charge": {
+        "name": "Charge setpoint"
+      },
+      "battery_setpoint_discharge": {
+        "name": "Discharge setpoint"
+      },
+      "batt_soc": {
+        "name": "SoC"
+      },
+      "batt_power": {
+        "name": "Power"
+      },
+      "batt_temperature": {
+        "name": "Temperature"
+      },
+      "batt_cycles": {
+        "name": "Cycles"
+      },
+      "batt_soh": {
+        "name": "State of Health (SoH)"
+      },
+      "regulation_target": {
+        "name": "Regulation target"
+      },
+      "zi_correction": {
+        "name": "Zero-injection correction"
+      },
+      "equaliser_offer": {
+        "name": "SoC equaliser offer"
+      },
+      "grid_filtered": {
+        "name": "Grid power (filtered)"
+      },
+      "pv_output_limit": {
+        "name": "PV output limit"
+      },
+      "planner_recommended_power": {
+        "name": "Planner recommended power (advisory)"
+      },
+      "planner_expected_cost": {
+        "name": "Planner expected cost (advisory)"
+      }
     },
     "select": {
       "hems_mode": {
@@ -353,19 +583,37 @@
       }
     },
     "number": {
-      "zi_setpoint": { "name": "ZI Setpoint" },
-      "zi_hysteresis": { "name": "ZI Deadband" }
+      "zi_setpoint": {
+        "name": "ZI Setpoint"
+      },
+      "zi_hysteresis": {
+        "name": "ZI Deadband"
+      }
     },
     "switch": {
-      "zero_injection": { "name": "Zero-Injection Regulation" }
+      "zero_injection": {
+        "name": "Zero-Injection Regulation"
+      }
     },
     "binary_sensor": {
-      "storm_mode": { "name": "Storm Mode" },
-      "weather_warning": { "name": "Weather Warning" },
-      "degraded": { "name": "Degraded Mode" },
-      "evening_shed": { "name": "Battery-priority shedding" },
-      "ev_fast_charge": { "name": "EV fast charge (assisted)" },
-      "config_health": { "name": "Configuration problem" }
+      "storm_mode": {
+        "name": "Storm Mode"
+      },
+      "weather_warning": {
+        "name": "Weather Warning"
+      },
+      "degraded": {
+        "name": "Degraded Mode"
+      },
+      "evening_shed": {
+        "name": "Battery-priority shedding"
+      },
+      "ev_fast_charge": {
+        "name": "EV fast charge (assisted)"
+      },
+      "config_health": {
+        "name": "Configuration problem"
+      }
     }
   },
   "services": {

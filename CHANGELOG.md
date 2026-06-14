@@ -37,6 +37,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-06-14
+
+### Added
+
+- **Reconfiguration des appareils dans l'UI** — chaque subentry (batterie, batterie+onduleur, onduleur, consommateur, compteur) est désormais **éditable** via le bouton ✏️ de l'intégration (étape `reconfigure`), avec ses valeurs pré-remplies. Avant, seul l'ajout était possible.
+
+### Fixed
+
+- **Charge rapide EV : récupérabilité bornée à aujourd'hui** — le gate de récupérabilité intégrait 24 h glissantes, donc le soir il comptait le soleil de **demain** (ex. `pv_recovery_kwh: 11.13` au lieu de ~0,3 kWh restant) et autorisait à tort la batterie à assister la voiture alors qu'elle ne pourrait pas se recharger. L'intégration s'arrête maintenant à minuit local, comme la tuile « PV restant ».
+
 ## [1.3.0] — 2026-06-14
 
 ### Added
@@ -95,6 +105,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.3.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.0.0...v1.1.0

@@ -92,7 +92,9 @@
   },
   "config_subentries": {
     "battery": {
-      "initiate_flow": { "user": "Ajouter une batterie" },
+      "initiate_flow": {
+        "user": "Ajouter une batterie"
+      },
       "entry_type": "Batterie",
       "step": {
         "user": {
@@ -129,12 +131,51 @@
             "reserve_soc_setpoint_entity": "number/% que le device obéit comme SoC mini ; relevé à la cible en mode tempête. Ex : number.ef_60605_backup_reserve",
             "ac_charge_limit_w": "Puissance max absorbée depuis l'AC (équaliseur de SoC)."
           }
+        },
+        "reconfigure": {
+          "title": "Batterie",
+          "description": "Déclarez une batterie. Les champs de consigne ne sont nécessaires que si vous activez le contrôle actif.",
+          "data": {
+            "name": "Nom",
+            "capacity_kwh": "Capacité (kWh)",
+            "max_charge_power_w": "Puissance de charge max (W)",
+            "max_discharge_power_w": "Puissance de décharge max (W)",
+            "soc_entity": "Entité SoC (%)",
+            "power_entity": "Entité puissance (W)",
+            "temperature_entity": "Entité température",
+            "cycles_entity": "Entité cycles",
+            "soc_min_pct": "SoC minimum (%)",
+            "soc_max_pct": "SoC maximum (%)",
+            "usable_capacity_kwh": "Capacité utile (kWh)",
+            "chemistry": "Chimie",
+            "power_sign_convention": "Convention de signe puissance",
+            "controllable": "Pilotable",
+            "active_control_enabled": "Contrôle actif (écriture des consignes)",
+            "charge_power_setpoint_entity": "Consigne de charge (number)",
+            "discharge_power_setpoint_entity": "Consigne de décharge (number)",
+            "mode_setpoint_entity": "Consigne de mode (select)",
+            "reserve_soc_setpoint_entity": "Réserve / SoC mini du device (number %)",
+            "ac_charge_limit_w": "Limite de charge AC (W)"
+          },
+          "data_description": {
+            "capacity_kwh": "Capacité nominale. Ex : 3.92",
+            "soc_entity": "Capteur du niveau de charge en %. Ex : sensor.ef_60605_battery_level",
+            "power_entity": "Capteur de puissance signée. Doit être POSITIF en charge (sinon ajustez la convention).",
+            "power_sign_convention": "charge_positive = positif quand la batterie charge. Sinon discharge_positive.",
+            "active_control_enabled": "Si activé, SolarBalance écrit les consignes (nécessite une batterie pilotable et les entités de consigne).",
+            "reserve_soc_setpoint_entity": "number/% que le device obéit comme SoC mini ; relevé à la cible en mode tempête. Ex : number.ef_60605_backup_reserve",
+            "ac_charge_limit_w": "Puissance max absorbée depuis l'AC (équaliseur de SoC)."
+          }
         }
       },
-      "error": { "invalid_device": "Configuration de batterie invalide — vérifiez les entités (domaine requis, ex. number.x) et les consignes." }
+      "error": {
+        "invalid_device": "Configuration de batterie invalide — vérifiez les entités (domaine requis, ex. number.x) et les consignes."
+      }
     },
     "load": {
-      "initiate_flow": { "user": "Ajouter un consommateur" },
+      "initiate_flow": {
+        "user": "Ajouter un consommateur"
+      },
       "entry_type": "Consommateur",
       "step": {
         "user": {
@@ -169,12 +210,49 @@
             "fast_charge": "Privilégie une charge rapide efficace + assistance batterie (si récupérable), plutôt qu'une charge lente.",
             "deadline_before": "Heure cible (ex. 07:00). Avec l'énergie requise, force une charge réseau si le solaire ne suffit pas."
           }
+        },
+        "reconfigure": {
+          "title": "Consommateur pilotable",
+          "description": "Déclarez un consommateur (chauffe-eau, voiture…). Les champs dépendent du type de contrôle.",
+          "data": {
+            "name": "Nom",
+            "control_type": "Type de contrôle",
+            "priority": "Priorité (1 = max)",
+            "interruptible": "Interruptible (délestable)",
+            "switch_entity": "Interrupteur on/off",
+            "actual_power_entity": "Entité puissance mesurée",
+            "nominal_power_w": "Puissance nominale (W) — on/off",
+            "level_entity": "Entité de niveau — stepped (ex. ampérage)",
+            "steps": "Paliers — stepped (ex. 6:1380, 8:1840, 10:2300)",
+            "power_set_entity": "Entité consigne puissance — modulating",
+            "min_power_w": "Puissance min (W) — modulating",
+            "max_power_w": "Puissance max (W) — modulating",
+            "min_on_duration_s": "Durée min d'allumage (s)",
+            "min_off_duration_s": "Durée min d'extinction (s)",
+            "fast_charge": "Charge rapide assistée (EV)",
+            "min_charge_w": "Charge rapide : seuil efficace (W)",
+            "assist_floor_soc_pct": "Charge rapide : SoC batterie mini pour assister (%)",
+            "pause_when_inefficient": "Charge rapide : pause plutôt que charge lente",
+            "deadline_kwh": "Échéance : énergie requise (kWh)",
+            "deadline_before": "Échéance : avant l'heure (HH:MM)"
+          },
+          "data_description": {
+            "control_type": "on_off (switch), stepped (paliers, ex. voiture par ampérage), modulating (puissance continue).",
+            "steps": "Pour stepped : liste 'niveau:watts' séparée par des virgules. Le niveau est écrit dans l'entité de niveau (ex. l'ampérage).",
+            "switch_entity": "Coupe réellement la charge (utile si mettre l'ampérage à 0 ne l'arrête pas).",
+            "fast_charge": "Privilégie une charge rapide efficace + assistance batterie (si récupérable), plutôt qu'une charge lente.",
+            "deadline_before": "Heure cible (ex. 07:00). Avec l'énergie requise, force une charge réseau si le solaire ne suffit pas."
+          }
         }
       },
-      "error": { "invalid_load": "Configuration invalide — vérifiez le type, les entités (domaine requis) et le format des paliers (niveau:watts)." }
+      "error": {
+        "invalid_load": "Configuration invalide — vérifiez le type, les entités (domaine requis) et le format des paliers (niveau:watts)."
+      }
     },
     "mppt": {
-      "initiate_flow": { "user": "Ajouter un onduleur / MPPT" },
+      "initiate_flow": {
+        "user": "Ajouter un onduleur / MPPT"
+      },
       "entry_type": "Onduleur / MPPT",
       "step": {
         "user": {
@@ -192,12 +270,32 @@
             "peak_power_w": "Puissance max de l'onduleur ; borne haute du bridage.",
             "power_limit_setpoint_entity": "number/W que l'onduleur obéit comme limite de sortie (bridage zéro-injection)."
           }
+        },
+        "reconfigure": {
+          "title": "Onduleur solaire (MPPT)",
+          "description": "Déclarez un onduleur/micro-onduleur. Le bridage nécessite le contrôle actif + une entité de limite.",
+          "data": {
+            "name": "Nom",
+            "peak_power_w": "Puissance crête (W)",
+            "power_entity": "Entité puissance produite (W)",
+            "daily_energy_entity": "Entité énergie du jour",
+            "active_control_enabled": "Bridage actif (limiter la sortie)",
+            "power_limit_setpoint_entity": "Entité limite de sortie (number, W)"
+          },
+          "data_description": {
+            "peak_power_w": "Puissance max de l'onduleur ; borne haute du bridage.",
+            "power_limit_setpoint_entity": "number/W que l'onduleur obéit comme limite de sortie (bridage zéro-injection)."
+          }
         }
       },
-      "error": { "invalid_device": "Configuration onduleur invalide — vérifiez les entités (domaine requis)." }
+      "error": {
+        "invalid_device": "Configuration onduleur invalide — vérifiez les entités (domaine requis)."
+      }
     },
     "meter": {
-      "initiate_flow": { "user": "Ajouter un compteur" },
+      "initiate_flow": {
+        "user": "Ajouter un compteur"
+      },
       "entry_type": "Compteur",
       "step": {
         "user": {
@@ -219,12 +317,36 @@
             "kind": "pdl = point de livraison (réseau) ; pv ; consumption ; subcircuit.",
             "power_entity": "Doit être POSITIF en soutirage, NÉGATIF en injection (ex. Shelly 3EM)."
           }
+        },
+        "reconfigure": {
+          "title": "Compteur de puissance",
+          "description": "Déclarez un compteur. Le PDL (point de livraison) pilote la régulation zéro-injection.",
+          "data": {
+            "name": "Nom",
+            "kind": "Type de compteur",
+            "power_entity": "Entité puissance signée (+ soutiré / − injecté)",
+            "phases": "Nombre de phases",
+            "per_phase_zi": "Zéro-injection par phase",
+            "power_l1_entity": "Puissance L1",
+            "power_l2_entity": "Puissance L2",
+            "power_l3_entity": "Puissance L3",
+            "daily_import_energy_entity": "Énergie soutirée du jour",
+            "daily_export_energy_entity": "Énergie injectée du jour"
+          },
+          "data_description": {
+            "kind": "pdl = point de livraison (réseau) ; pv ; consumption ; subcircuit.",
+            "power_entity": "Doit être POSITIF en soutirage, NÉGATIF en injection (ex. Shelly 3EM)."
+          }
         }
       },
-      "error": { "invalid_meter": "Configuration compteur invalide — vérifiez le type et l'entité de puissance." }
+      "error": {
+        "invalid_meter": "Configuration compteur invalide — vérifiez le type et l'entité de puissance."
+      }
     },
     "battery_mppt": {
-      "initiate_flow": { "user": "Ajouter une batterie + onduleur" },
+      "initiate_flow": {
+        "user": "Ajouter une batterie + onduleur"
+      },
       "entry_type": "Batterie + onduleur",
       "step": {
         "user": {
@@ -262,20 +384,72 @@
             "mppt_power_entity": "Puissance produite par l'entrée PV de l'appareil.",
             "mppt_power_limit_setpoint_entity": "number/W pour brider la sortie PV (zéro-injection)."
           }
+        },
+        "reconfigure": {
+          "title": "Batterie + onduleur (un seul appareil)",
+          "description": "Pour un appareil tout-en-un (ex. station avec entrée PV) : champs batterie puis onduleur (préfixés « MPPT »).",
+          "data": {
+            "name": "Nom",
+            "capacity_kwh": "Capacité (kWh)",
+            "max_charge_power_w": "Puissance de charge max (W)",
+            "max_discharge_power_w": "Puissance de décharge max (W)",
+            "soc_entity": "Entité SoC (%)",
+            "power_entity": "Entité puissance batterie (W)",
+            "temperature_entity": "Entité température",
+            "cycles_entity": "Entité cycles",
+            "soc_min_pct": "SoC minimum (%)",
+            "soc_max_pct": "SoC maximum (%)",
+            "usable_capacity_kwh": "Capacité utile (kWh)",
+            "chemistry": "Chimie",
+            "power_sign_convention": "Convention de signe puissance",
+            "controllable": "Pilotable",
+            "active_control_enabled": "Contrôle actif batterie",
+            "charge_power_setpoint_entity": "Consigne de charge (number)",
+            "discharge_power_setpoint_entity": "Consigne de décharge (number)",
+            "mode_setpoint_entity": "Consigne de mode (select)",
+            "reserve_soc_setpoint_entity": "Réserve / SoC mini (number %)",
+            "ac_charge_limit_w": "Limite de charge AC (W)",
+            "mppt_peak_power_w": "MPPT : puissance crête (W)",
+            "mppt_power_entity": "MPPT : entité puissance produite (W)",
+            "mppt_daily_energy_entity": "MPPT : énergie du jour",
+            "mppt_active_control_enabled": "MPPT : bridage actif",
+            "mppt_power_limit_setpoint_entity": "MPPT : entité limite de sortie (number, W)"
+          },
+          "data_description": {
+            "power_entity": "Puissance batterie signée. Doit être POSITIVE en charge.",
+            "mppt_power_entity": "Puissance produite par l'entrée PV de l'appareil.",
+            "mppt_power_limit_setpoint_entity": "number/W pour brider la sortie PV (zéro-injection)."
+          }
         }
       },
-      "error": { "invalid_device": "Configuration invalide — vérifiez les entités batterie et onduleur (domaine requis)." }
+      "error": {
+        "invalid_device": "Configuration invalide — vérifiez les entités batterie et onduleur (domaine requis)."
+      }
     }
   },
   "selector": {
     "meter_kind": {
-      "options": { "pdl": "PDL (réseau)", "pv": "PV", "consumption": "Consommation", "subcircuit": "Sous-circuit" }
+      "options": {
+        "pdl": "PDL (réseau)",
+        "pv": "PV",
+        "consumption": "Consommation",
+        "subcircuit": "Sous-circuit"
+      }
     },
     "chemistry": {
-      "options": { "lifepo4": "LiFePO4", "nmc": "NMC", "leadacid": "Plomb", "other": "Autre" }
+      "options": {
+        "lifepo4": "LiFePO4",
+        "nmc": "NMC",
+        "leadacid": "Plomb",
+        "other": "Autre"
+      }
     },
     "load_control_type": {
-      "options": { "on_off": "Tout ou rien", "stepped": "Par paliers", "modulating": "Modulant" }
+      "options": {
+        "on_off": "Tout ou rien",
+        "stepped": "Par paliers",
+        "modulating": "Modulant"
+      }
     },
     "power_sign_convention": {
       "options": {
@@ -310,34 +484,90 @@
           "manual_override": "Override manuel"
         }
       },
-      "grid_power": { "name": "Puissance réseau" },
-      "pv_power": { "name": "Puissance PV" },
-      "battery_power": { "name": "Puissance batteries" },
-      "baseline_consumption": { "name": "Consommation de fond" },
-      "battery_soc_avg": { "name": "SoC moyen batteries" },
-      "pv_energy_today": { "name": "Énergie PV aujourd'hui" },
-      "grid_import_today": { "name": "Soutirage réseau aujourd'hui" },
-      "grid_export_today": { "name": "Injection réseau aujourd'hui" },
-      "consumption_today": { "name": "Consommation totale aujourd'hui" },
-      "pv_remaining_today": { "name": "Production PV restante aujourd'hui" },
-      "daily_cost": { "name": "Coût réseau aujourd'hui" },
-      "daily_savings": { "name": "Économies aujourd'hui" },
-      "current_import_price": { "name": "Prix soutirage actuel" },
-      "baseline_night": { "name": "Talon de consommation (nuit)" },
-      "battery_setpoint_charge": { "name": "Consigne de charge" },
-      "battery_setpoint_discharge": { "name": "Consigne de décharge" },
-      "batt_soc": { "name": "SoC" },
-      "batt_power": { "name": "Puissance" },
-      "batt_temperature": { "name": "Température" },
-      "batt_cycles": { "name": "Cycles" },
-      "batt_soh": { "name": "État de santé (SoH)" },
-      "regulation_target": { "name": "Cible de régulation" },
-      "zi_correction": { "name": "Correction zéro-injection" },
-      "equaliser_offer": { "name": "Offre équaliseur SoC" },
-      "grid_filtered": { "name": "Puissance réseau (filtrée)" },
-      "pv_output_limit": { "name": "Limite de sortie PV" },
-      "planner_recommended_power": { "name": "Puissance recommandée (advisory)" },
-      "planner_expected_cost": { "name": "Coût attendu (advisory)" }
+      "grid_power": {
+        "name": "Puissance réseau"
+      },
+      "pv_power": {
+        "name": "Puissance PV"
+      },
+      "battery_power": {
+        "name": "Puissance batteries"
+      },
+      "baseline_consumption": {
+        "name": "Consommation de fond"
+      },
+      "battery_soc_avg": {
+        "name": "SoC moyen batteries"
+      },
+      "pv_energy_today": {
+        "name": "Énergie PV aujourd'hui"
+      },
+      "grid_import_today": {
+        "name": "Soutirage réseau aujourd'hui"
+      },
+      "grid_export_today": {
+        "name": "Injection réseau aujourd'hui"
+      },
+      "consumption_today": {
+        "name": "Consommation totale aujourd'hui"
+      },
+      "pv_remaining_today": {
+        "name": "Production PV restante aujourd'hui"
+      },
+      "daily_cost": {
+        "name": "Coût réseau aujourd'hui"
+      },
+      "daily_savings": {
+        "name": "Économies aujourd'hui"
+      },
+      "current_import_price": {
+        "name": "Prix soutirage actuel"
+      },
+      "baseline_night": {
+        "name": "Talon de consommation (nuit)"
+      },
+      "battery_setpoint_charge": {
+        "name": "Consigne de charge"
+      },
+      "battery_setpoint_discharge": {
+        "name": "Consigne de décharge"
+      },
+      "batt_soc": {
+        "name": "SoC"
+      },
+      "batt_power": {
+        "name": "Puissance"
+      },
+      "batt_temperature": {
+        "name": "Température"
+      },
+      "batt_cycles": {
+        "name": "Cycles"
+      },
+      "batt_soh": {
+        "name": "État de santé (SoH)"
+      },
+      "regulation_target": {
+        "name": "Cible de régulation"
+      },
+      "zi_correction": {
+        "name": "Correction zéro-injection"
+      },
+      "equaliser_offer": {
+        "name": "Offre équaliseur SoC"
+      },
+      "grid_filtered": {
+        "name": "Puissance réseau (filtrée)"
+      },
+      "pv_output_limit": {
+        "name": "Limite de sortie PV"
+      },
+      "planner_recommended_power": {
+        "name": "Puissance recommandée (advisory)"
+      },
+      "planner_expected_cost": {
+        "name": "Coût attendu (advisory)"
+      }
     },
     "select": {
       "hems_mode": {
@@ -353,19 +583,37 @@
       }
     },
     "number": {
-      "zi_setpoint": { "name": "Consigne zéro injection" },
-      "zi_hysteresis": { "name": "Hystérésis zéro injection" }
+      "zi_setpoint": {
+        "name": "Consigne zéro injection"
+      },
+      "zi_hysteresis": {
+        "name": "Hystérésis zéro injection"
+      }
     },
     "switch": {
-      "zero_injection": { "name": "Régulation zéro injection" }
+      "zero_injection": {
+        "name": "Régulation zéro injection"
+      }
     },
     "binary_sensor": {
-      "storm_mode": { "name": "Mode tempête" },
-      "weather_warning": { "name": "Vigilance météo" },
-      "degraded": { "name": "Mode dégradé" },
-      "evening_shed": { "name": "Délestage priorité batterie" },
-      "ev_fast_charge": { "name": "Charge rapide voiture (assistée)" },
-      "config_health": { "name": "Problème de configuration" }
+      "storm_mode": {
+        "name": "Mode tempête"
+      },
+      "weather_warning": {
+        "name": "Vigilance météo"
+      },
+      "degraded": {
+        "name": "Mode dégradé"
+      },
+      "evening_shed": {
+        "name": "Délestage priorité batterie"
+      },
+      "ev_fast_charge": {
+        "name": "Charge rapide voiture (assistée)"
+      },
+      "config_health": {
+        "name": "Problème de configuration"
+      }
     }
   },
   "services": {

@@ -1437,11 +1437,20 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return [buckets[i] / counts[i] if counts[i] else 0.0 for i in range(24)]
 
     @staticmethod
-    def _integrate_remaining(pv_by_hour: list[float], frac_left: float) -> tuple[float, float]:
-        """Sum a per-hour W profile into (kWh, hours), weighting the current hour."""
+    def _integrate_remaining(
+        pv_by_hour: list[float], frac_left: float, max_slots: int | None = None
+    ) -> tuple[float, float]:
+        """Sum a per-hour W profile into (kWh, hours), weighting the current hour.
+
+        ``max_slots`` caps the horizon (slot 0 = current hour); pass the number
+        of hourly slots left until local midnight so the integral covers only
+        *today's* remaining production and never rolls into tomorrow's sun.
+        """
         kwh = 0.0
         hours = 0.0
         for h, w in enumerate(pv_by_hour):
+            if max_slots is not None and h >= max_slots:
+                break
             if w <= 0.0:
                 continue
             weight = frac_left if h == 0 else 1.0
@@ -1457,10 +1466,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         the P50 discounted by ``forecast_safety_factor`` — so shed / fast-charge
         decisions don't over-trust an optimistic forecast.
         """
-        frac_left = max(0.0, 1.0 - dt_util.as_local(snapshot.timestamp).minute / 60.0)
-        p50_kwh, hours = self._integrate_remaining(self._forecast_pv_by_hour(snapshot), frac_left)
+        local = dt_util.as_local(snapshot.timestamp)
+        frac_left = max(0.0, 1.0 - local.minute / 60.0)
+        # Only count production left *today* (slots from now to local midnight);
+        # tomorrow's sun cannot recover a battery drained tonight.
+        slots_to_midnight = 24 - local.hour
+        p50_kwh, hours = self._integrate_remaining(
+            self._forecast_pv_by_hour(snapshot), frac_left, slots_to_midnight
+        )
         p10 = self._entity_pv_forecast_by_hour(snapshot.timestamp, estimate="pv_estimate10")
-        p10_kwh, _ = self._integrate_remaining(p10, frac_left) if p10 else (0.0, 0.0)
+        p10_kwh, _ = (
+            self._integrate_remaining(p10, frac_left, slots_to_midnight) if p10 else (0.0, 0.0)
+        )
         # Use P10 only when it is meaningfully populated (free Solcast often
         # returns all-zero P10); otherwise discount the P50.
         if p10_kwh >= 0.3 * p50_kwh and p10_kwh > 0.0:

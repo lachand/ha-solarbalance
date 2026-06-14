@@ -183,6 +183,68 @@ def test_battery_mppt_combined_builds_both_roles() -> None:
     assert built.mppt.power_entity == "sensor.pv_power"
 
 
+def test_battery_flat_round_trips_input_to_device() -> None:
+    """Reconfigure prefill must invert the add-flow assembly (flat ⇄ device)."""
+    from custom_components.solarbalance.config_flow import _battery_flat
+
+    ui = {
+        "name": "stream",
+        "capacity_kwh": 3.92,
+        "max_charge_power_w": 1200,
+        "max_discharge_power_w": 2300,
+        "soc_entity": "sensor.soc",
+        "power_entity": "sensor.power",
+    }
+    device = _battery_input_to_device(ui)
+    flat = _battery_flat(device)
+    assert flat == ui  # stored device flattens back to the original form input
+
+
+def test_battery_mppt_prefill_keeps_flat_battery_and_mppt_role() -> None:
+    from custom_components.solarbalance.config_flow import (
+        BatteryMpptSubentryFlowHandler,
+        _battery_mppt_input_to_device,
+    )
+
+    ui = {
+        "name": "stream",
+        "capacity_kwh": 3.92,
+        "max_charge_power_w": 1200,
+        "max_discharge_power_w": 2300,
+        "soc_entity": "sensor.soc",
+        "power_entity": "sensor.bp",
+        "mppt_peak_power_w": 1000,
+        "mppt_power_entity": "sensor.pv",
+    }
+    device = _battery_mppt_input_to_device(ui)
+    prefill = BatteryMpptSubentryFlowHandler._prefill(None, device)
+    assert prefill["capacity_kwh"] == 3.92  # battery flattened to top level
+    assert prefill["roles"]["mppt"]["peak_power_w"] == 1000  # mppt role kept for schema
+
+
+def test_meter_prefill_coerces_phases_to_str() -> None:
+    from custom_components.solarbalance.config_flow import MeterSubentryFlowHandler
+
+    stored = {"name": "pdl", "kind": "pdl", "power_entity": "sensor.grid", "phases": 3}
+    prefill = MeterSubentryFlowHandler._prefill(None, stored)
+    assert prefill["phases"] == "3"  # select option is a string
+
+
+def test_remaining_production_caps_at_local_midnight() -> None:
+    """The integral must stop at midnight so tomorrow's sun never counts."""
+    from custom_components.solarbalance.coordinator import SolarBalanceCoordinator
+
+    # 24-slot profile, 1000 W every hour; slot 0 = current hour.
+    profile = [1000.0] * 24
+    # 3 slots left until midnight (e.g. local hour 21), full current hour.
+    kwh, hours = SolarBalanceCoordinator._integrate_remaining(profile, 1.0, max_slots=3)
+    assert kwh == 3.0  # 3 hours x 1 kWh, not 24
+    assert hours == 3.0
+    # Without a cap the old behaviour rolled into tomorrow.
+    kwh_all, _ = SolarBalanceCoordinator._integrate_remaining(profile, 1.0)
+    assert kwh_all == 24.0
+
+
 def test_battery_mppt_subentry_assembles() -> None:
     data = {
         "name": "stream",
