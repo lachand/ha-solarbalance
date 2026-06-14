@@ -593,6 +593,9 @@
     "switch": {
       "zero_injection": {
         "name": "Régulation zéro injection"
+      },
+      "shed_exempt": {
+        "name": "Ne pas délester"
       }
     },
     "binary_sensor": {

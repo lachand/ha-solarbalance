@@ -37,6 +37,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.3.4] — 2026-06-14
+
+### Added
+
+- **Switch « Ne pas délester » par consommateur** — chaque load interruptible reçoit un interrupteur (`switch.solarbalance_<load>_shed_exempt`) qui l'exempte temporairement du délestage : ni coupé par le délestage fin de journée (priorité batterie), ni mis en pause par la charge rapide pour cause d'inefficacité. Idéal pour « je veux vraiment charger ma voiture maintenant ». L'état est restauré au redémarrage. Le load reste alimenté par le surplus dispatché (pas de charge réseau forcée — voir `deadline_constraint` pour ça). Le switch est rattaché au subentry du load.
+
 ## [1.3.3] — 2026-06-14
 
 ### Added
@@ -122,6 +128,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.3.4]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.2...v1.3.3
 [1.3.2]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.0...v1.3.1

@@ -265,6 +265,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._devices = devices
         self._meters = meters
         self._loads = loads
+        # Loads the user has temporarily exempted from shedding (evening-shed +
+        # fast-charge inefficiency pause). Toggled by per-load switch entities.
+        self._shed_exempt: set[str] = set()
         # Tariff resolution priority: explicit object (tests) > YAML tariff: block
         # > UI tariff options > flat configurable import/export prices (defaults so
         # cost/savings accounting works out of the box).
@@ -841,6 +844,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def evening_shed(self) -> ShedDecision | None:
         """Last evening battery-priority shedding decision (None before first tick)."""
         return self._evening_shed
+
+    def is_shed_exempt(self, load_name: str) -> bool:
+        """True when the user temporarily exempted this load from shedding."""
+        return load_name in self._shed_exempt
+
+    def set_shed_exempt(self, load_name: str, exempt: bool) -> None:
+        """Add/remove a load from the temporary shedding-exemption set."""
+        if exempt:
+            self._shed_exempt.add(load_name)
+        else:
+            self._shed_exempt.discard(load_name)
 
     @property
     def fast_charge(self) -> dict[str, FastChargeDecision]:
@@ -1583,7 +1597,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         sheddable = [
             (load.name, float(_load_nominal_w(load)))
             for load in self._loads
-            if load.interruptible
+            if load.interruptible and load.name not in self._shed_exempt
         ]
         return evaluate_evening_shed(
             enabled=self._evening_shed_enabled,
@@ -1599,7 +1613,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self, commands: tuple[LoadCommand, ...], snapshot: Snapshot, surplus_w: float
     ) -> tuple[LoadCommand, ...]:
         """Override fast-charge EV commands to prefer an efficient (battery-assisted) rate."""
-        ev_loads = [load for load in self._loads if load.fast_charge]
+        # Loads the user exempted from shedding also bypass the fast-charge
+        # inefficiency pause: charge them at the dispatched rate instead.
+        ev_loads = [
+            load
+            for load in self._loads
+            if load.fast_charge and load.name not in self._shed_exempt
+        ]
         if not ev_loads:
             self._fast_charge = {}
             return commands

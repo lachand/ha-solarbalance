@@ -281,6 +281,62 @@ async def test_battery_sensors_linked_to_subentry(hass) -> None:
     assert all(e.config_subentry_id == sub_id for e in battery_entities)
 
 
+async def test_load_shed_exempt_switch_created_and_linked(hass) -> None:
+    """An interruptible load gets a 'do not shed' switch under its subentry."""
+    from homeassistant.config_entries import ConfigSubentryData
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.solarbalance import COORDINATOR_KEY
+    from custom_components.solarbalance.const import (
+        CONF_PHASES,
+        CONF_PRIORITIES,
+        CONF_SUBSCRIBED_POWER_KVA,
+        CONF_TICK_INTERVAL_S,
+        DOMAIN,
+    )
+    from custom_components.solarbalance.core.models import StrategyKind
+
+    load = ConfigSubentryData(
+        subentry_type="load",
+        title="voiture",
+        unique_id=None,
+        data={
+            "name": "voiture", "control_type": "on_off", "priority": 5,
+            "interruptible": True, "switch_entity": "switch.borne", "nominal_power_w": 2000,
+        },
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_TICK_INTERVAL_S: 10,
+            CONF_PHASES: 1,
+            CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_PRIORITIES: [k.value for k in StrategyKind],
+        },
+        subentries_data=[load],
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    sub_id = next(iter(entry.subentries))
+    reg = er.async_get(hass)
+    sw = next(
+        (e for e in reg.entities.values() if e.unique_id.endswith("_load_voiture_shed_exempt")),
+        None,
+    )
+    assert sw is not None, "shed-exempt switch not created"
+    assert sw.config_subentry_id == sub_id  # grouped under the load's subentry
+
+    coordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    assert not coordinator.is_shed_exempt("voiture")
+    coordinator.set_shed_exempt("voiture", True)
+    assert coordinator.is_shed_exempt("voiture")
+    coordinator.set_shed_exempt("voiture", False)
+    assert not coordinator.is_shed_exempt("voiture")
+
+
 def test_optional_empty_fields_pass_schema_validation() -> None:
     """Re-submitting a prefilled form with blank optional entity/number fields
     must validate (regression: 'Entity is neither a valid entity ID nor a valid

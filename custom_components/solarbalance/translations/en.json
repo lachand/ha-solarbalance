@@ -593,6 +593,9 @@
     "switch": {
       "zero_injection": {
         "name": "Zero-Injection Regulation"
+      },
+      "shed_exempt": {
+        "name": "Keep running (no shedding)"
       }
     },
     "binary_sensor": {
