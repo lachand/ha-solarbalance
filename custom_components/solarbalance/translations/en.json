@@ -169,7 +169,8 @@
       "weather_warning": { "name": "Weather Warning" },
       "degraded": { "name": "Degraded Mode" },
       "evening_shed": { "name": "Battery-priority shedding" },
-      "ev_fast_charge": { "name": "EV fast charge (assisted)" }
+      "ev_fast_charge": { "name": "EV fast charge (assisted)" },
+      "config_health": { "name": "Configuration problem" }
     }
   },
   "services": {

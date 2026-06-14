@@ -169,7 +169,8 @@
       "weather_warning": { "name": "Vigilance météo" },
       "degraded": { "name": "Mode dégradé" },
       "evening_shed": { "name": "Délestage priorité batterie" },
-      "ev_fast_charge": { "name": "Charge rapide voiture (assistée)" }
+      "ev_fast_charge": { "name": "Charge rapide voiture (assistée)" },
+      "config_health": { "name": "Problème de configuration" }
     }
   },
   "services": {

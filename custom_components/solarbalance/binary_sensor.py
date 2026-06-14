@@ -2,10 +2,13 @@
 
 import logging
 
-from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.binary_sensor import (
+    BinarySensorDeviceClass,
+    BinarySensorEntity,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -32,6 +35,7 @@ async def async_setup_entry(
         DegradedBinarySensor(coordinator, entry),
         EveningShedBinarySensor(coordinator, entry),
         EvFastChargeBinarySensor(coordinator, entry),
+        ConfigHealthBinarySensor(coordinator, entry),
     ])
 
 
@@ -158,3 +162,23 @@ class EvFastChargeBinarySensor(_SBBinarySensor):
                 for name, dl in deadlines.items()
             }
         return attrs
+
+
+class ConfigHealthBinarySensor(_SBBinarySensor):
+    """Problem sensor: on when a likely configuration issue is detected."""
+
+    _attr_translation_key = "config_health"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:stethoscope"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "config_health")
+
+    @property
+    def is_on(self) -> bool:
+        return bool(self.coordinator.config_issues)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return {"issues": self.coordinator.config_issues}

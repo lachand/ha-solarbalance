@@ -269,6 +269,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             default_import_price=flat_import, default_export_price=flat_export
         )
         spec = dict(tariff_spec) if tariff_spec else _ui_tariff_spec(cfg)
+        self._tariff_degraded = False
         if tariff is not None:
             self._tariff = tariff
         elif spec:
@@ -295,6 +296,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     exc,
                 )
                 self._tariff = flat_tariff
+                self._tariff_degraded = True
                 spec = None
         else:
             self._tariff = flat_tariff
@@ -781,6 +783,30 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         advisory plan is meaningless and the panel hides it.
         """
         return not (isinstance(self._tariff, TariffConfig) and not self._tariff.slots)
+
+    @property
+    def config_issues(self) -> list[str]:
+        """Human-readable list of likely configuration problems (empty = healthy)."""
+        issues: list[str] = []
+        if self._baseline_notification_sent:
+            issues.append(
+                "Consommation de fond négative en continu — convention de signe "
+                "probablement inversée (vérifier power_sign_convention)."
+            )
+        if self.is_degraded:
+            issues.append("Mode dégradé — une entité critique est indisponible.")
+        if self._tariff_degraded:
+            issues.append("Tarif invalide → repli sur prix plat (vérifier le type/les entités).")
+        snap = self.data
+        if self._pv_forecast_entity and snap is not None:
+            hour = dt_util.as_local(snap.timestamp).hour
+            if 10 <= hour <= 16:
+                profile = self._entity_pv_forecast_by_hour(snap.timestamp)
+                if not profile or max(profile) <= 0.0:
+                    issues.append(
+                        "Prévision PV vide en pleine journée — vérifier l'entité de prévision."
+                    )
+        return issues
 
     @property
     def daily_export_revenue_eur(self) -> float:
