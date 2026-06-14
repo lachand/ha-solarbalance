@@ -37,6 +37,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.3.2] — 2026-06-14
+
+### Added
+
+- **Anti-yoyo après coupure d'un consommateur** — quand le contrôleur coupe un gros load (ex. pause de la voiture), la régulation zéro-injection est **figée pendant N ticks** (option `zi_settle_ticks`, défaut 2) et un **feed-forward one-shot** réduit la consigne de décharge des batteries du montant coupé, au lieu de laisser la boucle PI s'emballer sur le transitoire d'export. Seuil d'armement configurable (`zi_settle_min_drop_w`, défaut 300 W). Les batteries non pilotables ne reçoivent pas le feed-forward mais bénéficient du gel de la boucle.
+- **Menus déroulants pour les entités d'options** — `pv_forecast_entity`, `pv_forecast_tomorrow_entity`, entités Tempo, prix spot et vigilance météo sont des sélecteurs d'entités (plus des champs texte). Forecast et tarif sont donc pleinement configurables dans l'UI (le YAML reste prioritaire s'il est présent — retirer `forecast:`/`tariff:` du YAML pour basculer sur l'UI).
+
+### Fixed
+
+- **Configuration UI : champs optionnels vides** — éditer/créer un appareil échouait avec « Entity is neither a valid entity ID nor a valid UUID » (ou « expected float ») dès qu'un champ entité/nombre **optionnel** était laissé vide. Les sélecteurs acceptent désormais le vide ; les champs requis restent validés par le builder (erreur claire au lieu d'un blocage).
+
 ## [1.3.1] — 2026-06-14
 
 ### Added
@@ -105,6 +116,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.3.2]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.1.0...v1.2.0

@@ -57,6 +57,8 @@ from .const import (
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_KP,
     CONF_ZERO_INJECTION_SETPOINT_W,
+    CONF_ZI_SETTLE_MIN_DROP_W,
+    CONF_ZI_SETTLE_TICKS,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
@@ -82,6 +84,8 @@ from .const import (
     DEFAULT_VACATION_SOC_MAX_PCT,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
+    DEFAULT_ZI_SETTLE_MIN_DROP_W,
+    DEFAULT_ZI_SETTLE_TICKS,
     DOMAIN,
 )
 from .core.models import StrategyKind
@@ -138,6 +142,14 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
                 default=d.get(CONF_GRID_FILTER_SAMPLES, DEFAULT_GRID_FILTER_SAMPLES),
             ): vol.All(vol.Coerce(int), vol.Range(min=1)),
             vol.Optional(
+                CONF_ZI_SETTLE_TICKS,
+                default=d.get(CONF_ZI_SETTLE_TICKS, DEFAULT_ZI_SETTLE_TICKS),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
+            vol.Optional(
+                CONF_ZI_SETTLE_MIN_DROP_W,
+                default=d.get(CONF_ZI_SETTLE_MIN_DROP_W, DEFAULT_ZI_SETTLE_MIN_DROP_W),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Optional(
                 CONF_ZERO_INJECTION_KP,
                 default=d.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP),
             ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
@@ -163,11 +175,11 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_PV_FORECAST_ENTITY,
                 default=d.get(CONF_PV_FORECAST_ENTITY, ""),
-            ): str,
+            ): _entity("sensor"),
             vol.Optional(
                 CONF_PV_FORECAST_TOMORROW_ENTITY,
                 default=d.get(CONF_PV_FORECAST_TOMORROW_ENTITY, ""),
-            ): str,
+            ): _entity("sensor"),
             vol.Optional(
                 CONF_FORECAST_SAFETY_FACTOR,
                 default=d.get(CONF_FORECAST_SAFETY_FACTOR, DEFAULT_FORECAST_SAFETY_FACTOR),
@@ -175,7 +187,7 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_WEATHER_WARNING_ENTITY,
                 default=d.get(CONF_WEATHER_WARNING_ENTITY, ""),
-            ): str,
+            ): _entity("binary_sensor", "sensor"),
             vol.Optional(
                 CONF_ACTIVE_CONTROL_ENABLED,
                 default=d.get(CONF_ACTIVE_CONTROL_ENABLED, False),
@@ -235,14 +247,14 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             ): vol.All(vol.Coerce(float), vol.Range(min=0)),
             vol.Optional(
                 CONF_TEMPO_COLOR_ENTITY, default=d.get(CONF_TEMPO_COLOR_ENTITY, "")
-            ): str,
+            ): _entity("sensor"),
             vol.Optional(
                 CONF_TEMPO_COLOR_TOMORROW_ENTITY,
                 default=d.get(CONF_TEMPO_COLOR_TOMORROW_ENTITY, ""),
-            ): str,
+            ): _entity("sensor"),
             vol.Optional(
                 CONF_SPOT_PRICE_ENTITY, default=d.get(CONF_SPOT_PRICE_ENTITY, "")
-            ): str,
+            ): _entity("sensor"),
             vol.Optional(
                 CONF_SPOT_MARKUP, default=d.get(CONF_SPOT_MARKUP, DEFAULT_SPOT_MARKUP)
             ): vol.All(vol.Coerce(float), vol.Range(min=0)),
@@ -349,6 +361,21 @@ class SolarBalanceOptionsFlow(OptionsFlow):
 # ---------------------------------------------------------------------------
 
 
+class _OptionalNumberSelector(selector.NumberSelector):
+    """Number selector that accepts an empty value instead of raising.
+
+    Mirrors :class:`_OptionalEntitySelector`: an empty optional number field
+    ("expected float for ...") must not block saving the form. Empty becomes
+    "no value"; the input assemblers drop it so the builder applies the field's
+    default, and a missing *required* number still fails the builder cleanly.
+    """
+
+    def __call__(self, data: Any) -> Any:
+        if data in (None, ""):
+            return ""
+        return super().__call__(data)
+
+
 def _num(min_v=None, max_v=None, step=None, unit=None):
     cfg = selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX)
     if min_v is not None:
@@ -359,11 +386,28 @@ def _num(min_v=None, max_v=None, step=None, unit=None):
         cfg["step"] = step
     if unit is not None:
         cfg["unit_of_measurement"] = unit
-    return selector.NumberSelector(cfg)
+    return _OptionalNumberSelector(cfg)
+
+
+class _OptionalEntitySelector(selector.EntitySelector):
+    """Entity selector that accepts an empty value instead of raising.
+
+    A bare ``EntitySelector`` rejects ``""``/``None`` ("Entity is neither a
+    valid entity ID nor a valid UUID"), which blocks saving a form that simply
+    leaves an *optional* entity blank. This treats empty as "no value" so the
+    form validates; required fields stay enforced because the input assemblers
+    drop empty values, so a missing required entity still fails the builder
+    with a friendly error rather than a hard selector crash.
+    """
+
+    def __call__(self, data: Any) -> Any:
+        if data in (None, "", []):
+            return ""
+        return super().__call__(data)
 
 
 def _entity(*domains):
-    return selector.EntitySelector(selector.EntitySelectorConfig(domain=list(domains)))
+    return _OptionalEntitySelector(selector.EntitySelectorConfig(domain=list(domains)))
 
 
 def _battery_subentry_schema(d: dict[str, Any]) -> vol.Schema:
@@ -742,7 +786,7 @@ def _meter_subentry_schema(d: dict[str, Any]) -> vol.Schema:
                 )
             ),
             vol.Required("power_entity", default=d.get("power_entity")): _entity("sensor"),
-            vol.Optional("phases", default=d.get("phases", 1)): selector.SelectSelector(
+            vol.Optional("phases", default=str(d.get("phases", 1))): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=["1", "3"])
             ),
             vol.Optional(

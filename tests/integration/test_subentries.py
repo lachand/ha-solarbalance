@@ -230,6 +230,35 @@ def test_meter_prefill_coerces_phases_to_str() -> None:
     assert prefill["phases"] == "3"  # select option is a string
 
 
+def test_optional_empty_fields_pass_schema_validation() -> None:
+    """Re-submitting a prefilled form with blank optional entity/number fields
+    must validate (regression: 'Entity is neither a valid entity ID nor a valid
+    UUID' / 'expected float' blocked saving)."""
+    import voluptuous as vol
+
+    from custom_components.solarbalance.config_flow import (
+        _battery_flat,
+        _battery_subentry_schema,
+    )
+
+    stored = {
+        "name": "stream",
+        "roles": {"battery": {
+            "capacity_kwh": 3.92, "max_charge_power_w": 1200, "max_discharge_power_w": 2300,
+            "soc_entity": "sensor.soc", "power_entity": "sensor.bp",
+        }},
+    }
+    schema = _battery_subentry_schema(_battery_flat(stored))
+    submit = {
+        str(m): (m.default() if m.default is not vol.UNDEFINED else None)
+        for m in schema.schema
+    }
+    # temperature_entity / cycles_entity / usable_capacity_kwh are blank ("").
+    validated = schema(submit)
+    assert validated["temperature_entity"] == ""  # blank optional entity accepted
+    assert validated["usable_capacity_kwh"] == ""  # blank optional number accepted
+
+
 def test_remaining_production_caps_at_local_midnight() -> None:
     """The integral must stop at midnight so tomorrow's sun never counts."""
     from custom_components.solarbalance.coordinator import SolarBalanceCoordinator

@@ -23,6 +23,8 @@ CONF_SOC_EQUALISER_PROBE_STEP_W: Final = "soc_equaliser_probe_step_w"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"
 CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
+CONF_ZI_SETTLE_TICKS: Final = "zi_settle_ticks"
+CONF_ZI_SETTLE_MIN_DROP_W: Final = "zi_settle_min_drop_w"
 CONF_BACKUP_RESERVE_SOC_PCT: Final = "backup_reserve_soc_pct"
 CONF_BASELINE_WINDOW_START_H: Final = "baseline_window_start_h"
 CONF_BASELINE_WINDOW_END_H: Final = "baseline_window_end_h"
@@ -71,6 +73,14 @@ DEFAULT_MAX_RAMP_W: Final = 800
 # Rolling-median window (ticks) on the grid reading fed to the regulator.
 # Rejects single-tick sensor glitches and brief load steps; 1 disables it.
 DEFAULT_GRID_FILTER_SAMPLES: Final = 3
+# Anti-yoyo: after the controller drops a big load, freeze the zero-injection PI
+# for this many ticks and apply a one-shot feed-forward (reduce battery discharge
+# by the dropped power) so the loop doesn't slam the batteries on the transient.
+# 0 disables the behaviour.
+DEFAULT_ZI_SETTLE_TICKS: Final = 2
+# Only load drops at/above this power (W) arm the settle hold; smaller steps are
+# left to the normal regulation + grid median filter.
+DEFAULT_ZI_SETTLE_MIN_DROP_W: Final = 300
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1

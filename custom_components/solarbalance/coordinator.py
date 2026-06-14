@@ -59,6 +59,8 @@ from .const import (
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_KP,
     CONF_ZERO_INJECTION_SETPOINT_W,
+    CONF_ZI_SETTLE_MIN_DROP_W,
+    CONF_ZI_SETTLE_TICKS,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BALANCING_ALPHA,
     DEFAULT_BASELINE_WINDOW_END_H,
@@ -87,6 +89,8 @@ from .const import (
     DEFAULT_VACATION_SOC_MAX_PCT,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
+    DEFAULT_ZI_SETTLE_MIN_DROP_W,
+    DEFAULT_ZI_SETTLE_TICKS,
     DOMAIN,
     STORE_KEY,
     STORE_VERSION,
@@ -103,6 +107,7 @@ from .core.controllers.evening_shed import (
     evaluate_evening_shed,
 )
 from .core.controllers.load_dispatch import LoadCommand, LoadDispatchController
+from .core.controllers.load_settle import SettleState, advance_settle, arm_settle
 from .core.controllers.regulation import (
     apply_slew_limit,
     predictive_steering_w,
@@ -425,6 +430,16 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             self._zi_controller = ZeroInjectionController(kp=zi_kp, ki=0.0, hysteresis_w=hysteresis)
         self._zi_setpoint_w = float(cfg.get(CONF_ZERO_INJECTION_SETPOINT_W, 0))
         self._tick_s = tick
+
+        # Anti-yoyo: after a big load is dropped, freeze the ZI loop for a few
+        # ticks and feed-forward the lost power onto the fleet target so the loop
+        # does not slam the batteries on the resulting export transient.
+        self._zi_settle_ticks = int(cfg.get(CONF_ZI_SETTLE_TICKS, DEFAULT_ZI_SETTLE_TICKS))
+        self._zi_settle_min_drop_w = float(
+            cfg.get(CONF_ZI_SETTLE_MIN_DROP_W, DEFAULT_ZI_SETTLE_MIN_DROP_W)
+        )
+        self._settle_state = SettleState()
+        self._prev_load_power_w: dict[str, float] = {}
 
         # Rolling-median filter on the grid reading fed to the regulator (B):
         # rejects single-tick sensor glitches and brief load steps. The displayed
@@ -1054,7 +1069,19 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             and self._mode in (HemsMode.NORMAL, HemsMode.VACATION)
             and not red_prep
         )
-        if zi_regulating:
+        # Anti-yoyo: while a settle window is active (a big load was just dropped),
+        # keep ZI "regulating" (so the target tracks the measured fleet) but freeze
+        # the PI loop and inject only the one-shot feed-forward — the fleet is told
+        # to discharge the lost load's worth less, instead of the loop slamming it.
+        zi_settling = zi_regulating and self._settle_state.active
+        if zi_settling:
+            zi_correction_w, self._settle_state = advance_settle(self._settle_state)
+            _LOGGER.debug(
+                "ZI settle hold: feed-forward %.0fW, %d tick(s) left",
+                zi_correction_w,
+                self._settle_state.ticks_remaining,
+            )
+        elif zi_regulating:
             # Indirect SoC equaliser (cascaded): offer a surplus/deficit by biasing
             # the ZI setpoint, so the single ZI loop produces the extra fleet
             # discharge/charge. 0 when the equaliser is off. Requires ZI.
@@ -1243,6 +1270,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # required energy by the target time overrides shedding/fast-charge.
         commands = self._apply_deadline(commands, snapshot)
         await self._load_publisher.apply(commands)
+        self._update_load_settle(commands)
 
         self._publisher.publish(result, balancing_result=balancing_result)
         soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}
@@ -1515,6 +1543,39 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if b.available and b.device_name in self._controllable_battery_names
         ]
         return sum(soc) / len(soc) if soc else None
+
+    def _command_load_powers(self, commands: tuple[LoadCommand, ...]) -> dict[str, float]:
+        """Power (W) each load command applies — 0 when off, else commanded/nominal."""
+        load_by_name = {ld.name: ld for ld in self._loads}
+        powers: dict[str, float] = {}
+        for c in commands:
+            if not c.on:
+                powers[c.load_name] = 0.0
+            elif c.power_w is not None:
+                powers[c.load_name] = float(c.power_w)
+            else:
+                ld = load_by_name.get(c.load_name)
+                powers[c.load_name] = float(_load_nominal_w(ld)) if ld is not None else 0.0
+        return powers
+
+    def _update_load_settle(self, commands: tuple[LoadCommand, ...]) -> None:
+        """Arm the anti-yoyo settle window when this tick dropped a big load.
+
+        Only meaningful when load control actually drives the loads; otherwise
+        the "drop" is hypothetical and must not feed-forward onto the batteries.
+        """
+        current = self._command_load_powers(commands)
+        if self._load_publisher.enabled:
+            armed = arm_settle(
+                prev_loads=self._prev_load_power_w,
+                current_loads=current,
+                settle_ticks=self._zi_settle_ticks,
+                min_drop_w=self._zi_settle_min_drop_w,
+            )
+            if armed is not None:
+                self._settle_state = armed
+                _LOGGER.debug("ZI settle armed: %.0fW load dropped", armed.feedforward_w)
+        self._prev_load_power_w = current
 
     def _evaluate_evening_shed(self, snapshot: Snapshot) -> ShedDecision:
         """Assemble inputs and evaluate the evening battery-priority shedding."""
