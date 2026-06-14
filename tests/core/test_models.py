@@ -203,3 +203,12 @@ class TestSnapshot:
         # baseline = grid + pv - battery_charge - loads
         #         = 200 + 500 - (-300) - 0 = 1000 W
         assert snap.baseline_consumption_w == 1000.0
+
+
+def test_estimate_soh_pct() -> None:
+    from custom_components.solarbalance.core.models import Chemistry, estimate_soh_pct
+    assert estimate_soh_pct(None, Chemistry.LIFEPO4) is None
+    assert estimate_soh_pct(0, Chemistry.LIFEPO4) == 100.0
+    assert estimate_soh_pct(3000, Chemistry.LIFEPO4) == 90.0   # 3000/6000*20 = 10 off
+    assert estimate_soh_pct(6000, Chemistry.LIFEPO4) == 80.0   # rated EoL
+    assert estimate_soh_pct(1500, Chemistry.NMC) == 90.0       # 1500/3000*20 = 10 off

@@ -116,6 +116,8 @@
       "batt_soc": { "name": "SoC" },
       "batt_power": { "name": "Power" },
       "batt_temperature": { "name": "Temperature" },
+      "batt_cycles": { "name": "Cycles" },
+      "batt_soh": { "name": "State of Health (SoH)" },
       "regulation_target": { "name": "Regulation target" },
       "zi_correction": { "name": "Zero-injection correction" },
       "equaliser_offer": { "name": "SoC equaliser offer" },

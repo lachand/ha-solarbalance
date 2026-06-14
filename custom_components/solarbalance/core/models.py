@@ -329,7 +329,31 @@ class BatteryState:
     soc_pct: float
     power_w: float  # normalised: positive = charging, negative = discharging
     temperature_c: float | None = None
+    cycles: float | None = None
     available: bool = True
+
+
+# Rated full-cycle count to ~80% End-of-Life capacity, per chemistry. Used to
+# estimate State of Health from the reported cycle count.
+_RATED_CYCLES: dict[Chemistry, int] = {
+    Chemistry.LIFEPO4: 6000,
+    Chemistry.NMC: 3000,
+    Chemistry.LEADACID: 800,
+    Chemistry.OTHER: 4000,
+}
+
+
+def estimate_soh_pct(cycles: float | None, chemistry: Chemistry) -> float | None:
+    """Estimate State of Health (%) from the cycle count (linear to 80% at EoL).
+
+    Returns ``None`` when the cycle count is unknown. Clamped to [80, 100] within
+    the rated life and decreasing linearly beyond.
+    """
+    if cycles is None or cycles < 0:
+        return None
+    rated = _RATED_CYCLES.get(chemistry, 4000)
+    soh = 100.0 - (cycles / rated) * 20.0
+    return round(max(0.0, min(100.0, soh)), 1)
 
 
 @dataclass(slots=True, frozen=True)

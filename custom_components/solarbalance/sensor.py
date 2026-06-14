@@ -40,7 +40,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import COORDINATOR_KEY
 from .const import DOMAIN
 from .coordinator import SolarBalanceCoordinator
-from .core.models import Snapshot
+from .core.models import Chemistry, Snapshot, estimate_soh_pct
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -84,6 +84,11 @@ async def async_setup_entry(
                 entities.append(
                     SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "temperature")
                 )
+            if device.battery.cycles_entity is not None:
+                entities += [
+                    SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "cycles"),
+                    SolarBalanceBatterySohSensor(coordinator, entry, device.name),
+                ]
 
     # Regulation diagnostics (help tune the loop; entity-category diagnostic)
     entities += [
@@ -513,10 +518,11 @@ class SolarBalanceBatterySetpointSensor(_SolarBalanceSensor):
         return round(max(0.0, -pw), 1)
 
 
-_BATTERY_METRIC_META: dict[str, tuple[str, SensorDeviceClass]] = {
+_BATTERY_METRIC_META: dict[str, tuple[str | None, SensorDeviceClass | None]] = {
     "soc": (PERCENTAGE, SensorDeviceClass.BATTERY),
     "power": (UnitOfPower.WATT, SensorDeviceClass.POWER),
     "temperature": (UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE),
+    "cycles": (None, None),
 }
 
 
@@ -557,7 +563,47 @@ class SolarBalanceBatteryMetricSensor(_SolarBalanceSensor):
             return round(state.soc_pct, 1)
         if self._metric == "power":
             return round(state.power_w, 1)
+        if self._metric == "cycles":
+            return round(state.cycles, 0) if state.cycles is not None else None
         return round(state.temperature_c, 1) if state.temperature_c is not None else None
+
+
+class SolarBalanceBatterySohSensor(_SolarBalanceSensor):
+    """Estimated battery State of Health (%) from the reported cycle count."""
+
+    _attr_translation_key = "batt_soh"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:battery-heart-variant"
+
+    def __init__(
+        self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry, device_name: str
+    ) -> None:
+        super().__init__(
+            coordinator,
+            entry,
+            f"{device_name}_soh",
+            device_info=_battery_device_info(entry, device_name),
+        )
+        self._device_name = device_name
+        self._chemistry = next(
+            (
+                d.battery.chemistry
+                for d in coordinator._devices
+                if d.name == device_name and d.battery is not None
+            ),
+            Chemistry.OTHER,
+        )
+
+    @property
+    def native_value(self) -> float | None:
+        snap: Snapshot | None = self.coordinator.data
+        if snap is None:
+            return None
+        state = next((b for b in snap.batteries if b.device_name == self._device_name), None)
+        if state is None or not state.available:
+            return None
+        return estimate_soh_pct(state.cycles, self._chemistry)
 
 
 # ---------------------------------------------------------------------------

@@ -100,11 +100,23 @@ class EntityReader:
             soc = self._read_float(device.battery.soc_entity, default=None)
             power = self._read_battery_power(device)
             available = soc is not None and power is not None
+            temperature = (
+                self._read_float(device.battery.temperature_entity, default=None)
+                if device.battery.temperature_entity
+                else None
+            )
+            cycles = (
+                self._read_float(device.battery.cycles_entity, default=None)
+                if device.battery.cycles_entity
+                else None
+            )
             states.append(
                 BatteryState(
                     device_name=device.name,
                     soc_pct=soc if soc is not None else 0.0,
                     power_w=power if power is not None else 0.0,
+                    temperature_c=temperature,
+                    cycles=cycles,
                     available=available,
                 )
             )
