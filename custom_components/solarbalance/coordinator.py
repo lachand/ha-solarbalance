@@ -629,8 +629,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 pv_w=last["pv_power"],
                 grid_w=last["grid_power"],
                 battery_w=last["battery_power"],
-                import_price=self._tariff.current_import_price(ts),
-                export_price=self._tariff.current_export_price(ts),
+                import_price=self._tariff.current_import_price(dt_util.as_local(ts)),
+                export_price=self._tariff.current_export_price(dt_util.as_local(ts)),
             )
         _LOGGER.debug(
             "Recomputed daily energy from recorder: pv=%.2f import=%.2f export=%.2f conso=%.2f kWh",
@@ -914,8 +914,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             pv_w=snapshot.pv_total_w,
             grid_w=snapshot.grid_power_w,
             battery_w=snapshot.battery_power_total_w,
-            import_price=self._tariff.current_import_price(snapshot.timestamp),
-            export_price=self._tariff.current_export_price(snapshot.timestamp),
+            import_price=self._tariff.current_import_price(local_now),
+            export_price=self._tariff.current_export_price(local_now),
         )
         self._baseline_est.update(
             local_time=local_now.time(),
@@ -988,9 +988,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # Warning cleared after a timer-based exit — re-arm auto-trigger for future events.
             self._storm_manual = False
 
-        # Resolve current tariff prices
-        import_price = self._tariff.current_import_price(snapshot.timestamp)
-        export_price = self._tariff.current_export_price(snapshot.timestamp)
+        # Resolve current tariff prices (local wall-clock — tariff windows are
+        # defined in local time, while snapshot.timestamp is UTC).
+        local_ts = dt_util.as_local(snapshot.timestamp)
+        import_price = self._tariff.current_import_price(local_ts)
+        export_price = self._tariff.current_export_price(local_ts)
 
         snapshot = replace(
             snapshot,
@@ -1107,7 +1109,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             base_target_w = (
                 current_fleet_w + zi_correction_w if zi_regulating else absolute_target_w
             )
-            ts = snapshot.timestamp
+            ts = dt_util.as_local(snapshot.timestamp)
             steering_w = predictive_steering_w(
                 base_target_w=base_target_w,
                 planner_w=self._plan.first_setpoint_w,
@@ -1249,7 +1251,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if not controllable_soc:
             return
         slots = build_forecast_slots(
-            start=snapshot.timestamp,
+            start=dt_util.as_local(snapshot.timestamp),
             n_hours=24,
             pv_w_by_hour=self._forecast_pv_by_hour(snapshot),
             baseline_w=max(0.0, self._baseline_ema_w),
@@ -1706,7 +1708,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             return False
         if not isinstance(self._tariff, TempoTariff):
             return False
-        if not self._tariff.is_off_peak(snapshot.timestamp):
+        if not self._tariff.is_off_peak(dt_util.as_local(snapshot.timestamp)):
             return False
         state = self.hass.states.get(self._tempo_color_tomorrow_entity)
         tomorrow = parse_tempo_color(state.state if state else None)
@@ -1716,8 +1718,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self, snapshot: Snapshot, target_soc_pct: float, rationale: str
     ) -> ArbitrationResult:
         """Charge all batteries toward ``target_soc_pct`` (grid-backed); fall back when reached."""
+        # Each battery can only reach its own soc_max, so "reached" must compare
+        # against min(target, soc_max) — otherwise a target above soc_max (e.g. the
+        # 100% default vs a 95% ceiling) is never satisfied and normal arbitration
+        # is bypassed for the whole window.
+        soc_max_by_device = {
+            d.name: float(d.battery.soc_max_pct) for d in self._devices if d.battery is not None
+        }
         available = [b for b in snapshot.batteries if b.available]
-        if available and all(b.soc_pct >= target_soc_pct for b in available):
+        if available and all(
+            b.soc_pct >= min(target_soc_pct, soc_max_by_device.get(b.device_name, 100.0))
+            for b in available
+        ):
             return self._arbiter.run(snapshot)
         targets: dict[str, BatteryTarget] = {}
         for device in self._devices:

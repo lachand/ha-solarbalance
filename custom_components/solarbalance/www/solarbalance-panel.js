@@ -539,19 +539,23 @@ class SolarBalancePanel extends HTMLElement {
 
   _planSummary(sched) {
     // Merge consecutive slots into charge / hold / discharge ranges and phrase them.
-    const hh = (iso) => new Date(iso).getHours().toString().padStart(2, "0") + "h";
+    // Each slot is one hour; a segment ends at the END of its last slot (start + 1 h),
+    // so a 02h/03h/04h charge reads "02h–05h", not "02h–04h".
+    const SLOT_MS = 3600000;
+    const hh = (ms) => new Date(ms).getHours().toString().padStart(2, "0") + "h";
     const cls = (p) => (p > 50 ? "charge" : p < -50 ? "discharge" : "hold");
     const segs = [];
     for (const s of sched) {
       const c = cls(s.battery_power_w || 0);
+      const startMs = Date.parse(s.start);
       const last = segs[segs.length - 1];
-      if (last && last.c === c) last.end = s.start;
-      else segs.push({ c, start: s.start, end: s.start });
+      if (last && last.c === c) last.endMs = startMs + SLOT_MS;
+      else segs.push({ c, startMs, endMs: startMs + SLOT_MS });
     }
     const labels = { charge: "🔋 Charge", discharge: "⚡ Décharge", hold: "⏸️ Maintien" };
     const parts = segs
       .filter((seg) => seg.c !== "hold")
-      .map((seg) => `${labels[seg.c]} ${hh(seg.start)}–${hh(seg.end)}`);
+      .map((seg) => `${labels[seg.c]} ${hh(seg.startMs)}–${hh(seg.endMs)}`);
     return parts.length ? parts.join(" · ") : "Aucune action batterie planifiée";
   }
 

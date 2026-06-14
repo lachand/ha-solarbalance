@@ -71,12 +71,23 @@ class LoadPublisher:
                     await self._write_value(load.power_set_entity, target)
 
     async def reset(self) -> None:
-        """Turn every managed on/off load OFF (e.g. when the HEMS is paused)."""
+        """Stop every managed load (e.g. when the HEMS is paused/suspended).
+
+        Cuts on/off and switch-backed loads via their switch, and drives stepped
+        levels / modulating power to 0 so nothing keeps running after a reset.
+        """
         if not self._enabled:
             return
         for load in self._loads.values():
-            if load.control_type is LoadControlType.ON_OFF:
+            if load.switch_entity is not None:
                 await self._write_switch(load.switch_entity, False)
+            if load.control_type is LoadControlType.STEPPED and load.level_entity is not None:
+                await self._write_value(load.level_entity, 0.0)
+            elif (
+                load.control_type is LoadControlType.MODULATING
+                and load.power_set_entity is not None
+            ):
+                await self._write_value(load.power_set_entity, 0.0)
 
     async def _write_switch(self, entity_id: str | None, on: bool) -> None:
         if entity_id is None or self._last_on.get(entity_id) == on:

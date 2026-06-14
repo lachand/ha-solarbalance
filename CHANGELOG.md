@@ -37,6 +37,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+### Fixed
+
+- **Fenêtres tarifaires en heure locale** — le tick passait `snapshot.timestamp` (UTC) au tarif, qui compare l'heure locale ; HC/HP, Tempo, cheap/expensive, pré-charge jour rouge et le coût étaient décalés de l'offset UTC. Conversion en heure locale à tous les sites d'appel.
+- **`reset()` arrête tous les loads** — il ne coupait que les loads on/off ; les loads stepped (EV) / modulating restaient actifs après une pause/suspension.
+- **Pré-charge Tempo** — le test « cible atteinte » comparait au SoC cible brut (100 % par défaut) ; une batterie plafonnée à 95 % n'atteignait jamais la cible et restait en charge réseau toute la fenêtre HC. Compare désormais à `min(cible, soc_max)`.
+- **Résumé du plan (panneau)** — les plages étaient trop courtes d'un créneau (ex. « 02h–04h » au lieu de « 02h–05h »).
+
 ## [1.2.0] — 2026-06-14
 
 ### Added
