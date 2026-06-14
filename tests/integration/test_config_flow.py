@@ -50,6 +50,37 @@ async def test_config_flow_creates_entry(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.asyncio
+async def test_options_flow_menu_section_saves_and_merges(hass: HomeAssistant) -> None:
+    """The options menu edits one section while preserving the other options."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={**_VALID_USER_INPUT, CONF_SUBSCRIBED_POWER_KVA: 9},
+        options={CONF_SUBSCRIBED_POWER_KVA: 9, CONF_PHASES: 1},
+    )
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    assert result["type"] == FlowResultType.MENU
+    assert "general" in result["menu_options"]
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "general"}
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "general"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={CONF_TICK_INTERVAL_S: 20}
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    # Edited value applied; an untouched option from before is preserved.
+    assert entry.options[CONF_TICK_INTERVAL_S] == 20
+    assert entry.options[CONF_SUBSCRIBED_POWER_KVA] == 9
+
+
+@pytest.mark.asyncio
 async def test_config_flow_aborts_when_already_configured(hass: HomeAssistant) -> None:
     """A second config flow attempt should abort with single_instance_allowed."""
     # First setup — succeeds

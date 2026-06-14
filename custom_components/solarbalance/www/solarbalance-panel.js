@@ -153,6 +153,8 @@ class SolarBalancePanel extends HTMLElement {
       talon: id("baseline_night", "sensor.solarbalance_standby_baseline_night"),
       dailyCost: id("daily_cost", "sensor.solarbalance_grid_cost_today"),
       dailySavings: id("daily_savings", "sensor.solarbalance_savings_today"),
+      savingsMonth: id("savings_month", "sensor.solarbalance_savings_this_month"),
+      savingsYear: id("savings_year", "sensor.solarbalance_savings_this_year"),
       pvRemaining: id("pv_remaining_today", "sensor.solarbalance_remaining_pv_production_today"),
       importPrice: id("current_import_price", "sensor.solarbalance_current_import_price"),
       storm: id("storm_mode", "binary_sensor.solarbalance_storm_mode"),
@@ -213,7 +215,7 @@ class SolarBalancePanel extends HTMLElement {
 
   /** Per-load control switches, grouped by load (force-charge + shed-exempt). */
   _loadSwitches() {
-    const KEYS = { force_charge_now: "force", shed_exempt: "shed" };
+    const KEYS = { force_charge_now: "force", shed_exempt: "shed", off_peak_only: "offpeak" };
     const out = {};
     const h = this._hass;
     if (!h || !h.entities) return out;
@@ -247,6 +249,7 @@ class SolarBalancePanel extends HTMLElement {
           <span>${l.name}</span>
           <span class="load-btns">
             ${btn(l.force, "⚡ Charge en cours", "⚡ Charger maintenant", "Forcer la charge maintenant (même sans surplus)")}
+            ${btn(l.offpeak, "🕓 Heures creuses", "🕓 HC seulement", "N'autoriser ce consommateur qu'en heures creuses / prix bas")}
             ${btn(l.shed, "🔓 Ne pas délester", "🔌 Délestable", "Exempter du délestage et de la pause charge rapide")}
           </span>
         </div>`
@@ -775,6 +778,46 @@ class SolarBalancePanel extends HTMLElement {
       )
       .join("");
 
+    // Euro chart: net grid cost vs estimated savings per day (cost may be < 0).
+    const H2 = 150;
+    let vMax = 0.5;
+    let vMin = 0;
+    for (const d of days) {
+      vMax = Math.max(vMax, d.cost || 0, d.savings || 0);
+      vMin = Math.min(vMin, d.cost || 0);
+    }
+    const yE = (v) => padT + ((vMax - v) / (vMax - vMin)) * (H2 - padT - padB);
+    const zeroY = yE(0);
+    let ebars = "";
+    days.forEach((d, i) => {
+      const x = padL + i * bw;
+      const w2 = (bw - 3) / 2;
+      const c = d.cost || 0;
+      const s = d.savings || 0;
+      const cy = yE(Math.max(c, 0));
+      const ch = c >= 0 ? zeroY - yE(c) : yE(c) - zeroY;
+      const cTop = c >= 0 ? yE(c) : zeroY;
+      ebars +=
+        `<rect x="${(x + 1).toFixed(1)}" y="${cTop.toFixed(1)}" width="${w2.toFixed(
+          1
+        )}" height="${Math.max(0, ch).toFixed(1)}" class="${c >= 0 ? "h-cost" : "h-cost neg"}"/>` +
+        `<rect x="${(x + 1 + w2).toFixed(1)}" y="${yE(s).toFixed(1)}" width="${w2.toFixed(
+          1
+        )}" height="${Math.max(0, zeroY - yE(s)).toFixed(1)}" class="h-sav"/>`;
+      void cy;
+    });
+    const exlbls = days
+      .map((d, i) =>
+        i % step === 0
+          ? `<text x="${(padL + i * bw + bw / 2).toFixed(1)}" y="${H2 - 8}" class="xlbl" text-anchor="middle">${lbl(
+              d.day
+            )}</text>`
+          : ""
+      )
+      .join("");
+    const totCost = days.reduce((a, d) => a + (d.cost || 0), 0);
+    const totSav = days.reduce((a, d) => a + (d.savings || 0), 0);
+
     return `
       <section class="card hist-card">
         <h3>Historique — ${n} derniers jours</h3>
@@ -784,6 +827,17 @@ class SolarBalancePanel extends HTMLElement {
         <div class="legend">
           <span><i class="sw pv"></i>Production</span>
           <span><i class="sw co"></i>Consommation</span>
+        </div>
+        <h3 style="margin-top:14px">Coûts & économies (€/jour)</h3>
+        <svg viewBox="0 0 ${W} ${H2}" class="pred-chart" preserveAspectRatio="none" role="img">
+          <line x1="${padL}" y1="${zeroY.toFixed(1)}" x2="${W - padR}" y2="${zeroY.toFixed(
+            1
+          )}" class="zero"/>
+          ${ebars}${exlbls}
+        </svg>
+        <div class="legend">
+          <span><i class="sw cost"></i>Coût réseau net (${totCost.toFixed(2)} €)</span>
+          <span><i class="sw sav"></i>Économies (${totSav.toFixed(2)} €)</span>
         </div>
         <table class="pred-table">
           <thead><tr><th>Jour</th><th>Prod</th><th>Conso</th><th>Autonomie</th><th>Coût</th><th>Éco.</th></tr></thead>
@@ -834,6 +888,7 @@ class SolarBalancePanel extends HTMLElement {
             ${this._freshness()}
           </div>
           <div class="strat">Stratégie : ${strat}</div>
+          ${this._attr(E.mode, "reason") ? `<div class="reason">${this._attr(E.mode, "reason")}</div>` : ""}
         </header>
 
         ${this._banner()}
@@ -862,6 +917,10 @@ class SolarBalancePanel extends HTMLElement {
               ${this._tile("Talon (nuit)", this._fmt(E.talon, 0, "W"), "var(--secondary-text-color)")}
               ${this._tile("Coût réseau", this._fmt(E.dailyCost, 2, "€"), "var(--info-color,#3d8bff)")}
               ${this._tile("Économies", this._fmt(E.dailySavings, 2, "€"), "var(--success-color,#27ae60)")}
+            </div>
+            <div class="tiles">
+              ${this._tile("Éco. ce mois", this._fmt(E.savingsMonth, 2, "€"), "var(--success-color,#27ae60)")}
+              ${this._tile("Éco. cette année", this._fmt(E.savingsYear, 2, "€"), "var(--success-color,#27ae60)")}
             </div>
           </div>
         </section>
@@ -931,6 +990,9 @@ class SolarBalancePanel extends HTMLElement {
         .mode { display:inline-block; padding:2px 10px; border-radius:12px; color:#fff;
                 text-transform:capitalize; font-size:.85rem; }
         .strat { color:var(--secondary-text-color); font-size:.85rem; margin-top:4px; }
+        .reason { color:var(--primary-text-color); font-size:.9rem; margin-top:6px;
+                  padding:6px 10px; border-radius:8px; background:var(--secondary-background-color);
+                  display:inline-block; }
         .fresh { font-size:.78rem; color:var(--success-color,#27ae60); margin-left:auto; }
         .fresh.stale { color:var(--warning-color,#f5a623); }
         .banner { border-radius:var(--ha-card-border-radius,12px); padding:10px 14px; margin-bottom:12px;
@@ -970,6 +1032,11 @@ class SolarBalancePanel extends HTMLElement {
         .hist-card { margin-bottom:12px; }
         .h-pv { fill:var(--warning-color,#f5a623); opacity:.85; }
         .h-co { fill:var(--info-color,#3d8bff); opacity:.7; }
+        .h-cost { fill:var(--info-color,#3d8bff); opacity:.8; }
+        .h-cost.neg { fill:var(--success-color,#27ae60); opacity:.55; }
+        .h-sav { fill:var(--success-color,#27ae60); opacity:.85; }
+        .legend .sw.cost { background:var(--info-color,#3d8bff); }
+        .legend .sw.sav { background:var(--success-color,#27ae60); }
         .pred-table { width:100%; border-collapse:collapse; margin-top:10px; font-size:.85rem; }
         .pred-table th, .pred-table td { text-align:left; padding:4px 8px;
                 border-bottom:1px solid var(--divider-color,#eee); }

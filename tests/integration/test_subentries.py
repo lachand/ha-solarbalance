@@ -396,6 +396,52 @@ async def test_force_charge_switch_request_and_autoclear(hass) -> None:
     assert not coord.force_charge_load_active("voiture")
 
 
+async def test_off_peak_only_forces_load_off_outside_cheap_window(hass) -> None:
+    """An off-peak-only load is forced off when the tariff window is not cheap."""
+    from types import SimpleNamespace
+
+    from homeassistant.config_entries import ConfigSubentryData
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.solarbalance import COORDINATOR_KEY
+    from custom_components.solarbalance.const import (
+        CONF_PHASES,
+        CONF_PRIORITIES,
+        CONF_SUBSCRIBED_POWER_KVA,
+        CONF_TICK_INTERVAL_S,
+        DOMAIN,
+    )
+    from custom_components.solarbalance.core.controllers.load_dispatch import LoadCommand
+    from custom_components.solarbalance.core.models import StrategyKind
+
+    load = ConfigSubentryData(
+        subentry_type="load", title="voiture", unique_id=None,
+        data={"name": "voiture", "control_type": "on_off", "priority": 5,
+              "interruptible": True, "switch_entity": "switch.borne", "nominal_power_w": 2000},
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
+              CONF_PRIORITIES: [k.value for k in StrategyKind]},
+        subentries_data=[load],
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coord = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    coord.set_off_peak_only("voiture", True)
+    cmds = (LoadCommand(load_name="voiture", on=True, rationale="dispatch"),)
+
+    coord._tariff = SimpleNamespace(is_cheap_window=lambda ts, *, threshold: False)
+    out = coord._apply_off_peak(cmds, coord.data)
+    assert out[0].on is False and out[0].rationale == "off_peak_only"
+
+    coord._tariff = SimpleNamespace(is_cheap_window=lambda ts, *, threshold: True)
+    out = coord._apply_off_peak(cmds, coord.data)
+    assert out[0].on is True  # cheap window → unchanged
+
+
 def test_optional_empty_fields_pass_schema_validation() -> None:
     """Re-submitting a prefilled form with blank optional entity/number fields
     must validate (regression: 'Entity is neither a valid entity ID nor a valid

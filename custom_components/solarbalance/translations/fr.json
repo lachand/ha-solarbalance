@@ -53,19 +53,57 @@
     "step": {
       "init": {
         "title": "SolarBalance — Paramètres",
+        "menu_options": {
+          "general": "Régulation & comportements",
+          "forecast": "Prévision PV",
+          "tariff": "Tarif & prix"
+        }
+      },
+      "general": {
+        "title": "Régulation & comportements",
         "data": {
           "tick_interval_s": "Intervalle de mise à jour (secondes)",
           "zero_injection_enabled": "Activer la régulation zéro injection",
           "zero_injection_setpoint_w": "Consigne zéro injection (W)",
           "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
+          "zi_settle_ticks": "Anti-yoyo : ticks de gel ZI après coupure d'un load",
+          "zi_settle_min_drop_w": "Anti-yoyo : seuil de puissance coupée (W)",
           "phases": "Nombre de phases",
           "subscribed_power_kva": "Puissance souscrite (kVA)",
           "backup_reserve_soc_pct": "Réserve backup (SoC %)",
           "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
           "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
+          "weather_warning_entity": "Entité vigilance Météo-France (optionnel)",
           "load_control_enabled": "Activer le contrôle des consommateurs (switches)",
           "evening_shed_enabled": "Délestage fin de journée (priorité charge batterie)",
+          "predictive_control_enabled": "Contrôle prédictif actif (pilotage batteries selon tarifs)",
+          "notifications_enabled": "Notifications (dégradé, surcharge, délestage)",
+          "tempo_red_prep_enabled": "Tempo : pré-charge avant un jour rouge",
+          "tempo_red_prep_soc_pct": "Tempo : SoC cible avant jour rouge (%)",
+          "vacation_soc_max_pct": "Vacances : SoC max (plafond charge, %)",
           "evening_shed_min_power_w": "Délestage : puissance mini d'un « gros » consommateur (W)",
+          "active_control_enabled": "Pilotage actif des batteries/onduleurs",
+          "grid_filter_samples": "Filtre médian réseau (échantillons)",
+          "max_ramp_w": "Variation max de la consigne parc par tick (W)",
+          "zero_injection_kp": "Gain proportionnel zéro injection (Kp)",
+          "soc_equaliser_enabled": "Activer l'équaliseur de SoC",
+          "soc_equaliser_max_w": "Équaliseur SoC : offre max (W)",
+          "soc_equaliser_kp_w_per_pct": "Équaliseur SoC : gain (W/%)",
+          "soc_equaliser_deadband_pct": "Équaliseur SoC : bande morte (%)",
+          "soc_equaliser_probe_step_w": "Équaliseur SoC : pas de sonde (W)"
+        }
+      },
+      "forecast": {
+        "title": "Prévision PV",
+        "data": {
+          "pv_forecast_entity": "Entité prévision PV (optionnel)",
+          "pv_forecast_tomorrow_entity": "Entité prévision PV demain (optionnel)",
+          "forecast_safety_factor": "Facteur de sécurité prévision (0-1)"
+        }
+      },
+      "tariff": {
+        "title": "Tarif & prix",
+        "data": {
           "import_price": "Prix soutirage (€/kWh)",
           "export_price": "Prix injection (€/kWh)",
           "tariff_type": "Type de tarif",
@@ -76,16 +114,7 @@
           "tempo_color_entity": "Tempo : entité couleur du jour",
           "tempo_color_tomorrow_entity": "Tempo : entité couleur de demain",
           "spot_price_entity": "Spot : entité prix actuel (€/kWh)",
-          "spot_markup": "Spot : marge ajoutée (€/kWh)",
-          "predictive_control_enabled": "Contrôle prédictif actif (pilotage batteries selon tarifs)",
-          "notifications_enabled": "Notifications (dégradé, surcharge, délestage)",
-          "tempo_red_prep_enabled": "Tempo : pré-charge avant un jour rouge",
-          "tempo_red_prep_soc_pct": "Tempo : SoC cible avant jour rouge (%)",
-          "vacation_soc_max_pct": "Vacances : SoC max (plafond charge, %)",
-          "pv_forecast_entity": "Entité prévision PV (optionnel)",
-          "pv_forecast_tomorrow_entity": "Entité prévision PV demain (optionnel)",
-          "forecast_safety_factor": "Facteur de sécurité prévision (0-1)",
-          "weather_warning_entity": "Entité vigilance Météo-France (optionnel)"
+          "spot_markup": "Spot : marge ajoutée (€/kWh)"
         }
       }
     }
@@ -567,6 +596,12 @@
       },
       "planner_expected_cost": {
         "name": "Coût attendu (advisory)"
+      },
+      "savings_month": {
+        "name": "Économies ce mois"
+      },
+      "savings_year": {
+        "name": "Économies cette année"
       }
     },
     "select": {
@@ -599,6 +634,9 @@
       },
       "force_charge_now": {
         "name": "Charger maintenant"
+      },
+      "off_peak_only": {
+        "name": "Heures creuses seulement"
       }
     },
     "binary_sensor": {

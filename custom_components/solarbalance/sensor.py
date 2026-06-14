@@ -70,6 +70,8 @@ async def async_setup_entry(
         SolarBalanceBaselineNightSensor(coordinator, entry),
         SolarBalanceDailyCostSensor(coordinator, entry),
         SolarBalanceDailySavingsSensor(coordinator, entry),
+        SolarBalanceSavingsMonthSensor(coordinator, entry),
+        SolarBalanceSavingsYearSensor(coordinator, entry),
         SolarBalanceCurrentImportPriceSensor(coordinator, entry),
     ]
 
@@ -194,6 +196,10 @@ class SolarBalanceModeSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> str:
         return self.coordinator.mode.value
+
+    @property
+    def extra_state_attributes(self) -> dict[str, str]:
+        return {"reason": self.coordinator.decision_reason}
 
 
 class SolarBalanceDominantStrategySensor(_SolarBalanceSensor):
@@ -450,6 +456,40 @@ class SolarBalanceCurrentImportPriceSensor(_SolarBalanceSensor):
     @property
     def extra_state_attributes(self) -> dict[str, bool]:
         return {"time_varying": self.coordinator.tariff_time_varying}
+
+
+class SolarBalanceSavingsMonthSensor(_SolarBalanceSensor):
+    """Cumulative estimated savings for the current calendar month (EUR)."""
+
+    _attr_translation_key = "savings_month"
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_icon = "mdi:cash-multiple"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "savings_month")
+
+    @property
+    def native_value(self) -> float:
+        return self.coordinator.savings_month_eur
+
+
+class SolarBalanceSavingsYearSensor(_SolarBalanceSensor):
+    """Cumulative estimated savings for the current calendar year (EUR)."""
+
+    _attr_translation_key = "savings_year"
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_state_class = SensorStateClass.TOTAL
+    _attr_icon = "mdi:cash-multiple"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "savings_year")
+
+    @property
+    def native_value(self) -> float:
+        return self.coordinator.savings_year_eur
 
 
 class SolarBalancePvRemainingTodaySensor(_SolarBalanceSensor):

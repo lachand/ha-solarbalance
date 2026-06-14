@@ -284,6 +284,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._shed_exempt: set[str] = set()
         # Active manual "charge now" requests, keyed by load name.
         self._force_charge_req: dict[str, ForceChargeRequest] = {}
+        # Loads restricted to cheap/off-peak tariff windows only.
+        self._off_peak_only: set[str] = set()
         # Tariff resolution priority: explicit object (tests) > YAML tariff: block
         # > UI tariff options > flat configurable import/export prices (defaults so
         # cost/savings accounting works out of the box).
@@ -341,6 +343,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._notifications_enabled = bool(cfg.get(CONF_NOTIFICATIONS_ENABLED, True))
         self._alerts_sent: dict[str, bool] = {}
         self._daily_history: list[dict[str, Any]] = []
+        # Cumulative savings, reset on month/year rollover (persisted).
+        self._savings_month_eur: float = 0.0
+        self._savings_year_eur: float = 0.0
+        self._savings_month: str | None = None  # "YYYY-MM" of the running month total
+        self._savings_year: int | None = None  # year of the running year total
         self._storm_expires_at: datetime | None = None
         self._storm_manual: bool = False
 
@@ -567,6 +574,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         history = (data or {}).get("daily_history")
         if isinstance(history, list):
             self._daily_history = [h for h in history if isinstance(h, dict)][-30:]
+        cum = (data or {}).get("cumulative_savings")
+        if isinstance(cum, dict):
+            with contextlib.suppress(ValueError, TypeError):
+                self._savings_month = cum.get("month")
+                self._savings_month_eur = float(cum.get("month_eur", 0.0))
+                self._savings_year = cum.get("year")
+                self._savings_year_eur = float(cum.get("year_eur", 0.0))
         le = (data or {}).get("load_energy")
         if le and le.get("day"):
             with contextlib.suppress(ValueError, TypeError):
@@ -708,6 +722,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 "kwh": {k: round(v, 4) for k, v in self._load_energy_kwh.items()},
             },
             "daily_history": self._daily_history,
+            "cumulative_savings": {
+                "month": self._savings_month,
+                "month_eur": round(self._savings_month_eur, 4),
+                "year": self._savings_year,
+                "year_eur": round(self._savings_year_eur, 4),
+            },
         }
 
     @property
@@ -807,6 +827,29 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             }
         )
         self._daily_history = self._daily_history[-30:]
+        self._accumulate_savings(day, self._daily_history[-1]["savings"])
+
+    def _accumulate_savings(self, day: date, savings_eur: float) -> None:
+        """Add a finished day's savings to the month/year totals, resetting on rollover."""
+        month_key = f"{day.year:04d}-{day.month:02d}"
+        if self._savings_month != month_key:
+            self._savings_month = month_key
+            self._savings_month_eur = 0.0
+        self._savings_month_eur += savings_eur
+        if self._savings_year != day.year:
+            self._savings_year = day.year
+            self._savings_year_eur = 0.0
+        self._savings_year_eur += savings_eur
+
+    @property
+    def savings_month_eur(self) -> float:
+        """Cumulative estimated savings for the current calendar month (EUR)."""
+        return round(self._savings_month_eur, 2)
+
+    @property
+    def savings_year_eur(self) -> float:
+        """Cumulative estimated savings for the current calendar year (EUR)."""
+        return round(self._savings_year_eur, 2)
 
     @property
     def daily_import_cost_eur(self) -> float:
@@ -848,6 +891,79 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 if not profile or max(profile) <= 0.0:
                     issues.append(
                         "Prévision PV vide en pleine journée — vérifier l'entité de prévision."
+                    )
+        issues.extend(self._static_config_issues())
+        return issues
+
+    @property
+    def decision_reason(self) -> str:
+        """One-sentence, human-readable explanation of the current battery action."""
+        snap = self.data
+        if snap is None:
+            return ""
+        if self._mode is HemsMode.PAUSED:
+            return "En pause — aucune régulation active."
+        if self._mode is HemsMode.STORM:
+            return "Mode tempête — remplissage des batteries en cours."
+        if self._mode is HemsMode.MANUAL_OVERRIDE:
+            return "Override manuel — consigne batterie imposée."
+        prefix = "Mode vacances — " if self._mode is HemsMode.VACATION else ""
+        ts = dt_util.as_local(snap.timestamp)
+        cheap = self._tariff.is_cheap_window(ts, threshold=DEFAULT_COST_MIN_CHEAP_THRESHOLD)
+        expensive = self._tariff.is_expensive_window(
+            ts, threshold=DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD
+        )
+        fleet = snap.battery_power_total_w
+        pv = snap.pv_total_w
+        if self._mode is HemsMode.NORMAL and self._red_prep_active(snap):
+            return prefix + "Pré-charge avant jour rouge Tempo (charge réseau en heures creuses)."
+        if fleet > 50:
+            if pv > 200 and not expensive:
+                reason = "surplus solaire stocké"
+            elif cheap:
+                reason = "charge en fenêtre tarifaire basse (heures creuses)"
+            else:
+                reason = "charge des batteries"
+            return prefix + f"Batteries en charge — {reason}."
+        if fleet < -50:
+            if expensive:
+                reason = "prix élevé (heures pleines) — décharge pour éviter l'import"
+            elif pv < 100:
+                reason = "peu de solaire — décharge pour couvrir la maison"
+            else:
+                reason = "autoconsommation (décharge pour limiter l'import)"
+            return prefix + f"Batteries en décharge — {reason}."
+        return prefix + "Équilibre — peu d'échange avec le réseau."
+
+    def _static_config_issues(self) -> list[str]:
+        """Configuration mistakes detectable from the declared equipment alone."""
+        issues: list[str] = []
+        for device in self._devices:
+            battery = device.battery
+            if battery is None:
+                continue
+            usable = battery.usable_capacity_kwh or battery.capacity_kwh
+            if not usable or usable <= 0.0:
+                issues.append(
+                    f"Batterie « {device.name} » : capacité (capacity_kwh) absente ou nulle — "
+                    "la charge rapide et le délestage ne peuvent pas estimer la récupérabilité."
+                )
+            if battery.soc_max_pct <= battery.soc_min_pct:
+                issues.append(
+                    f"Batterie « {device.name} » : soc_max_pct <= soc_min_pct "
+                    "(plage de SoC invalide)."
+                )
+        for load in self._loads:
+            if load.fast_charge:
+                if not load.min_charge_w or load.min_charge_w <= 0:
+                    issues.append(
+                        f"Consommateur « {load.name} » : fast_charge activé sans min_charge_w — "
+                        "la charge rapide assistée est inopérante."
+                    )
+                if _load_nominal_w(load) <= 0:
+                    issues.append(
+                        f"Consommateur « {load.name} » : fast_charge activé sans puissance "
+                        "nominale (nominal_power_w / steps / max_power_w)."
                     )
         return issues
 
@@ -899,6 +1015,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def cancel_force_charge_load(self, load_name: str) -> None:
         """Cancel a manual 'charge now' request for a load."""
         self._force_charge_req.pop(load_name, None)
+
+    def is_off_peak_only(self, load_name: str) -> bool:
+        """True when this load is restricted to cheap/off-peak windows."""
+        return load_name in self._off_peak_only
+
+    def set_off_peak_only(self, load_name: str, enabled: bool) -> None:
+        """Restrict (or not) a load to cheap/off-peak tariff windows."""
+        if enabled:
+            self._off_peak_only.add(load_name)
+        else:
+            self._off_peak_only.discard(load_name)
 
     @property
     def fast_charge(self) -> dict[str, FastChargeDecision]:
@@ -1324,6 +1451,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 else c
                 for c in commands
             )
+        # Off-peak-only loads: forbid running outside cheap tariff windows
+        # (overridable by the deadline guarantee and manual force-charge below).
+        commands = self._apply_off_peak(commands, snapshot)
         # Departure deadline has the final say: a grid-backed charge to meet the
         # required energy by the target time overrides shedding/fast-charge.
         commands = self._apply_deadline(commands, snapshot)
@@ -1773,6 +1903,22 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 by_name[load.name] = self._command_for_power(load, decision.target_w)
         self._ev_deadline = decisions
         return tuple(by_name.values())
+
+    def _apply_off_peak(
+        self, commands: tuple[LoadCommand, ...], snapshot: Snapshot
+    ) -> tuple[LoadCommand, ...]:
+        """Force off-peak-only loads off while the tariff window is not cheap."""
+        if not self._off_peak_only:
+            return commands
+        ts = dt_util.as_local(snapshot.timestamp)
+        if self._tariff.is_cheap_window(ts, threshold=DEFAULT_COST_MIN_CHEAP_THRESHOLD):
+            return commands  # cheap window → loads may run normally
+        return tuple(
+            LoadCommand(load_name=c.load_name, on=False, rationale="off_peak_only")
+            if c.load_name in self._off_peak_only
+            else c
+            for c in commands
+        )
 
     def _apply_force_charge(
         self, commands: tuple[LoadCommand, ...], snapshot: Snapshot

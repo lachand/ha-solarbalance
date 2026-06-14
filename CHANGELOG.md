@@ -37,6 +37,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-06-14
+
+### Added
+
+- **Mode « Heures creuses seulement » par consommateur** — interrupteur `switch.solarbalance_<load>_off_peak_only` (et toggle panneau) qui n'autorise un consommateur que dans les fenêtres tarifaires basses (HC / prix spot bas / Tempo non-rouge). Restauré au redémarrage ; outrepassé par l'échéance de départ et la charge forcée.
+- **Économies cumulées** — capteurs `sensor.solarbalance_savings_this_month` / `...this_year` (€, remis à zéro au changement de mois/année, persistés) + tuiles dans le panneau.
+- **Graphe coûts & économies (€/jour)** dans le panneau — barres coût réseau net vs économies sur les 30 derniers jours, avec totaux.
+- **Raison de décision lisible** — phrase explicative (« Batteries en décharge — prix élevé… ») exposée en attribut `reason` du capteur de mode et affichée en tête du panneau.
+- **Diagnostic de configuration enrichi** — `binary_sensor` de santé/`config_issues` détecte désormais une capacité batterie absente/nulle, une plage SoC invalide, et un `fast_charge` sans `min_charge_w` ou sans puissance nominale.
+- **Export de diagnostic HA** — Paramètres → Appareils → Télécharger les diagnostics (état du moteur, config, snapshot, régulation) pour faciliter le support.
+
+### Changed
+
+- **Formulaire d'options scindé en sections** — un menu « Régulation & comportements / Prévision PV / Tarif & prix » remplace le formulaire unique très long ; chaque section enregistre sans toucher aux autres.
+
 ## [1.4.0] — 2026-06-14
 
 ### Added
@@ -141,6 +156,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.5.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.5...v1.4.0
 [1.3.5]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.3...v1.3.4

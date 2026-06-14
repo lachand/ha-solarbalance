@@ -53,19 +53,57 @@
     "step": {
       "init": {
         "title": "SolarBalance — Settings",
+        "menu_options": {
+          "general": "Regulation & behaviour",
+          "forecast": "PV forecast",
+          "tariff": "Tariff & prices"
+        }
+      },
+      "general": {
+        "title": "Regulation & behaviour",
         "data": {
           "tick_interval_s": "Update interval (seconds)",
           "zero_injection_enabled": "Enable zero-injection regulation",
           "zero_injection_setpoint_w": "Zero-injection setpoint (W)",
           "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
+          "zi_settle_ticks": "Anti-yoyo: ZI freeze ticks after a load drop",
+          "zi_settle_min_drop_w": "Anti-yoyo: dropped-power threshold (W)",
           "phases": "Electrical phases",
           "subscribed_power_kva": "Subscribed power (kVA)",
           "backup_reserve_soc_pct": "Backup reserve (SoC %)",
           "baseline_window_start_h": "Talon: night window start (h)",
           "baseline_window_end_h": "Talon: night window end (h)",
+          "weather_warning_entity": "Météo-France warning entity (optional)",
           "load_control_enabled": "Enable load control (switches)",
           "evening_shed_enabled": "End-of-day shedding (battery-charge priority)",
+          "predictive_control_enabled": "Active predictive control (tariff-driven battery steering)",
+          "notifications_enabled": "Notifications (degraded, overload, shedding)",
+          "tempo_red_prep_enabled": "Tempo: pre-charge before a red day",
+          "tempo_red_prep_soc_pct": "Tempo: target SoC before red day (%)",
+          "vacation_soc_max_pct": "Vacation: max SoC (charge ceiling, %)",
           "evening_shed_min_power_w": "Shedding: min power of a \"big\" load (W)",
+          "active_control_enabled": "Active battery/inverter control",
+          "grid_filter_samples": "Grid median filter (samples)",
+          "max_ramp_w": "Max fleet-target change per tick (W)",
+          "zero_injection_kp": "Zero-injection proportional gain (Kp)",
+          "soc_equaliser_enabled": "Enable SoC equaliser",
+          "soc_equaliser_max_w": "SoC equaliser: max offer (W)",
+          "soc_equaliser_kp_w_per_pct": "SoC equaliser: gain (W/%)",
+          "soc_equaliser_deadband_pct": "SoC equaliser: deadband (%)",
+          "soc_equaliser_probe_step_w": "SoC equaliser: probe step (W)"
+        }
+      },
+      "forecast": {
+        "title": "PV forecast",
+        "data": {
+          "pv_forecast_entity": "PV forecast entity (optional)",
+          "pv_forecast_tomorrow_entity": "PV forecast entity tomorrow (optional)",
+          "forecast_safety_factor": "Forecast safety factor (0-1)"
+        }
+      },
+      "tariff": {
+        "title": "Tariff & prices",
+        "data": {
           "import_price": "Import price (€/kWh)",
           "export_price": "Export price (€/kWh)",
           "tariff_type": "Tariff type",
@@ -76,16 +114,7 @@
           "tempo_color_entity": "Tempo: today colour entity",
           "tempo_color_tomorrow_entity": "Tempo: tomorrow colour entity",
           "spot_price_entity": "Spot: current price entity (€/kWh)",
-          "spot_markup": "Spot: added markup (€/kWh)",
-          "predictive_control_enabled": "Active predictive control (tariff-driven battery steering)",
-          "notifications_enabled": "Notifications (degraded, overload, shedding)",
-          "tempo_red_prep_enabled": "Tempo: pre-charge before a red day",
-          "tempo_red_prep_soc_pct": "Tempo: target SoC before red day (%)",
-          "vacation_soc_max_pct": "Vacation: max SoC (charge ceiling, %)",
-          "pv_forecast_entity": "PV forecast entity (optional)",
-          "pv_forecast_tomorrow_entity": "PV forecast entity tomorrow (optional)",
-          "forecast_safety_factor": "Forecast safety factor (0-1)",
-          "weather_warning_entity": "Météo-France warning entity (optional)"
+          "spot_markup": "Spot: added markup (€/kWh)"
         }
       }
     }
@@ -567,6 +596,12 @@
       },
       "planner_expected_cost": {
         "name": "Planner expected cost (advisory)"
+      },
+      "savings_month": {
+        "name": "Savings this month"
+      },
+      "savings_year": {
+        "name": "Savings this year"
       }
     },
     "select": {
@@ -599,6 +634,9 @@
       },
       "force_charge_now": {
         "name": "Charge now"
+      },
+      "off_peak_only": {
+        "name": "Off-peak only"
       }
     },
     "binary_sensor": {
