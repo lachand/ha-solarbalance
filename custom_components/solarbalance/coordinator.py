@@ -265,6 +265,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # cost/savings accounting works out of the box).
         flat_import = float(cfg.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE))
         flat_export = float(cfg.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE))
+        flat_tariff = TariffConfig(
+            default_import_price=flat_import, default_export_price=flat_export
+        )
         spec = dict(tariff_spec) if tariff_spec else _ui_tariff_spec(cfg)
         if tariff is not None:
             self._tariff = tariff
@@ -273,20 +276,28 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             spec.setdefault("import_price", flat_import)
             color_entity = spec.get("color_entity")
             price_entity = spec.get("price_entity")
-            self._tariff = build_tariff(
-                spec,
-                color_provider=self._make_tempo_color_provider(color_entity)
-                if color_entity
-                else None,
-                spot_price_provider=self._make_spot_price_provider(price_entity)
-                if price_entity
-                else None,
-            )
+            try:
+                self._tariff = build_tariff(
+                    spec,
+                    color_provider=self._make_tempo_color_provider(color_entity)
+                    if color_entity
+                    else None,
+                    spot_price_provider=self._make_spot_price_provider(price_entity)
+                    if price_entity
+                    else None,
+                )
+            except (ValueError, KeyError, TypeError) as exc:
+                # Misconfigured tariff (e.g. tempo/spot without its entity, or a
+                # malformed HC/HP time): degrade to the flat tariff instead of
+                # failing the whole integration setup.
+                _LOGGER.warning(
+                    "SolarBalance: invalid tariff config (%s) — falling back to flat prices",
+                    exc,
+                )
+                self._tariff = flat_tariff
+                spec = None
         else:
-            self._tariff = TariffConfig(
-                default_import_price=flat_import, default_export_price=flat_export
-            )
-        self._tariff_spec = spec
+            self._tariff = flat_tariff
         self._forecast = forecast
         self._pv_forecast_entity: str | None = cfg.get("pv_forecast_entity") or None
         self._pv_forecast_tomorrow_entity: str | None = (

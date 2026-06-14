@@ -89,3 +89,13 @@ async def test_ui_tariff_hc_hp(hass: HomeAssistant) -> None:
     day = datetime(2026, 6, 14, 12, 0, tzinfo=UTC)  # midday → HP
     assert coord._tariff.current_import_price(night) == 0.18
     assert coord._tariff.current_import_price(day) == 0.30
+
+
+@pytest.mark.asyncio
+async def test_tariff_misconfig_falls_back_to_flat(hass: HomeAssistant) -> None:
+    # tariff_type=tempo without a colour entity must NOT crash setup → flat.
+    entry = MockConfigEntry(domain=DOMAIN, data={CONF_TARIFF_TYPE: "tempo"})
+    entry.add_to_hass(hass)
+    coord = SolarBalanceCoordinator(hass, entry, [], [], [])
+    assert coord.tariff_time_varying is False  # degraded to flat
+    assert coord.current_import_price is not None
