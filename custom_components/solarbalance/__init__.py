@@ -225,6 +225,12 @@ async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> Non
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
+    # Flush persisted state (talon, daily counters, history) before unloading —
+    # the per-tick delayed save otherwise only lands on a clean HA shutdown, so a
+    # reload would lose it.
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id)
+    if isinstance(entry_data, dict) and (coordinator := entry_data.get(COORDINATOR_KEY)):
+        await coordinator.async_persist_now()
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)

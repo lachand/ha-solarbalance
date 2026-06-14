@@ -640,6 +640,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             self._energy.consumption_kwh,
         )
 
+    async def async_persist_now(self) -> None:
+        """Flush persisted state to the Store immediately.
+
+        The per-tick ``async_delay_save`` keeps rescheduling and only flushes on a
+        clean HA shutdown — not on an integration reload. Calling this on unload
+        guarantees the talon, daily counters and history survive a reload.
+        """
+        await self._store.async_save(self._persisted_state())
+
     def _persisted_state(self) -> dict[str, Any]:
         """Build the dict written to the Store (daily energy counters)."""
         return {
