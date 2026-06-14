@@ -31,6 +31,16 @@ CONF_EVENING_SHED_ENABLED: Final = "evening_shed_enabled"
 CONF_EVENING_SHED_MIN_POWER_W: Final = "evening_shed_min_power_w"
 CONF_IMPORT_PRICE: Final = "import_price"
 CONF_EXPORT_PRICE: Final = "export_price"
+# Tariff defined from the UI (alternative to the YAML tariff: block).
+CONF_TARIFF_TYPE: Final = "tariff_type"  # flat | hc_hp | tempo | spot
+CONF_HC_START: Final = "hc_start"  # HC window start (HH:MM), HP is the rest
+CONF_HC_END: Final = "hc_end"
+CONF_HC_PRICE: Final = "hc_price"
+CONF_HP_PRICE: Final = "hp_price"
+CONF_TEMPO_COLOR_ENTITY: Final = "tempo_color_entity"
+CONF_TEMPO_COLOR_TOMORROW_ENTITY: Final = "tempo_color_tomorrow_entity"
+CONF_SPOT_PRICE_ENTITY: Final = "spot_price_entity"
+CONF_SPOT_MARKUP: Final = "spot_markup"
 CONF_PREDICTIVE_CONTROL_ENABLED: Final = "predictive_control_enabled"
 CONF_PV_FORECAST_TOMORROW_ENTITY: Final = "pv_forecast_tomorrow_entity"
 CONF_FORECAST_SAFETY_FACTOR: Final = "forecast_safety_factor"
@@ -77,6 +87,13 @@ DEFAULT_EVENING_SHED_MIN_POWER_W: Final = 500
 # planner when no richer tariff is configured. User-editable in the options.
 DEFAULT_IMPORT_PRICE: Final = 0.25
 DEFAULT_EXPORT_PRICE: Final = 0.10
+# UI tariff defaults (HC/HP common in France).
+DEFAULT_TARIFF_TYPE: Final = "flat"
+DEFAULT_HC_START: Final = "22:00"
+DEFAULT_HC_END: Final = "06:00"
+DEFAULT_HC_PRICE: Final = 0.20
+DEFAULT_HP_PRICE: Final = 0.27
+DEFAULT_SPOT_MARKUP: Final = 0.0
 
 # Conservative discount applied to the P50 PV forecast for shed / fast-charge
 # decisions (when a populated P10 is unavailable). 1.0 = trust P50 fully.

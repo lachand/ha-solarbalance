@@ -1,12 +1,19 @@
 """Integration tests for mode-driven coordinator wiring (storm reserve, etc.)."""
 
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.solarbalance.const import CONF_BACKUP_RESERVE_SOC_PCT, DOMAIN
+from custom_components.solarbalance.const import (
+    CONF_BACKUP_RESERVE_SOC_PCT,
+    CONF_HC_PRICE,
+    CONF_HP_PRICE,
+    CONF_TARIFF_TYPE,
+    DOMAIN,
+)
 from custom_components.solarbalance.coordinator import SolarBalanceCoordinator
 from custom_components.solarbalance.core.models import BatteryRole, Device, HemsMode
 
@@ -67,3 +74,18 @@ async def test_reserve_setpoint_absent_without_entity(hass: HomeAssistant) -> No
     coord = SolarBalanceCoordinator(hass, entry, [device], [], [])
     coord._mode = HemsMode.STORM
     assert coord._reserve_setpoints() == {}  # no reserve entity → nothing to write
+
+
+@pytest.mark.asyncio
+async def test_ui_tariff_hc_hp(hass: HomeAssistant) -> None:
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_TARIFF_TYPE: "hc_hp", CONF_HC_PRICE: 0.18, CONF_HP_PRICE: 0.30},
+    )
+    entry.add_to_hass(hass)
+    coord = SolarBalanceCoordinator(hass, entry, [], [], [])
+    assert coord.tariff_time_varying is True
+    night = datetime(2026, 6, 14, 1, 0, tzinfo=UTC)  # 03:00 Paris → HC
+    day = datetime(2026, 6, 14, 12, 0, tzinfo=UTC)  # midday → HP
+    assert coord._tariff.current_import_price(night) == 0.18
+    assert coord._tariff.current_import_price(day) == 0.30

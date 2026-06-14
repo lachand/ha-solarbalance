@@ -17,6 +17,10 @@ from .const import (
     CONF_EXPORT_PRICE,
     CONF_FORECAST_SAFETY_FACTOR,
     CONF_GRID_FILTER_SAMPLES,
+    CONF_HC_END,
+    CONF_HC_PRICE,
+    CONF_HC_START,
+    CONF_HP_PRICE,
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
@@ -31,7 +35,12 @@ from .const import (
     CONF_SOC_EQUALISER_KP_W_PER_PCT,
     CONF_SOC_EQUALISER_MAX_W,
     CONF_SOC_EQUALISER_PROBE_STEP_W,
+    CONF_SPOT_MARKUP,
+    CONF_SPOT_PRICE_ENTITY,
     CONF_SUBSCRIBED_POWER_KVA,
+    CONF_TARIFF_TYPE,
+    CONF_TEMPO_COLOR_ENTITY,
+    CONF_TEMPO_COLOR_TOMORROW_ENTITY,
     CONF_TEMPO_RED_PREP_ENABLED,
     CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
@@ -48,6 +57,10 @@ from .const import (
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FORECAST_SAFETY_FACTOR,
     DEFAULT_GRID_FILTER_SAMPLES,
+    DEFAULT_HC_END,
+    DEFAULT_HC_PRICE,
+    DEFAULT_HC_START,
+    DEFAULT_HP_PRICE,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_PHASES,
@@ -55,6 +68,8 @@ from .const import (
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
+    DEFAULT_SPOT_MARKUP,
+    DEFAULT_TARIFF_TYPE,
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_VACATION_SOC_MAX_PCT,
@@ -71,6 +86,9 @@ _OPTIONAL_ENTITY_KEYS = (
     CONF_PV_FORECAST_ENTITY,
     CONF_PV_FORECAST_TOMORROW_ENTITY,
     CONF_WEATHER_WARNING_ENTITY,
+    CONF_TEMPO_COLOR_ENTITY,
+    CONF_TEMPO_COLOR_TOMORROW_ENTITY,
+    CONF_SPOT_PRICE_ENTITY,
 )
 
 _DEFAULT_PRIORITIES = [
@@ -194,6 +212,32 @@ def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
             vol.Optional(
                 CONF_EXPORT_PRICE,
                 default=d.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+            # --- Tariff (UI alternative to the YAML tariff: block) ---
+            vol.Optional(
+                CONF_TARIFF_TYPE,
+                default=d.get(CONF_TARIFF_TYPE, DEFAULT_TARIFF_TYPE),
+            ): vol.In(["flat", "hc_hp", "tempo", "spot"]),
+            vol.Optional(CONF_HC_START, default=d.get(CONF_HC_START, DEFAULT_HC_START)): str,
+            vol.Optional(CONF_HC_END, default=d.get(CONF_HC_END, DEFAULT_HC_END)): str,
+            vol.Optional(
+                CONF_HC_PRICE, default=d.get(CONF_HC_PRICE, DEFAULT_HC_PRICE)
+            ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+            vol.Optional(
+                CONF_HP_PRICE, default=d.get(CONF_HP_PRICE, DEFAULT_HP_PRICE)
+            ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+            vol.Optional(
+                CONF_TEMPO_COLOR_ENTITY, default=d.get(CONF_TEMPO_COLOR_ENTITY, "")
+            ): str,
+            vol.Optional(
+                CONF_TEMPO_COLOR_TOMORROW_ENTITY,
+                default=d.get(CONF_TEMPO_COLOR_TOMORROW_ENTITY, ""),
+            ): str,
+            vol.Optional(
+                CONF_SPOT_PRICE_ENTITY, default=d.get(CONF_SPOT_PRICE_ENTITY, "")
+            ): str,
+            vol.Optional(
+                CONF_SPOT_MARKUP, default=d.get(CONF_SPOT_MARKUP, DEFAULT_SPOT_MARKUP)
             ): vol.All(vol.Coerce(float), vol.Range(min=0)),
             vol.Optional(
                 CONF_SOC_EQUALISER_ENABLED,

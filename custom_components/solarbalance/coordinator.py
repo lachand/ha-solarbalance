@@ -29,6 +29,10 @@ from .const import (
     CONF_EXPORT_PRICE,
     CONF_FORECAST_SAFETY_FACTOR,
     CONF_GRID_FILTER_SAMPLES,
+    CONF_HC_END,
+    CONF_HC_PRICE,
+    CONF_HC_START,
+    CONF_HP_PRICE,
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
@@ -41,7 +45,12 @@ from .const import (
     CONF_SOC_EQUALISER_KP_W_PER_PCT,
     CONF_SOC_EQUALISER_MAX_W,
     CONF_SOC_EQUALISER_PROBE_STEP_W,
+    CONF_SPOT_MARKUP,
+    CONF_SPOT_PRICE_ENTITY,
     CONF_SUBSCRIBED_POWER_KVA,
+    CONF_TARIFF_TYPE,
+    CONF_TEMPO_COLOR_ENTITY,
+    CONF_TEMPO_COLOR_TOMORROW_ENTITY,
     CONF_TEMPO_RED_PREP_ENABLED,
     CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
@@ -60,13 +69,19 @@ from .const import (
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FORECAST_SAFETY_FACTOR,
     DEFAULT_GRID_FILTER_SAMPLES,
+    DEFAULT_HC_END,
+    DEFAULT_HC_PRICE,
+    DEFAULT_HC_START,
+    DEFAULT_HP_PRICE,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
+    DEFAULT_SPOT_MARKUP,
     DEFAULT_STORM_TARGET_SOC_PCT,
+    DEFAULT_TARIFF_TYPE,
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_VACATION_SOC_MAX_PCT,
@@ -179,6 +194,37 @@ class RegulationDiagnostics:
     pv_limit_w: float = 0.0
 
 
+def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
+    """Build a tariff spec dict from the UI options, or None for a flat tariff."""
+    kind = str(cfg.get(CONF_TARIFF_TYPE, DEFAULT_TARIFF_TYPE))
+    if kind == "hc_hp":
+        hc_start = str(cfg.get(CONF_HC_START, DEFAULT_HC_START))
+        hc_end = str(cfg.get(CONF_HC_END, DEFAULT_HC_END))
+        hc_price = float(cfg.get(CONF_HC_PRICE, DEFAULT_HC_PRICE))
+        hp_price = float(cfg.get(CONF_HP_PRICE, DEFAULT_HP_PRICE))
+        # HC window + HP for the rest of the day (overnight HC handled by the slot).
+        return {
+            "type": "hc_hp",
+            "slots": [
+                {"start": hc_start, "end": hc_end, "price": hc_price},
+                {"start": hc_end, "end": hc_start, "price": hp_price},
+            ],
+        }
+    if kind == "tempo":
+        return {
+            "type": "tempo",
+            "color_entity": cfg.get(CONF_TEMPO_COLOR_ENTITY) or None,
+            "color_tomorrow_entity": cfg.get(CONF_TEMPO_COLOR_TOMORROW_ENTITY) or None,
+        }
+    if kind == "spot":
+        return {
+            "type": "spot",
+            "price_entity": cfg.get(CONF_SPOT_PRICE_ENTITY) or None,
+            "markup": float(cfg.get(CONF_SPOT_MARKUP, DEFAULT_SPOT_MARKUP)),
+        }
+    return None
+
+
 def _load_nominal_w(load: Load) -> float:
     """Representative power (W) of a pilotable load for shedding decisions."""
     if load.control_type is LoadControlType.ON_OFF:
@@ -215,14 +261,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._meters = meters
         self._loads = loads
         # Tariff resolution priority: explicit object (tests) > YAML tariff: block
-        # (HC/HP or Tempo) > flat configurable import/export prices (defaults so
+        # > UI tariff options > flat configurable import/export prices (defaults so
         # cost/savings accounting works out of the box).
         flat_import = float(cfg.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE))
         flat_export = float(cfg.get(CONF_EXPORT_PRICE, DEFAULT_EXPORT_PRICE))
+        spec = dict(tariff_spec) if tariff_spec else _ui_tariff_spec(cfg)
         if tariff is not None:
             self._tariff = tariff
-        elif tariff_spec:
-            spec = dict(tariff_spec)
+        elif spec:
             spec.setdefault("export_price", flat_export)
             spec.setdefault("import_price", flat_import)
             color_entity = spec.get("color_entity")
@@ -240,6 +286,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             self._tariff = TariffConfig(
                 default_import_price=flat_import, default_export_price=flat_export
             )
+        self._tariff_spec = spec
         self._forecast = forecast
         self._pv_forecast_entity: str | None = cfg.get("pv_forecast_entity") or None
         self._pv_forecast_tomorrow_entity: str | None = (
@@ -281,7 +328,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             cfg.get(CONF_TEMPO_RED_PREP_SOC_PCT, DEFAULT_TEMPO_RED_PREP_SOC_PCT)
         )
         self._tempo_color_tomorrow_entity: str | None = (
-            (tariff_spec or {}).get("color_tomorrow_entity") if tariff_spec else None
+            (spec or {}).get("color_tomorrow_entity") or None
         )
         self._vacation_soc_max_pct = float(
             cfg.get(CONF_VACATION_SOC_MAX_PCT, DEFAULT_VACATION_SOC_MAX_PCT)
