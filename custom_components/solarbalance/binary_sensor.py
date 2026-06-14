@@ -7,6 +7,7 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import MATCH_ALL
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -124,6 +125,8 @@ class EveningShedBinarySensor(_SBBinarySensor):
 class EvFastChargeBinarySensor(_SBBinarySensor):
     """True when an EV is being fast-charged with battery assistance."""
 
+    # Per-load dicts change every tick — keep live, skip recorder history.
+    _unrecorded_attributes = frozenset({MATCH_ALL})
     _attr_translation_key = "ev_fast_charge"
     _attr_icon = "mdi:ev-station"
 

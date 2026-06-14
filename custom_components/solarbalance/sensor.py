@@ -225,6 +225,9 @@ class SolarBalanceGridPowerSensor(_SolarBalanceSensor):
 class SolarBalancePvPowerSensor(_SolarBalanceSensor):
     """Total PV production power."""
 
+    # The hourly forecast is large and rewritten every tick — keep it live but
+    # out of the recorder history.
+    _unrecorded_attributes = frozenset({"pv_forecast_hourly"})
     _attr_translation_key = "pv_power"
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_device_class = SensorDeviceClass.POWER
@@ -392,6 +395,7 @@ class SolarBalanceDailyCostSensor(_SolarBalanceSensor):
 class SolarBalanceDailySavingsSensor(_SolarBalanceSensor):
     """Today's value created by PV + battery (avoided import + export revenue)."""
 
+    _unrecorded_attributes = frozenset({"history"})
     _attr_translation_key = "daily_savings"
     _attr_native_unit_of_measurement = "EUR"
     _attr_device_class = SensorDeviceClass.MONETARY
@@ -644,6 +648,8 @@ class SolarBalanceRegulationDiagnosticSensor(_SolarBalanceSensor):
 
 class SolarBalancePlannerRecommendedPowerSensor(_SolarBalanceSensor):
     """Battery power the advisory planner recommends for the current slot (W)."""
+
+    _unrecorded_attributes = frozenset({"schedule"})
 
     _attr_native_unit_of_measurement = UnitOfPower.WATT
     _attr_device_class = SensorDeviceClass.POWER
