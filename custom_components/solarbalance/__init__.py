@@ -289,12 +289,17 @@ def _migrate_yaml_to_subentries(hass: HomeAssistant, entry: ConfigEntry) -> None
 
     for dev in validated.get("devices", []):
         roles = dev.get("roles", {})
-        if "battery" in roles and "mppt" not in roles and "inverter" not in roles:
+        has_bat = "battery" in roles
+        has_mppt = "mppt" in roles
+        has_inv = "inverter" in roles
+        if has_bat and has_mppt and not has_inv:
+            stype = "battery_mppt"
+        elif has_bat and not has_mppt and not has_inv:
             stype = "battery"
-        elif "mppt" in roles and "battery" not in roles and "inverter" not in roles:
+        elif has_mppt and not has_bat and not has_inv:
             stype = "mppt"
         else:
-            stype = "device"  # combined/inverter: editable by delete+recreate
+            stype = "device"  # inverter role: editable by delete+recreate
         _add(stype, dict(dev), str(dev.get("name", "device")))
     for load in validated.get("loads", []):
         _add("load", dict(load), str(load.get("name", "load")))

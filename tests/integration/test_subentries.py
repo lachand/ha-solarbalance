@@ -158,3 +158,43 @@ def test_build_from_subentries_mixed_types() -> None:
     )
     devices, meters, loads = _build_from_subentries(entry)
     assert len(devices) == 2 and len(meters) == 1 and len(loads) == 1
+
+
+def test_battery_mppt_combined_builds_both_roles() -> None:
+    from custom_components.solarbalance.config_flow import _battery_mppt_input_to_device
+    from custom_components.solarbalance.yaml_loader import build_device_from_dict
+
+    ui = {
+        "name": "stream",
+        "capacity_kwh": 3.92,
+        "max_charge_power_w": 1200,
+        "max_discharge_power_w": 2300,
+        "soc_entity": "sensor.soc",
+        "power_entity": "sensor.batt_power",
+        "mppt_peak_power_w": 1000,
+        "mppt_power_entity": "sensor.pv_power",
+    }
+    device = _battery_mppt_input_to_device(ui)
+    built = build_device_from_dict(device)
+    assert built.battery is not None and built.mppt is not None
+    assert built.mppt.peak_power_w == 1000
+    # power_entity must not collide between roles
+    assert built.battery.power_entity == "sensor.batt_power"
+    assert built.mppt.power_entity == "sensor.pv_power"
+
+
+def test_battery_mppt_subentry_assembles() -> None:
+    data = {
+        "name": "stream",
+        "roles": {
+            "battery": {
+                "capacity_kwh": 3.92, "max_charge_power_w": 1200, "max_discharge_power_w": 2300,
+                "soc_entity": "sensor.soc", "power_entity": "sensor.bp",
+            },
+            "mppt": {"peak_power_w": 1000, "power_entity": "sensor.pv"},
+        },
+    }
+    entry = _entry_with_subentries(_sub("battery_mppt", data, "stream"))
+    devices, _m, _l = _build_from_subentries(entry)
+    assert len(devices) == 1
+    assert devices[0].battery is not None and devices[0].mppt is not None

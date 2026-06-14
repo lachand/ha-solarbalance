@@ -146,6 +146,7 @@ class SolarBalancePanel extends HTMLElement {
       talon: id("baseline_night", "sensor.solarbalance_standby_baseline_night"),
       dailyCost: id("daily_cost", "sensor.solarbalance_grid_cost_today"),
       dailySavings: id("daily_savings", "sensor.solarbalance_savings_today"),
+      pvRemaining: id("pv_remaining_today", "sensor.solarbalance_remaining_pv_production_today"),
       importPrice: id("current_import_price", "sensor.solarbalance_current_import_price"),
       storm: id("storm_mode", "binary_sensor.solarbalance_storm_mode"),
       weather: id("weather_warning", "binary_sensor.solarbalance_weather_warning"),
@@ -800,6 +801,7 @@ class SolarBalancePanel extends HTMLElement {
             <div class="tiles">
               ${this._tile("Production", kwh(st.pv), "var(--warning-color,#f5a623)")}
               ${this._tile("Consommation", kwh(st.used))}
+              ${this._tile("PV restant", this._fmt(E.pvRemaining, 1, "kWh"), "var(--warning-color,#f5a623)")}
             </div>
             <div class="tiles">
               ${this._tile("Soutiré", kwh(st.imp), "var(--info-color,#3d8bff)")}

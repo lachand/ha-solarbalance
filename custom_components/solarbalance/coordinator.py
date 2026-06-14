@@ -849,6 +849,25 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return round(talon, 1) if talon is not None else None
 
     @property
+    def remaining_pv_today_kwh(self) -> float | None:
+        """Forecast PV energy left until local midnight today (kWh), or None."""
+        snap = self.data
+        if snap is None:
+            return None
+        pv_by_hour = self._forecast_pv_by_hour(snap)
+        if not pv_by_hour:
+            return None
+        local = dt_util.as_local(snap.timestamp)
+        frac_left = max(0.0, 1.0 - local.minute / 60.0)
+        hours_to_midnight = 24 - local.hour  # hourly slots from now to midnight
+        total = 0.0
+        for h, w in enumerate(pv_by_hour):
+            if h >= hours_to_midnight:
+                break
+            total += w * (frac_left if h == 0 else 1.0) / 1000.0
+        return round(total, 2)
+
+    @property
     def pv_forecast_hourly(self) -> list[dict[str, float | str]]:
         """Hourly PV power forecast from the configured ``forecast`` block.
 

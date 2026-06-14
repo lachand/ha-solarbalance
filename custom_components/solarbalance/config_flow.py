@@ -316,6 +316,7 @@ class SolarBalanceConfigFlow(ConfigFlow, domain=DOMAIN):
         return {
             "battery": BatterySubentryFlowHandler,
             "mppt": MpptSubentryFlowHandler,
+            "battery_mppt": BatteryMpptSubentryFlowHandler,
             "load": LoadSubentryFlowHandler,
             "meter": MeterSubentryFlowHandler,
         }
@@ -755,4 +756,75 @@ class MeterSubentryFlowHandler(ConfigSubentryFlow):
                 return self.async_create_entry(title=str(user_input["name"]), data=meter)
         return self.async_show_form(
             step_id="user", data_schema=_meter_subentry_schema(user_input or {}), errors=errors
+        )
+
+
+def _battery_mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
+    """Battery fields + (prefixed) MPPT fields for a combined device."""
+    m = d.get("roles", {}).get("mppt", {})
+    fields = dict(_battery_subentry_schema(d).schema)
+    fields.update(
+        {
+            vol.Required("mppt_peak_power_w", default=m.get("peak_power_w")): _num(
+                0, step=50, unit="W"
+            ),
+            vol.Required("mppt_power_entity", default=m.get("power_entity")): _entity("sensor"),
+            vol.Optional(
+                "mppt_daily_energy_entity", default=m.get("daily_energy_entity", "")
+            ): _entity("sensor"),
+            vol.Optional(
+                "mppt_active_control_enabled", default=m.get("active_control_enabled", False)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                "mppt_power_limit_setpoint_entity",
+                default=m.get("power_limit_setpoint_entity", ""),
+            ): _entity("number", "input_number"),
+        }
+    )
+    return vol.Schema(fields)
+
+
+_MPPT_PREFIXED = {
+    "mppt_peak_power_w": "peak_power_w",
+    "mppt_power_entity": "power_entity",
+    "mppt_daily_energy_entity": "daily_energy_entity",
+    "mppt_active_control_enabled": "active_control_enabled",
+    "mppt_power_limit_setpoint_entity": "power_limit_setpoint_entity",
+}
+
+
+def _battery_mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
+    device = _battery_input_to_device(user_input)
+    mppt: dict[str, Any] = {}
+    for src, dst in _MPPT_PREFIXED.items():
+        val = user_input.get(src)
+        if val in (None, ""):
+            continue
+        mppt[dst] = val
+    device["roles"]["mppt"] = mppt
+    return device
+
+
+class BatteryMpptSubentryFlowHandler(ConfigSubentryFlow):
+    """Add a device that is both a battery and a PV inverter (single form)."""
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        from .yaml_loader import build_device_from_dict
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            device = _battery_mppt_input_to_device(user_input)
+            try:
+                build_device_from_dict(device)
+            except (vol.Invalid, ValueError, KeyError) as exc:
+                _LOGGER.warning("Invalid battery+mppt subentry: %s", exc)
+                errors["base"] = "invalid_device"
+            else:
+                return self.async_create_entry(title=str(user_input["name"]), data=device)
+        return self.async_show_form(
+            step_id="user",
+            data_schema=_battery_mppt_subentry_schema(user_input or {}),
+            errors=errors,
         )

@@ -222,6 +222,49 @@
         }
       },
       "error": { "invalid_meter": "Configuration compteur invalide — vérifiez le type et l'entité de puissance." }
+    },
+    "battery_mppt": {
+      "initiate_flow": { "user": "Ajouter une batterie + onduleur" },
+      "entry_type": "Batterie + onduleur",
+      "step": {
+        "user": {
+          "title": "Batterie + onduleur (un seul appareil)",
+          "description": "Pour un appareil tout-en-un (ex. station avec entrée PV) : champs batterie puis onduleur (préfixés « MPPT »).",
+          "data": {
+            "name": "Nom",
+            "capacity_kwh": "Capacité (kWh)",
+            "max_charge_power_w": "Puissance de charge max (W)",
+            "max_discharge_power_w": "Puissance de décharge max (W)",
+            "soc_entity": "Entité SoC (%)",
+            "power_entity": "Entité puissance batterie (W)",
+            "temperature_entity": "Entité température",
+            "cycles_entity": "Entité cycles",
+            "soc_min_pct": "SoC minimum (%)",
+            "soc_max_pct": "SoC maximum (%)",
+            "usable_capacity_kwh": "Capacité utile (kWh)",
+            "chemistry": "Chimie",
+            "power_sign_convention": "Convention de signe puissance",
+            "controllable": "Pilotable",
+            "active_control_enabled": "Contrôle actif batterie",
+            "charge_power_setpoint_entity": "Consigne de charge (number)",
+            "discharge_power_setpoint_entity": "Consigne de décharge (number)",
+            "mode_setpoint_entity": "Consigne de mode (select)",
+            "reserve_soc_setpoint_entity": "Réserve / SoC mini (number %)",
+            "ac_charge_limit_w": "Limite de charge AC (W)",
+            "mppt_peak_power_w": "MPPT : puissance crête (W)",
+            "mppt_power_entity": "MPPT : entité puissance produite (W)",
+            "mppt_daily_energy_entity": "MPPT : énergie du jour",
+            "mppt_active_control_enabled": "MPPT : bridage actif",
+            "mppt_power_limit_setpoint_entity": "MPPT : entité limite de sortie (number, W)"
+          },
+          "data_description": {
+            "power_entity": "Puissance batterie signée. Doit être POSITIVE en charge.",
+            "mppt_power_entity": "Puissance produite par l'entrée PV de l'appareil.",
+            "mppt_power_limit_setpoint_entity": "number/W pour brider la sortie PV (zéro-injection)."
+          }
+        }
+      },
+      "error": { "invalid_device": "Configuration invalide — vérifiez les entités batterie et onduleur (domaine requis)." }
     }
   },
   "selector": {
@@ -276,6 +319,7 @@
       "grid_import_today": { "name": "Soutirage réseau aujourd'hui" },
       "grid_export_today": { "name": "Injection réseau aujourd'hui" },
       "consumption_today": { "name": "Consommation totale aujourd'hui" },
+      "pv_remaining_today": { "name": "Production PV restante aujourd'hui" },
       "daily_cost": { "name": "Coût réseau aujourd'hui" },
       "daily_savings": { "name": "Économies aujourd'hui" },
       "current_import_price": { "name": "Prix soutirage actuel" },

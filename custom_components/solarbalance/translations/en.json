@@ -222,6 +222,49 @@
         }
       },
       "error": { "invalid_meter": "Invalid meter configuration — check the kind and the power entity." }
+    },
+    "battery_mppt": {
+      "initiate_flow": { "user": "Add a battery + inverter" },
+      "entry_type": "Battery + inverter",
+      "step": {
+        "user": {
+          "title": "Battery + inverter (single device)",
+          "description": "For an all-in-one device (e.g. a station with PV input): battery fields then inverter fields (prefixed 'MPPT').",
+          "data": {
+            "name": "Name",
+            "capacity_kwh": "Capacity (kWh)",
+            "max_charge_power_w": "Max charge power (W)",
+            "max_discharge_power_w": "Max discharge power (W)",
+            "soc_entity": "SoC entity (%)",
+            "power_entity": "Battery power entity (W)",
+            "temperature_entity": "Temperature entity",
+            "cycles_entity": "Cycles entity",
+            "soc_min_pct": "Minimum SoC (%)",
+            "soc_max_pct": "Maximum SoC (%)",
+            "usable_capacity_kwh": "Usable capacity (kWh)",
+            "chemistry": "Chemistry",
+            "power_sign_convention": "Power sign convention",
+            "controllable": "Controllable",
+            "active_control_enabled": "Battery active control",
+            "charge_power_setpoint_entity": "Charge setpoint (number)",
+            "discharge_power_setpoint_entity": "Discharge setpoint (number)",
+            "mode_setpoint_entity": "Mode setpoint (select)",
+            "reserve_soc_setpoint_entity": "Reserve / min-SoC (number %)",
+            "ac_charge_limit_w": "AC charge limit (W)",
+            "mppt_peak_power_w": "MPPT: peak power (W)",
+            "mppt_power_entity": "MPPT: production power entity (W)",
+            "mppt_daily_energy_entity": "MPPT: daily energy",
+            "mppt_active_control_enabled": "MPPT: active curtailment",
+            "mppt_power_limit_setpoint_entity": "MPPT: output limit entity (number, W)"
+          },
+          "data_description": {
+            "power_entity": "Signed battery power. Must be POSITIVE while charging.",
+            "mppt_power_entity": "Power produced by the device's PV input.",
+            "mppt_power_limit_setpoint_entity": "number/W to curtail PV output (zero-injection)."
+          }
+        }
+      },
+      "error": { "invalid_device": "Invalid configuration — check the battery and inverter entities (domain required)." }
     }
   },
   "selector": {
@@ -276,6 +319,7 @@
       "grid_import_today": { "name": "Grid Import Today" },
       "grid_export_today": { "name": "Grid Export Today" },
       "consumption_today": { "name": "Total Consumption Today" },
+      "pv_remaining_today": { "name": "Remaining PV Production Today" },
       "daily_cost": { "name": "Grid cost today" },
       "daily_savings": { "name": "Savings today" },
       "current_import_price": { "name": "Current import price" },

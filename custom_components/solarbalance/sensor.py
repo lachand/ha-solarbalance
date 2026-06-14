@@ -65,6 +65,7 @@ async def async_setup_entry(
         SolarBalanceGridImportTodaySensor(coordinator, entry),
         SolarBalanceGridExportTodaySensor(coordinator, entry),
         SolarBalanceConsumptionTodaySensor(coordinator, entry),
+        SolarBalancePvRemainingTodaySensor(coordinator, entry),
         SolarBalanceBaselineNightSensor(coordinator, entry),
         SolarBalanceDailyCostSensor(coordinator, entry),
         SolarBalanceDailySavingsSensor(coordinator, entry),
@@ -435,6 +436,23 @@ class SolarBalanceCurrentImportPriceSensor(_SolarBalanceSensor):
     @property
     def extra_state_attributes(self) -> dict[str, bool]:
         return {"time_varying": self.coordinator.tariff_time_varying}
+
+
+class SolarBalancePvRemainingTodaySensor(_SolarBalanceSensor):
+    """Forecast PV energy still expected before midnight today (kWh)."""
+
+    _attr_translation_key = "pv_remaining_today"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:solar-power"
+    _attr_suggested_display_precision = 2
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "pv_remaining_today")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.remaining_pv_today_kwh
 
 
 class SolarBalanceBaselineNightSensor(_SolarBalanceSensor):
