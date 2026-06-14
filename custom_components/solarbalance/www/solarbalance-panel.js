@@ -211,36 +211,44 @@ class SolarBalancePanel extends HTMLElement {
     return out;
   }
 
-  /** Per-load "do not shed" override switches, one per interruptible load. */
-  _shedSwitches() {
-    const out = [];
+  /** Per-load control switches, grouped by load (force-charge + shed-exempt). */
+  _loadSwitches() {
+    const KEYS = { force_charge_now: "force", shed_exempt: "shed" };
+    const out = {};
     const h = this._hass;
     if (!h || !h.entities) return out;
     for (const eid in h.entities) {
       const e = h.entities[eid];
-      if (!e || e.platform !== "solarbalance" || e.translation_key !== "shed_exempt") continue;
+      if (!e || e.platform !== "solarbalance") continue;
+      const slot = KEYS[e.translation_key];
+      if (!slot || !e.device_id) continue;
       const s = this._stateObj(eid);
-      out.push({
-        eid,
-        name: e.device_id ? this._deviceName(e.device_id) : eid,
-        on: !!(s && s.state === "on"),
-      });
+      const load = (out[e.device_id] ||= { name: this._deviceName(e.device_id) });
+      load[slot] = { eid, on: !!(s && s.state === "on") };
     }
-    return out.sort((a, b) => (a.name > b.name ? 1 : -1));
+    return out;
   }
 
   _loadsCard() {
-    const sw = this._shedSwitches();
-    if (!sw.length) return "";
-    const rows = sw
+    const loads = Object.values(this._loadSwitches()).sort((a, b) =>
+      a.name > b.name ? 1 : -1
+    );
+    if (!loads.length) return "";
+    const btn = (c, onLbl, offLbl, title) =>
+      c
+        ? `<button class="toggle ${c.on ? "on" : ""}" data-toggle="${c.eid}" title="${title}">${
+            c.on ? onLbl : offLbl
+          }</button>`
+        : "";
+    const rows = loads
       .map(
-        (s) => `
+        (l) => `
         <div class="load-toggle">
-          <span>${s.name}</span>
-          <button class="toggle ${s.on ? "on" : ""}" data-toggle="${s.eid}"
-                  title="Exempter ce consommateur du délestage et de la pause charge rapide">
-            ${s.on ? "🔓 Ne pas délester" : "🔌 Délestable"}
-          </button>
+          <span>${l.name}</span>
+          <span class="load-btns">
+            ${btn(l.force, "⚡ Charge en cours", "⚡ Charger maintenant", "Forcer la charge maintenant (même sans surplus)")}
+            ${btn(l.shed, "🔓 Ne pas délester", "🔌 Délestable", "Exempter du délestage et de la pause charge rapide")}
+          </span>
         </div>`
       )
       .join("");
@@ -1021,6 +1029,7 @@ class SolarBalancePanel extends HTMLElement {
                 gap:10px; padding:6px 0; border-bottom:1px solid var(--divider-color,#eee);
                 font-size:.9rem; }
         .load-toggle:last-child { border-bottom:none; }
+        .load-btns { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
         .toggle { border:none; border-radius:14px; padding:5px 12px; cursor:pointer;
                 font-size:.8rem; background:var(--secondary-background-color);
                 color:var(--secondary-text-color); white-space:nowrap; }

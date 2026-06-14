@@ -188,6 +188,20 @@ class _BatteryOverride:
 
 
 @dataclass(frozen=True)
+class ForceChargeRequest:
+    """A manual 'charge now' request for one load (overrides solar-following).
+
+    ``start_kwh`` is the load's delivered-today energy when the request began, so
+    progress is measured per session. The request ends when ``target_kwh`` is
+    reached (if set), ``until`` passes (if set), or the user cancels it.
+    """
+
+    start_kwh: float
+    target_kwh: float | None = None
+    until: datetime | None = None
+
+
+@dataclass(frozen=True)
 class RegulationDiagnostics:
     """Last-tick internal regulation values, exposed as diagnostic sensors."""
 
@@ -268,6 +282,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Loads the user has temporarily exempted from shedding (evening-shed +
         # fast-charge inefficiency pause). Toggled by per-load switch entities.
         self._shed_exempt: set[str] = set()
+        # Active manual "charge now" requests, keyed by load name.
+        self._force_charge_req: dict[str, ForceChargeRequest] = {}
         # Tariff resolution priority: explicit object (tests) > YAML tariff: block
         # > UI tariff options > flat configurable import/export prices (defaults so
         # cost/savings accounting works out of the box).
@@ -856,6 +872,34 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         else:
             self._shed_exempt.discard(load_name)
 
+    def force_charge_load_active(self, load_name: str) -> bool:
+        """True when a manual 'charge now' request is active for this load."""
+        return load_name in self._force_charge_req
+
+    def request_force_charge_load(
+        self, load_name: str, *, kwh: float | None = None, hours: float | None = None
+    ) -> None:
+        """Start a manual 'charge now' for a load (full power, even from grid).
+
+        ``kwh`` caps the session energy; ``hours`` caps the duration. With
+        neither, it charges until cancelled. Unknown load names are ignored.
+        """
+        if load_name not in {ld.name for ld in self._loads}:
+            _LOGGER.warning("force_charge_load: unknown load %r", load_name)
+            return
+        until = (
+            dt_util.utcnow() + timedelta(hours=hours) if hours and hours > 0 else None
+        )
+        self._force_charge_req[load_name] = ForceChargeRequest(
+            start_kwh=self._load_energy_kwh.get(load_name, 0.0),
+            target_kwh=kwh if kwh and kwh > 0 else None,
+            until=until,
+        )
+
+    def cancel_force_charge_load(self, load_name: str) -> None:
+        """Cancel a manual 'charge now' request for a load."""
+        self._force_charge_req.pop(load_name, None)
+
     @property
     def fast_charge(self) -> dict[str, FastChargeDecision]:
         """Last EV fast-charge decisions, keyed by load name."""
@@ -1283,6 +1327,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Departure deadline has the final say: a grid-backed charge to meet the
         # required energy by the target time overrides shedding/fast-charge.
         commands = self._apply_deadline(commands, snapshot)
+        # Manual "charge now" is the strongest override: force full power even
+        # without surplus, regardless of shed / fast-charge / dispatch.
+        commands = self._apply_force_charge(commands, snapshot)
         await self._load_publisher.apply(commands)
         self._update_load_settle(commands)
 
@@ -1725,6 +1772,30 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if decision.force:
                 by_name[load.name] = self._command_for_power(load, decision.target_w)
         self._ev_deadline = decisions
+        return tuple(by_name.values())
+
+    def _apply_force_charge(
+        self, commands: tuple[LoadCommand, ...], snapshot: Snapshot
+    ) -> tuple[LoadCommand, ...]:
+        """Force active 'charge now' loads to full power; clear finished requests."""
+        if not self._force_charge_req:
+            return commands
+        now = snapshot.timestamp
+        load_by_name = {ld.name: ld for ld in self._loads}
+        by_name = {c.load_name: c for c in commands}
+        for name, req in list(self._force_charge_req.items()):
+            load = load_by_name.get(name)
+            if load is None:
+                self._force_charge_req.pop(name, None)
+                continue
+            delivered = self._load_energy_kwh.get(name, 0.0) - req.start_kwh
+            done = (req.target_kwh is not None and delivered >= req.target_kwh) or (
+                req.until is not None and now >= req.until
+            )
+            if done:
+                self._force_charge_req.pop(name, None)
+                continue
+            by_name[name] = self._command_for_power(load, _load_nominal_w(load))
         return tuple(by_name.values())
 
     def _equaliser_bias(self, snapshot: Snapshot, grid_w: float) -> float:

@@ -596,6 +596,9 @@
       },
       "shed_exempt": {
         "name": "Keep running (no shedding)"
+      },
+      "force_charge_now": {
+        "name": "Charge now"
       }
     },
     "binary_sensor": {

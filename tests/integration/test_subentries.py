@@ -337,6 +337,65 @@ async def test_load_shed_exempt_switch_created_and_linked(hass) -> None:
     assert not coordinator.is_shed_exempt("voiture")
 
 
+async def test_force_charge_switch_request_and_autoclear(hass) -> None:
+    """The force-charge switch is created/linked, forces the load, and auto-clears."""
+    from homeassistant.config_entries import ConfigSubentryData
+    from homeassistant.helpers import entity_registry as er
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    from custom_components.solarbalance import COORDINATOR_KEY
+    from custom_components.solarbalance.const import (
+        CONF_PHASES,
+        CONF_PRIORITIES,
+        CONF_SUBSCRIBED_POWER_KVA,
+        CONF_TICK_INTERVAL_S,
+        DOMAIN,
+    )
+    from custom_components.solarbalance.core.models import StrategyKind
+
+    load = ConfigSubentryData(
+        subentry_type="load",
+        title="voiture",
+        unique_id=None,
+        data={
+            "name": "voiture", "control_type": "on_off", "priority": 5,
+            "interruptible": True, "switch_entity": "switch.borne", "nominal_power_w": 2000,
+        },
+    )
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        data={
+            CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_PRIORITIES: [k.value for k in StrategyKind],
+        },
+        subentries_data=[load],
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    sub_id = next(iter(entry.subentries))
+    reg = er.async_get(hass)
+    sw = next(
+        (e for e in reg.entities.values() if e.unique_id.endswith("_load_voiture_force_charge")),
+        None,
+    )
+    assert sw is not None and sw.config_subentry_id == sub_id
+
+    coord = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    coord.request_force_charge_load("voiture")
+    assert coord.force_charge_load_active("voiture")
+    # With no prior dispatch command, force-charge injects a full-power "on".
+    forced = coord._apply_force_charge((), coord.data)
+    assert any(c.load_name == "voiture" and c.on for c in forced)
+
+    # A kWh-bounded request auto-clears once the energy is delivered.
+    coord.request_force_charge_load("voiture", kwh=1.0)
+    coord._load_energy_kwh["voiture"] = coord._load_energy_kwh.get("voiture", 0.0) + 2.0
+    coord._apply_force_charge((), coord.data)
+    assert not coord.force_charge_load_active("voiture")
+
+
 def test_optional_empty_fields_pass_schema_validation() -> None:
     """Re-submitting a prefilled form with blank optional entity/number fields
     must validate (regression: 'Entity is neither a valid entity ID nor a valid

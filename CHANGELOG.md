@@ -37,6 +37,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-06-14
+
+### Added
+
+- **« Charger maintenant » par consommateur (force charge réseau)** — chaque load reçoit un interrupteur `switch.solarbalance_<load>_force_charge` qui force la charge à pleine puissance immédiatement, **même sans surplus solaire**, en passant outre le délestage, la pause charge-rapide et le suivi solaire. Complément du « Ne pas délester ». Disponible aussi en bandeau-bouton dans le panneau (carte « Consommateurs »).
+- **Services `solarbalance.force_charge_load` / `cancel_force_charge_load`** — version paramétrable pour les automatisations : `load` (nom), `kwh` (énergie cible de la session) et/ou `hours` (durée max). Sans limite, charge jusqu'à annulation. Le switch est l'équivalent « jusqu'à annulation ».
+
 ## [1.3.5] — 2026-06-14
 
 ### Added
@@ -134,6 +141,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.4.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.5...v1.4.0
 [1.3.5]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.4...v1.3.5
 [1.3.4]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.3...v1.3.4
 [1.3.3]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.2...v1.3.3

@@ -53,6 +53,50 @@ force_discharge:
           max: 20000
           unit_of_measurement: "W"
 
+force_charge_load:
+  name: Charge a load now
+  description: >
+    Force a load to charge at full power now (grid-backed, even without solar
+    surplus), overriding shedding and fast-charge pause. Optionally limit by
+    energy or duration; otherwise it runs until cancelled.
+  fields:
+    load:
+      name: Load name
+      description: The configured load name (e.g. "voiture").
+      required: true
+      selector:
+        text:
+    kwh:
+      name: Target energy (kWh)
+      description: Stop once this much energy has been delivered this session.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 200
+          step: 0.5
+          unit_of_measurement: "kWh"
+    hours:
+      name: Maximum duration (h)
+      description: Stop after this many hours.
+      required: false
+      selector:
+        number:
+          min: 0
+          max: 24
+          step: 0.5
+          unit_of_measurement: "h"
+
+cancel_force_charge_load:
+  name: Cancel charge-now
+  description: Cancel a manual "charge now" request for a load.
+  fields:
+    load:
+      name: Load name
+      required: true
+      selector:
+        text:
+
 set_mode:
   name: Set HEMS mode
   description: Set the global operating mode.

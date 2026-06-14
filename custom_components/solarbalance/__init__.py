@@ -184,6 +184,22 @@ def _register_services(hass: HomeAssistant) -> None:
             )
             coord.async_update_listeners()
 
+    async def handle_force_charge_load(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass)
+        if coord:
+            coord.request_force_charge_load(
+                str(call.data["load"]),
+                kwh=call.data.get("kwh"),
+                hours=call.data.get("hours"),
+            )
+            coord.async_update_listeners()
+
+    async def handle_cancel_force_charge_load(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass)
+        if coord:
+            coord.cancel_force_charge_load(str(call.data["load"]))
+            coord.async_update_listeners()
+
     async def handle_activate_storm_mode(call: ServiceCall) -> None:
         coord = _get_coordinator(hass)
         if coord:
@@ -196,6 +212,10 @@ def _register_services(hass: HomeAssistant) -> None:
     hass.services.async_register(DOMAIN, "set_mode", handle_set_mode)
     hass.services.async_register(DOMAIN, "force_charge", handle_force_charge)
     hass.services.async_register(DOMAIN, "force_discharge", handle_force_discharge)
+    hass.services.async_register(DOMAIN, "force_charge_load", handle_force_charge_load)
+    hass.services.async_register(
+        DOMAIN, "cancel_force_charge_load", handle_cancel_force_charge_load
+    )
     hass.services.async_register(DOMAIN, "activate_storm_mode", handle_activate_storm_mode)
 
 

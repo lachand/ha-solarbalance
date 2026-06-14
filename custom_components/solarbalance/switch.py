@@ -47,14 +47,14 @@ async def async_setup_entry(
         if sub.data.get("name")
     }
     for load in coordinator._loads:
-        if not load.interruptible:
-            continue
-        switch = LoadShedExemptSwitch(coordinator, entry, load.name)
+        switches: list[SwitchEntity] = [LoadForceChargeSwitch(coordinator, entry, load.name)]
+        if load.interruptible:
+            switches.append(LoadShedExemptSwitch(coordinator, entry, load.name))
         sub_id = sub_by_name.get(load.name)
         if sub_id is not None:
-            async_add_entities([switch], config_subentry_id=sub_id)
+            async_add_entities(switches, config_subentry_id=sub_id)
         else:
-            async_add_entities([switch])
+            async_add_entities(switches)
 
 
 class ZeroInjectionSwitch(CoordinatorEntity[SolarBalanceCoordinator], SwitchEntity):
@@ -122,4 +122,38 @@ class LoadShedExemptSwitch(
 
     async def async_turn_off(self, **kwargs: object) -> None:
         self.coordinator.set_shed_exempt(self._load_name, False)
+        self.async_write_ha_state()
+
+
+class LoadForceChargeSwitch(CoordinatorEntity[SolarBalanceCoordinator], SwitchEntity):
+    """Force a load to charge now at full power (grid-backed, even without surplus).
+
+    A momentary override: on starts charging now regardless of shedding, the
+    fast-charge inefficiency pause or available surplus; off returns to normal.
+    Not restored across restarts (it is a "now" action). For an energy/time-bound
+    charge, use the ``solarbalance.force_charge_load`` service.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "force_charge_now"
+    _attr_icon = "mdi:lightning-bolt"
+
+    def __init__(
+        self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry, load_name: str
+    ) -> None:
+        super().__init__(coordinator)
+        self._load_name = load_name
+        self._attr_unique_id = f"{entry.entry_id}_load_{load_name}_force_charge"
+        self._attr_device_info = _load_device_info(entry, load_name)
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.force_charge_load_active(self._load_name)
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        self.coordinator.request_force_charge_load(self._load_name)
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        self.coordinator.cancel_force_charge_load(self._load_name)
         self.async_write_ha_state()
