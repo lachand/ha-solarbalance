@@ -373,6 +373,27 @@ def _build_forecast(raw: Mapping[str, Any]) -> ForecastConfig:
     )
 
 
+# Validate-then-build helpers for UI config subentries: they run the raw dict
+# through the same schema as YAML (applying defaults + validation) before
+# building, so a UI-provided device/load/meter is treated identically.
+# Raise ``vol.Invalid`` on bad input.
+
+
+def build_device_from_dict(raw: Mapping[str, Any]) -> Device:
+    """Validate and build a Device from a raw dict (UI subentry)."""
+    return _build_device(_DEVICE_SCHEMA(dict(raw)))
+
+
+def build_load_from_dict(raw: Mapping[str, Any]) -> Load:
+    """Validate and build a Load from a raw dict (UI subentry)."""
+    return _build_load(_LOAD_SCHEMA(dict(raw)))
+
+
+def build_meter_from_dict(raw: Mapping[str, Any]) -> Meter:
+    """Validate and build a Meter from a raw dict (UI subentry)."""
+    return _build_meter(_METER_SCHEMA(dict(raw)))
+
+
 def parse_yaml_config(
     raw: Mapping[str, Any],
 ) -> tuple[list[Device], list[Meter], list[Load], ForecastConfig | None, dict[str, Any] | None]:

@@ -4,8 +4,15 @@ import logging
 from typing import Any
 
 import voluptuous as vol
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigFlow,
+    ConfigFlowResult,
+    ConfigSubentryFlow,
+    OptionsFlow,
+    SubentryFlowResult,
+)
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
@@ -300,6 +307,14 @@ class SolarBalanceConfigFlow(ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(config_entry: Any) -> OptionsFlow:
         return SolarBalanceOptionsFlow(config_entry)
 
+    @classmethod
+    @callback
+    def async_get_supported_subentry_types(
+        cls, config_entry: Any
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Device/equipment types addable from the UI via 'Add'."""
+        return {"battery": BatterySubentryFlowHandler}
+
 
 class SolarBalanceOptionsFlow(OptionsFlow):
     """Allow changing global parameters after initial setup."""
@@ -320,4 +335,141 @@ class SolarBalanceOptionsFlow(OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=_main_schema(current),
+        )
+
+
+# ---------------------------------------------------------------------------
+# Device/load configuration via the UI (config subentries)
+# ---------------------------------------------------------------------------
+
+
+def _num(min_v=None, max_v=None, step=None, unit=None):
+    cfg = selector.NumberSelectorConfig(mode=selector.NumberSelectorMode.BOX)
+    if min_v is not None:
+        cfg["min"] = min_v
+    if max_v is not None:
+        cfg["max"] = max_v
+    if step is not None:
+        cfg["step"] = step
+    if unit is not None:
+        cfg["unit_of_measurement"] = unit
+    return selector.NumberSelector(cfg)
+
+
+def _entity(*domains):
+    return selector.EntitySelector(selector.EntitySelectorConfig(domain=list(domains)))
+
+
+def _battery_subentry_schema(d: dict[str, Any]) -> vol.Schema:
+    from .core.models import Chemistry, PowerSignConvention
+
+    return vol.Schema(
+        {
+            vol.Required("name", default=d.get("name", "")): selector.TextSelector(),
+            vol.Required("capacity_kwh", default=d.get("capacity_kwh")): _num(
+                0.1, step=0.1, unit="kWh"
+            ),
+            vol.Required("max_charge_power_w", default=d.get("max_charge_power_w")): _num(
+                0, step=50, unit="W"
+            ),
+            vol.Required(
+                "max_discharge_power_w", default=d.get("max_discharge_power_w")
+            ): _num(0, step=50, unit="W"),
+            vol.Required("soc_entity", default=d.get("soc_entity")): _entity("sensor"),
+            vol.Optional("power_entity", default=d.get("power_entity", "")): _entity("sensor"),
+            vol.Optional(
+                "temperature_entity", default=d.get("temperature_entity", "")
+            ): _entity("sensor"),
+            vol.Optional("cycles_entity", default=d.get("cycles_entity", "")): _entity("sensor"),
+            vol.Optional("soc_min_pct", default=d.get("soc_min_pct", 10)): _num(0, 100, 1, "%"),
+            vol.Optional("soc_max_pct", default=d.get("soc_max_pct", 95)): _num(0, 100, 1, "%"),
+            vol.Optional(
+                "usable_capacity_kwh", default=d.get("usable_capacity_kwh", "")
+            ): _num(0, step=0.1, unit="kWh"),
+            vol.Optional(
+                "chemistry", default=d.get("chemistry", Chemistry.LIFEPO4.value)
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[c.value for c in Chemistry], translation_key="chemistry"
+                )
+            ),
+            vol.Optional(
+                "power_sign_convention",
+                default=d.get("power_sign_convention", PowerSignConvention.CHARGE_POSITIVE.value),
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=[c.value for c in PowerSignConvention],
+                    translation_key="power_sign_convention",
+                )
+            ),
+            vol.Optional(
+                "controllable", default=d.get("controllable", True)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                "active_control_enabled", default=d.get("active_control_enabled", False)
+            ): selector.BooleanSelector(),
+            vol.Optional(
+                "charge_power_setpoint_entity",
+                default=d.get("charge_power_setpoint_entity", ""),
+            ): _entity("number", "input_number"),
+            vol.Optional(
+                "discharge_power_setpoint_entity",
+                default=d.get("discharge_power_setpoint_entity", ""),
+            ): _entity("number", "input_number"),
+            vol.Optional(
+                "mode_setpoint_entity", default=d.get("mode_setpoint_entity", "")
+            ): _entity("select", "input_select"),
+            vol.Optional(
+                "reserve_soc_setpoint_entity",
+                default=d.get("reserve_soc_setpoint_entity", ""),
+            ): _entity("number", "input_number"),
+            vol.Optional(
+                "ac_charge_limit_w", default=d.get("ac_charge_limit_w", "")
+            ): _num(0, step=50, unit="W"),
+        }
+    )
+
+
+# Keys that hold a battery-role value (the rest, like name, are device-level).
+_BATTERY_ROLE_KEYS = (
+    "capacity_kwh", "max_charge_power_w", "max_discharge_power_w", "soc_entity",
+    "power_entity", "temperature_entity", "cycles_entity", "soc_min_pct", "soc_max_pct",
+    "usable_capacity_kwh", "chemistry", "power_sign_convention", "controllable",
+    "active_control_enabled", "charge_power_setpoint_entity", "discharge_power_setpoint_entity",
+    "mode_setpoint_entity", "reserve_soc_setpoint_entity", "ac_charge_limit_w",
+)
+
+
+def _battery_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Assemble UI input into a device dict (shape consumed by _build_device)."""
+    battery: dict[str, Any] = {}
+    for key in _BATTERY_ROLE_KEYS:
+        val = user_input.get(key)
+        if val in (None, ""):
+            continue
+        battery[key] = val
+    return {"name": user_input["name"], "roles": {"battery": battery}}
+
+
+class BatterySubentryFlowHandler(ConfigSubentryFlow):
+    """Add or reconfigure a battery device from the UI."""
+
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> SubentryFlowResult:
+        """Collect the battery fields, validate, and create the subentry."""
+        from .yaml_loader import build_device_from_dict
+
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            device = _battery_input_to_device(user_input)
+            try:
+                build_device_from_dict(device)
+            except (vol.Invalid, ValueError, KeyError) as exc:
+                _LOGGER.warning("Invalid battery subentry: %s", exc)
+                errors["base"] = "invalid_device"
+            else:
+                return self.async_create_entry(title=str(user_input["name"]), data=device)
+        return self.async_show_form(
+            step_id="user", data_schema=_battery_subentry_schema(user_input or {}), errors=errors
         )

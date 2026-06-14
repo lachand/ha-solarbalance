@@ -205,6 +205,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         yaml_cfg if yaml_cfg else ([], [], [], None, None)
     )
 
+    # Devices/loads/meters added from the UI (config subentries) extend the YAML
+    # set. Built with the same builders, so the engine treats them identically.
+    sub_devices, sub_meters, sub_loads = _build_from_subentries(entry)
+    devices = [*devices, *sub_devices]
+    meters = [*meters, *sub_meters]
+    loads = [*loads, *sub_loads]
+
     coordinator = SolarBalanceCoordinator(
         hass, entry, devices, meters, loads, forecast=forecast, tariff_spec=tariff_spec
     )
@@ -218,8 +225,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
+def _build_from_subentries(
+    entry: ConfigEntry,
+) -> tuple[list[Any], list[Any], list[Any]]:
+    """Build devices/meters/loads from UI config subentries (reusing YAML builders)."""
+    import voluptuous as vol
+
+    from .yaml_loader import build_device_from_dict, build_load_from_dict, build_meter_from_dict
+
+    devices: list[Any] = []
+    meters: list[Any] = []
+    loads: list[Any] = []
+    for sub in entry.subentries.values():
+        try:
+            if sub.subentry_type in ("battery", "mppt", "battery_mppt", "device"):
+                devices.append(build_device_from_dict(sub.data))
+            elif sub.subentry_type == "load":
+                loads.append(build_load_from_dict(sub.data))
+            elif sub.subentry_type == "meter":
+                meters.append(build_meter_from_dict(sub.data))
+        except (vol.Invalid, ValueError, KeyError) as exc:
+            _LOGGER.error(
+                "SolarBalance: invalid %s subentry %r — skipped: %s",
+                sub.subentry_type, sub.title, exc,
+            )
+    return devices, meters, loads
+
+
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
-    """Reload the integration when options change."""
+    """Reload the integration when options or subentries change."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 

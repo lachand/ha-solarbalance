@@ -90,6 +90,61 @@
       }
     }
   },
+  "config_subentries": {
+    "battery": {
+      "initiate_flow": { "user": "Add a battery" },
+      "entry_type": "Battery",
+      "step": {
+        "user": {
+          "title": "Battery",
+          "description": "Declare a battery. Setpoint fields are only needed if you enable active control.",
+          "data": {
+            "name": "Name",
+            "capacity_kwh": "Capacity (kWh)",
+            "max_charge_power_w": "Max charge power (W)",
+            "max_discharge_power_w": "Max discharge power (W)",
+            "soc_entity": "SoC entity (%)",
+            "power_entity": "Power entity (W)",
+            "temperature_entity": "Temperature entity",
+            "cycles_entity": "Cycles entity",
+            "soc_min_pct": "Minimum SoC (%)",
+            "soc_max_pct": "Maximum SoC (%)",
+            "usable_capacity_kwh": "Usable capacity (kWh)",
+            "chemistry": "Chemistry",
+            "power_sign_convention": "Power sign convention",
+            "controllable": "Controllable",
+            "active_control_enabled": "Active control (write setpoints)",
+            "charge_power_setpoint_entity": "Charge setpoint (number)",
+            "discharge_power_setpoint_entity": "Discharge setpoint (number)",
+            "mode_setpoint_entity": "Mode setpoint (select)",
+            "reserve_soc_setpoint_entity": "Device reserve / min-SoC (number %)",
+            "ac_charge_limit_w": "AC charge limit (W)"
+          },
+          "data_description": {
+            "capacity_kwh": "Nominal capacity. E.g. 3.92",
+            "soc_entity": "State-of-charge sensor in %. E.g. sensor.ef_60605_battery_level",
+            "power_entity": "Signed power sensor. Must be POSITIVE while charging (else flip the convention).",
+            "power_sign_convention": "charge_positive = positive while charging. Otherwise discharge_positive.",
+            "active_control_enabled": "If on, SolarBalance writes setpoints (requires a controllable battery and the setpoint entities).",
+            "reserve_soc_setpoint_entity": "number/% the device obeys as its min SoC; raised to the target in storm mode. E.g. number.ef_60605_backup_reserve",
+            "ac_charge_limit_w": "Max power absorbed from AC (SoC equaliser)."
+          }
+        }
+      },
+      "error": { "invalid_device": "Invalid battery configuration — check the entities (domain required, e.g. number.x) and setpoints." }
+    }
+  },
+  "selector": {
+    "chemistry": {
+      "options": { "lifepo4": "LiFePO4", "nmc": "NMC", "leadacid": "Lead-acid", "other": "Other" }
+    },
+    "power_sign_convention": {
+      "options": {
+        "charge_positive": "Positive while charging",
+        "discharge_positive": "Positive while discharging"
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "mode": {

@@ -90,6 +90,61 @@
       }
     }
   },
+  "config_subentries": {
+    "battery": {
+      "initiate_flow": { "user": "Ajouter une batterie" },
+      "entry_type": "Batterie",
+      "step": {
+        "user": {
+          "title": "Batterie",
+          "description": "Déclarez une batterie. Les champs de consigne ne sont nécessaires que si vous activez le contrôle actif.",
+          "data": {
+            "name": "Nom",
+            "capacity_kwh": "Capacité (kWh)",
+            "max_charge_power_w": "Puissance de charge max (W)",
+            "max_discharge_power_w": "Puissance de décharge max (W)",
+            "soc_entity": "Entité SoC (%)",
+            "power_entity": "Entité puissance (W)",
+            "temperature_entity": "Entité température",
+            "cycles_entity": "Entité cycles",
+            "soc_min_pct": "SoC minimum (%)",
+            "soc_max_pct": "SoC maximum (%)",
+            "usable_capacity_kwh": "Capacité utile (kWh)",
+            "chemistry": "Chimie",
+            "power_sign_convention": "Convention de signe puissance",
+            "controllable": "Pilotable",
+            "active_control_enabled": "Contrôle actif (écriture des consignes)",
+            "charge_power_setpoint_entity": "Consigne de charge (number)",
+            "discharge_power_setpoint_entity": "Consigne de décharge (number)",
+            "mode_setpoint_entity": "Consigne de mode (select)",
+            "reserve_soc_setpoint_entity": "Réserve / SoC mini du device (number %)",
+            "ac_charge_limit_w": "Limite de charge AC (W)"
+          },
+          "data_description": {
+            "capacity_kwh": "Capacité nominale. Ex : 3.92",
+            "soc_entity": "Capteur du niveau de charge en %. Ex : sensor.ef_60605_battery_level",
+            "power_entity": "Capteur de puissance signée. Doit être POSITIF en charge (sinon ajustez la convention).",
+            "power_sign_convention": "charge_positive = positif quand la batterie charge. Sinon discharge_positive.",
+            "active_control_enabled": "Si activé, SolarBalance écrit les consignes (nécessite une batterie pilotable et les entités de consigne).",
+            "reserve_soc_setpoint_entity": "number/% que le device obéit comme SoC mini ; relevé à la cible en mode tempête. Ex : number.ef_60605_backup_reserve",
+            "ac_charge_limit_w": "Puissance max absorbée depuis l'AC (équaliseur de SoC)."
+          }
+        }
+      },
+      "error": { "invalid_device": "Configuration de batterie invalide — vérifiez les entités (domaine requis, ex. number.x) et les consignes." }
+    }
+  },
+  "selector": {
+    "chemistry": {
+      "options": { "lifepo4": "LiFePO4", "nmc": "NMC", "leadacid": "Plomb", "other": "Autre" }
+    },
+    "power_sign_convention": {
+      "options": {
+        "charge_positive": "Positif en charge",
+        "discharge_positive": "Positif en décharge"
+      }
+    }
+  },
   "entity": {
     "sensor": {
       "mode": {
