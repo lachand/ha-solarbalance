@@ -63,13 +63,21 @@ class SolarBalancePanel extends HTMLElement {
   _onClick(ev) {
     const btn = ev.composedPath().find((n) => n.dataset && n.dataset.h);
     if (!btn) return;
-    const h = Number(btn.dataset.h);
-    if (h && h !== this._window) {
-      this._window = h;
+    const raw = btn.dataset.h;
+    const w = raw === "day" ? "day" : Number(raw);
+    if (w && w !== this._window) {
+      this._window = w;
       this._histTs = 0; // force refetch for the new window
       this._maybeFetchHistory();
       this._render();
     }
+  }
+
+  /** Local midnight (start of the current calendar day) in ms. */
+  _midnightMs() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
   }
 
   _scheduleRender() {
@@ -206,7 +214,8 @@ class SolarBalancePanel extends HTMLElement {
     const ids = [this._E.pv, this._E.grid, this._E.battery].filter(Boolean);
     if (!this._hass || !ids.length) return;
     this._fetching = true;
-    const startMs = now - this._window * 3600 * 1000;
+    const startMs =
+      this._window === "day" ? this._midnightMs() : now - this._window * 3600 * 1000;
     const win = this._window;
     this._hass
       .callWS({
@@ -249,7 +258,11 @@ class SolarBalancePanel extends HTMLElement {
   _forecastSeries(now) {
     const fc = this._attr(this._E.pv, "pv_forecast_hourly");
     if (!Array.isArray(fc)) return [];
-    const cap = now + Math.min(this._window, FUTURE_CAP_H) * 3600 * 1000;
+    // Day view: forecast up to the end of the calendar day; rolling: capped ahead.
+    const cap =
+      this._window === "day"
+        ? this._midnightMs() + 24 * 3600 * 1000
+        : now + Math.min(this._window, FUTURE_CAP_H) * 3600 * 1000;
     const out = [];
     for (const p of fc) {
       const t = Date.parse(p.start);
@@ -276,8 +289,9 @@ class SolarBalancePanel extends HTMLElement {
     const padT = 12;
     const padB = 22;
     const all = [...s.pv, ...s.grid, ...s.battery, ...fc];
-    let tMin = now - this._window * 3600 * 1000;
-    let tMax = now;
+    const dayMode = this._window === "day";
+    let tMin = dayMode ? this._midnightMs() : now - this._window * 3600 * 1000;
+    let tMax = dayMode ? this._midnightMs() + 24 * 3600 * 1000 : now;
     let vMin = 0;
     let vMax = 0;
     for (const p of all) {
@@ -360,10 +374,16 @@ class SolarBalancePanel extends HTMLElement {
   }
 
   _windowSelector() {
-    return `<div class="winsel">${[1, 6, 24]
+    const opts = [
+      { v: 1, label: "1 h" },
+      { v: 6, label: "6 h" },
+      { v: 24, label: "24 h" },
+      { v: "day", label: "Jour" },
+    ];
+    return `<div class="winsel">${opts
       .map(
-        (h) =>
-          `<button data-h="${h}" class="${this._window === h ? "on" : ""}">${h} h</button>`
+        (o) =>
+          `<button data-h="${o.v}" class="${this._window === o.v ? "on" : ""}">${o.label}</button>`
       )
       .join("")}</div>`;
   }
