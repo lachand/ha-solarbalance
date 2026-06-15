@@ -250,9 +250,13 @@ def _register_services(hass: HomeAssistant) -> None:
             return {"error": "not set up"}
         raw_day = call.data.get("date")
         day = _date.fromisoformat(str(raw_day)) if raw_day else None
-        return await async_replay_day(
-            hass, coord, day=day, step_minutes=int(call.data.get("step_minutes", 30))
-        )
+        try:
+            return await async_replay_day(
+                hass, coord, day=day, step_minutes=int(call.data.get("step_minutes", 30))
+            )
+        except Exception as exc:  # surface a usable message, not "Unknown error"
+            _LOGGER.exception("solarbalance.replay failed")
+            return {"error": f"{type(exc).__name__}: {exc}"}
 
     async def handle_test_mapping(call: ServiceCall) -> dict[str, Any]:
         coord = _get_coordinator(hass)

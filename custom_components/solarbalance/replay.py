@@ -103,7 +103,7 @@ async def async_replay_day(
         bucket["export_kwh"] += exp_w / 1000.0 * step_h
         bucket["cost_eur"] += (imp_w * price - exp_w * export_price) / 1000.0 * step_h
         bucket["_n"] += 1
-        bucket["_strats"][result.decision.dominant_strategy] += 1
+        bucket["_strats"][result.dominant_strategy] += 1
         samples += 1
         t += timedelta(minutes=step_minutes)
 

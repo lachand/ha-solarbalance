@@ -37,6 +37,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.11.1] — 2026-06-15
+
+### Fixed
+
+- **`solarbalance.replay` échouait (« Unknown error »)** — la boucle lisait `result.decision.dominant_strategy` (inexistant) au lieu de `result.dominant_strategy` → `AttributeError`. Corrigé + le service renvoie désormais un message d'erreur explicite plutôt que « Unknown error ». Couvert par un test de bout en bout de la boucle de replay.
+
 ## [1.11.0] — 2026-06-15
 
 > Vague 3 de la [roadmap](docs/BACKLOG.md) — replay. (Restent : détection auto d'entités + assistant de 1er setup.)
@@ -240,6 +246,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.11.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.8.0...v1.9.0
