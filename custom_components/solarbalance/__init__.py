@@ -240,6 +240,20 @@ def _register_services(hass: HomeAssistant) -> None:
             imported += 1
         return {"imported": imported}
 
+    async def handle_replay(call: ServiceCall) -> dict[str, Any]:
+        from datetime import date as _date
+
+        from .replay import async_replay_day
+
+        coord = _get_coordinator(hass)
+        if coord is None:
+            return {"error": "not set up"}
+        raw_day = call.data.get("date")
+        day = _date.fromisoformat(str(raw_day)) if raw_day else None
+        return await async_replay_day(
+            hass, coord, day=day, step_minutes=int(call.data.get("step_minutes", 30))
+        )
+
     async def handle_test_mapping(call: ServiceCall) -> dict[str, Any]:
         coord = _get_coordinator(hass)
         if coord is None:
@@ -285,6 +299,9 @@ def _register_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, "test_mapping", handle_test_mapping, supports_response=SupportsResponse.ONLY
+    )
+    hass.services.async_register(
+        DOMAIN, "replay", handle_replay, supports_response=SupportsResponse.ONLY
     )
 
 

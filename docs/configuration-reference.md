@@ -164,6 +164,7 @@ Each configured load gets control switches (also reachable from the panel's
 | `solarbalance.export_config` | — | Returns all UI sub-entries (response data) to back up / migrate. |
 | `solarbalance.import_config` | `subentries` | Re-create devices/loads from a previously exported list (reloads the entry). |
 | `solarbalance.test_mapping` | — | Report each configured entity as ok / unavailable / missing (response data). |
+| `solarbalance.replay` | `date`, `step_minutes` | Re-run the engine over a past day from recorder history (read-only) → hourly summary + totals (response data). |
 
 (Plus `pause`, `resume`, `set_mode`, `force_charge`, `force_discharge`, `activate_storm_mode`.)
 

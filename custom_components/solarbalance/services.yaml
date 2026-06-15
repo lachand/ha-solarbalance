@@ -97,6 +97,29 @@ cancel_force_charge_load:
       selector:
         text:
 
+replay:
+  name: Replay a past day
+  description: >
+    Re-run the decision engine over a past day from recorder history (read-only,
+    no writes) and return an hourly summary of what it would have decided and the
+    would-be grid cost.
+  fields:
+    date:
+      name: Day (YYYY-MM-DD)
+      description: Defaults to yesterday.
+      required: false
+      selector:
+        text:
+    step_minutes:
+      name: Sample step (minutes)
+      required: false
+      selector:
+        number:
+          min: 5
+          max: 60
+          step: 5
+          unit_of_measurement: min
+
 test_mapping:
   name: Test entity mapping
   description: >

@@ -37,6 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-06-15
+
+> Vague 3 de la [roadmap](docs/BACKLOG.md) — replay. (Restent : détection auto d'entités + assistant de 1er setup.)
+
+### Added
+
+- **Replay d'une journée passée** — service `solarbalance.replay` (`date`, `step_minutes`) : rejoue une journée depuis l'historique du recorder à travers le moteur de décision (lecture seule, **aucune écriture**) et renvoie un **résumé horaire** (puissance réseau, cible batterie, stratégie dominante, coût) + les totaux import/export/coût. Idéal pour comprendre/valider ce qu'aurait fait le HEMS.
+
+### Changed
+
+- **`EntityReader` accepte un fournisseur d'états** (`state_getter`) — le lecteur peut reconstruire un `Snapshot` depuis des états historiques au lieu du live ; aucun changement de comportement en fonctionnement normal.
+
 ## [1.10.0] — 2026-06-15
 
 > Vague 3 de la [roadmap](docs/BACKLOG.md) — outils de confiance (1/2). Le **replay** et l'assistant de 1er setup suivront dans une prochaine release de la vague 3.
@@ -228,6 +240,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.11.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.7.0...v1.8.0

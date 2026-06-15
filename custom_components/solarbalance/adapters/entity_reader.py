@@ -6,7 +6,8 @@ unit coercion, and watchdog/availability handling.
 """
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from datetime import datetime
 
 from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN
 from homeassistant.core import HomeAssistant, State
@@ -44,6 +45,7 @@ class EntityReader:
         weather_warning_entity: str | None = None,
         current_import_price: float | None = None,
         current_export_price: float | None = None,
+        state_getter: Callable[[str], State | None] | None = None,
     ) -> None:
         self._hass = hass
         self._devices = tuple(devices)
@@ -53,11 +55,13 @@ class EntityReader:
         self._weather_warning_entity = weather_warning_entity
         self._current_import_price = current_import_price
         self._current_export_price = current_export_price
+        # Indirection so a replay can feed historical states instead of live ones.
+        self._get_state = state_getter or (lambda eid: self._hass.states.get(eid))
 
-    def snapshot(self) -> Snapshot:
-        """Read all entities once and assemble a snapshot."""
+    def snapshot(self, timestamp: datetime | None = None) -> Snapshot:
+        """Read all entities once and assemble a snapshot (``timestamp`` for replay)."""
         return Snapshot(
-            timestamp=dt_util.utcnow(),
+            timestamp=timestamp or dt_util.utcnow(),
             grid_power_w=self._read_grid_power(),
             batteries=self._read_batteries(),
             mppts=self._read_mppts(),
@@ -165,7 +169,7 @@ class EntityReader:
             )
             eps_active = False
             if device.inverter.eps_active_entity:
-                eps_state = self._hass.states.get(device.inverter.eps_active_entity)
+                eps_state = self._get_state(device.inverter.eps_active_entity)
                 eps_active = eps_state is not None and eps_state.state == "on"
             states.append(
                 InverterState(
@@ -186,7 +190,7 @@ class EntityReader:
             if load.actual_power_entity:
                 power = self._read_float(load.actual_power_entity, default=0.0) or 0.0
             elif load.control_type is LoadControlType.ON_OFF and load.switch_entity:
-                sw = self._hass.states.get(load.switch_entity)
+                sw = self._get_state(load.switch_entity)
                 if sw is not None and sw.state == "on":
                     power = float(load.nominal_power_w or 0)
             states.append(
@@ -205,7 +209,7 @@ class EntityReader:
     def _read_weather_warning(self) -> bool:
         if self._weather_warning_entity is None:
             return False
-        state = self._hass.states.get(self._weather_warning_entity)
+        state = self._get_state(self._weather_warning_entity)
         if state is None:
             return False
         if state.state == "on":
@@ -217,7 +221,7 @@ class EntityReader:
     def _read_float(self, entity_id: str | None, *, default: float | None) -> float | None:
         if entity_id is None:
             return default
-        state: State | None = self._hass.states.get(entity_id)
+        state: State | None = self._get_state(entity_id)
         if state is None or state.state in _INVALID_STATES:
             return default
         try:
