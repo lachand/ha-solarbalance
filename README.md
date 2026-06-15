@@ -87,6 +87,7 @@ Full guide: [`docs/getting-started.md`](docs/getting-started.md).
 - [Strategies](docs/strategies.md) — algorithm details
 - [API reference](docs/api.md) — services and exposed entities
 - [Troubleshooting](docs/troubleshooting.md)
+- [Backlog & roadmap](docs/BACKLOG.md) — planned features and implementation order
 
 ## Contributing
 
