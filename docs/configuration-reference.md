@@ -33,6 +33,7 @@ Complete reference of every SolarBalance option. Two places hold configuration:
 | `load_control_enabled` | false | Allow writing to load switches/levels. **Required for any load action.** |
 | `evening_shed_enabled` | false | End-of-day shedding of big loads to prioritise battery charge. |
 | `evening_shed_min_power_w` | 500 | Min power of an interruptible load to be considered "big". |
+| `overload_protection_enabled` | false | Shed/reduce loads (lowest priority first) when grid import exceeds 95 % of the subscribed power, to avoid tripping the breaker. |
 | `predictive_control_enabled` | false | Let the planner steer batteries (cheap charge / peak discharge). Inert on a flat tariff. |
 | `notifications_enabled` | true | Persistent notifications (degraded, overload, shedding). |
 | `tempo_red_prep_enabled` | false | Pre-charge the fleet before a Tempo red day (off-peak). |
@@ -151,6 +152,7 @@ Each configured load gets control switches (also reachable from the panel's
 | `switch.solarbalance_<load>_force_charge` | **Charge now**: full power immediately, even without surplus. Overrides shedding, fast-charge pause and dispatch. Grid-backed — the ZI target is raised by the load's power so the **battery is not discharged** to feed it. Not restored across restarts. |
 | `switch.solarbalance_<load>_shed_exempt` | **Keep running**: exempt from evening battery-priority shedding and the fast-charge inefficiency pause (interruptible loads only). Restored across restarts. |
 | `switch.solarbalance_<load>_off_peak_only` | **Off-peak only**: forced off whenever the tariff window is not cheap (HP / expensive spot / Tempo red). Overridden by the departure deadline and force-charge. Restored across restarts. |
+| `switch.solarbalance_<load>_solar_only` | **Solar only**: runs only while the PV surplus covers the load's power (e.g. pool pump). Overridden by the departure deadline and force-charge. Restored across restarts. |
 
 ## Services
 

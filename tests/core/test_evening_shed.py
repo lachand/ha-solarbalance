@@ -17,7 +17,7 @@ def _eval(**kw):
         "remaining_pv_kwh": 10.0,
         "remaining_hours": 3.0,
         "talon_w": 300.0,
-        "sheddable": [("water_heater", 2000.0), ("small", 100.0)],
+        "sheddable": [("water_heater", 2000.0, 1), ("small", 100.0, 2)],
         "min_shed_power_w": 500.0,
     }
     base.update(kw)
@@ -59,7 +59,7 @@ def test_deficit_aggregates_across_batteries() -> None:
 
 
 def test_no_sheddable_load_marks_reason_but_inactive() -> None:
-    d = _eval(remaining_pv_kwh=3.0, sheddable=[("tiny", 100.0)])
+    d = _eval(remaining_pv_kwh=3.0, sheddable=[("tiny", 100.0, 1)])
     assert d.active is False and d.reason == "no_sheddable_load"
 
 
@@ -68,3 +68,13 @@ def test_baseline_reduces_available_pv() -> None:
     d = _eval(remaining_pv_kwh=6.0, remaining_hours=4.0, talon_w=1500.0)
     assert d.pv_for_charge_kwh == 0.0
     assert d.active is True
+
+
+def test_cascade_sheds_lowest_priority_only_as_needed() -> None:
+    # shortfall = 5 - 2.1 = 2.9 kWh over 3 h → ~966 W to free. Two big loads:
+    # the lower-priority one (1000 W) alone covers it → the other stays on.
+    d = _eval(
+        remaining_pv_kwh=3.0,
+        sheddable=[("ev", 1500.0, 5), ("water_heater", 1000.0, 1)],
+    )
+    assert d.shed_load_names == frozenset({"water_heater"})  # prio 1 shed first, enough

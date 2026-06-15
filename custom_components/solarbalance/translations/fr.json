@@ -90,7 +90,8 @@
           "soc_equaliser_max_w": "Équaliseur SoC : offre max (W)",
           "soc_equaliser_kp_w_per_pct": "Équaliseur SoC : gain (W/%)",
           "soc_equaliser_deadband_pct": "Équaliseur SoC : bande morte (%)",
-          "soc_equaliser_probe_step_w": "Équaliseur SoC : pas de sonde (W)"
+          "soc_equaliser_probe_step_w": "Équaliseur SoC : pas de sonde (W)",
+          "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)"
         }
       },
       "forecast": {
@@ -655,6 +656,9 @@
       },
       "off_peak_only": {
         "name": "Heures creuses seulement"
+      },
+      "solar_only": {
+        "name": "Solaire seulement"
       }
     },
     "binary_sensor": {

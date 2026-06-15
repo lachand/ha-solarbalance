@@ -90,7 +90,8 @@
           "soc_equaliser_max_w": "SoC equaliser: max offer (W)",
           "soc_equaliser_kp_w_per_pct": "SoC equaliser: gain (W/%)",
           "soc_equaliser_deadband_pct": "SoC equaliser: deadband (%)",
-          "soc_equaliser_probe_step_w": "SoC equaliser: probe step (W)"
+          "soc_equaliser_probe_step_w": "SoC equaliser: probe step (W)",
+          "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)"
         }
       },
       "forecast": {
@@ -655,6 +656,9 @@
       },
       "off_peak_only": {
         "name": "Off-peak only"
+      },
+      "solar_only": {
+        "name": "Solar only"
       }
     },
     "binary_sensor": {

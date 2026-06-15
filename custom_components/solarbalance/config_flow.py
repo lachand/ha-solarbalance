@@ -32,6 +32,7 @@ from .const import (
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_NOTIFICATIONS_ENABLED,
+    CONF_OVERLOAD_PROTECTION_ENABLED,
     CONF_PHASES,
     CONF_PREDICTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
@@ -72,6 +73,7 @@ from .const import (
     DEFAULT_HP_PRICE,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
+    DEFAULT_OVERLOAD_PROTECTION_ENABLED,
     DEFAULT_PHASES,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
@@ -172,6 +174,10 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
         ): bool,
         vol.Optional(
             CONF_EVENING_SHED_ENABLED, default=d.get(CONF_EVENING_SHED_ENABLED, False)
+        ): bool,
+        vol.Optional(
+            CONF_OVERLOAD_PROTECTION_ENABLED,
+            default=d.get(CONF_OVERLOAD_PROTECTION_ENABLED, DEFAULT_OVERLOAD_PROTECTION_ENABLED),
         ): bool,
         vol.Optional(
             CONF_PREDICTIVE_CONTROL_ENABLED, default=d.get(CONF_PREDICTIVE_CONTROL_ENABLED, False)

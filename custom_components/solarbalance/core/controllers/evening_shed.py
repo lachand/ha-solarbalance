@@ -62,10 +62,14 @@ def evaluate_evening_shed(
     remaining_pv_kwh: float,
     remaining_hours: float,
     talon_w: float | None,
-    sheddable: Sequence[tuple[str, float]],
+    sheddable: Sequence[tuple[str, float, int]],
     min_shed_power_w: float,
 ) -> ShedDecision:
     """Decide whether to shed big loads to prioritise battery charging.
+
+    Sheds **as a cascade**: the least important loads first (lowest priority),
+    and only enough of them to free the power the batteries are short — not
+    all-or-nothing.
 
     Args:
         enabled: Master switch for the behaviour.
@@ -73,7 +77,8 @@ def evaluate_evening_shed(
         remaining_pv_kwh: Forecast PV energy left in the production window.
         remaining_hours: Hours of production left (for the standby energy term).
         talon_w: Standby baseline power (W); ``None`` assumes 0.
-        sheddable: ``(load_name, nominal_power_w)`` for interruptible loads.
+        sheddable: ``(load_name, nominal_power_w, priority)`` for interruptible
+            loads — lower ``priority`` is shed first.
         min_shed_power_w: Only loads at/above this power are shed ("big" loads).
 
     Returns:
@@ -92,7 +97,21 @@ def evaluate_evening_shed(
     elif pv_for_charge_kwh >= deficit_kwh:
         reason = "surplus_sufficient"
     else:
-        names = frozenset(name for name, power in sheddable if power >= min_shed_power_w)
+        # Power we must free so the remaining PV can also fill the batteries.
+        shortfall_kwh = deficit_kwh - pv_for_charge_kwh
+        needed_w = shortfall_kwh / remaining_hours * 1000.0 if remaining_hours > 0 else float("inf")
+        big = sorted(
+            (item for item in sheddable if item[1] >= min_shed_power_w),
+            key=lambda item: item[2],  # ascending priority → least important first
+        )
+        shed: set[str] = set()
+        freed = 0.0
+        for name, power, _priority in big:
+            if freed >= needed_w:
+                break
+            shed.add(name)
+            freed += power
+        names = frozenset(shed)
         reason = "shedding" if names else "no_sheddable_load"
         return ShedDecision(
             active=bool(names),

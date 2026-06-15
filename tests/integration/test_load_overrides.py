@@ -82,6 +82,32 @@ async def test_load_status_reflects_overrides(coord) -> None:
     assert coord.load_status("voiture") == "inactive"
 
 
+async def test_solar_only_forces_off_below_surplus(coord) -> None:
+    coord.set_solar_only("voiture", True)
+    cmds = (LoadCommand(load_name="voiture", on=True, rationale="dispatch"),)
+    # Surplus below the load's 2000 W nominal → forced off.
+    out = coord._apply_solar_only(cmds, 500.0)
+    assert out[0].on is False and out[0].rationale == "solar_only"
+    # Enough surplus → left running.
+    out = coord._apply_solar_only(cmds, 2500.0)
+    assert out[0].on is True
+
+
+async def test_overload_protection_sheds_over_limit(coord) -> None:
+    from types import SimpleNamespace
+
+    coord._overload_protection_enabled = True
+    coord._subscribed_power_w = 6000.0  # safe limit 5700 W
+    snap = SimpleNamespace(loads=(SimpleNamespace(name="voiture", actual_power_w=2000.0),))
+    cmds = (LoadCommand(load_name="voiture", on=True, rationale="dispatch"),)
+    # Grid 6200 W > 5700 limit → the on/off load is cut.
+    out = coord._apply_overload_protection(cmds, snap, 6200.0)
+    assert {c.load_name: c.on for c in out}["voiture"] is False
+    # Under the limit → untouched.
+    out = coord._apply_overload_protection(cmds, snap, 5000.0)
+    assert {c.load_name: c.on for c in out}["voiture"] is True
+
+
 async def test_bus_events_fire_on_transitions(coord) -> None:
     from custom_components.solarbalance.const import EVENT_FORCE_CHARGE, EVENT_MODE_CHANGED
     from custom_components.solarbalance.core.models import HemsMode

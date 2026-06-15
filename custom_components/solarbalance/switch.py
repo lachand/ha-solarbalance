@@ -50,6 +50,7 @@ async def async_setup_entry(
         switches: list[SwitchEntity] = [
             LoadForceChargeSwitch(coordinator, entry, load.name),
             LoadOffPeakOnlySwitch(coordinator, entry, load.name),
+            LoadSolarOnlySwitch(coordinator, entry, load.name),
         ]
         if load.interruptible:
             switches.append(LoadShedExemptSwitch(coordinator, entry, load.name))
@@ -201,4 +202,45 @@ class LoadOffPeakOnlySwitch(
 
     async def async_turn_off(self, **kwargs: object) -> None:
         self.coordinator.set_off_peak_only(self._load_name, False)
+        self.async_write_ha_state()
+
+
+class LoadSolarOnlySwitch(
+    CoordinatorEntity[SolarBalanceCoordinator], SwitchEntity, RestoreEntity
+):
+    """Allow a load to run only on real PV surplus (e.g. a pool pump).
+
+    When on, the load is forced off whenever the instantaneous PV surplus is
+    below the load's power. Overridden by the departure deadline and force
+    charge. The choice is restored across restarts.
+    """
+
+    _attr_has_entity_name = True
+    _attr_translation_key = "solar_only"
+    _attr_icon = "mdi:solar-power-variant"
+
+    def __init__(
+        self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry, load_name: str
+    ) -> None:
+        super().__init__(coordinator)
+        self._load_name = load_name
+        self._attr_unique_id = f"{entry.entry_id}_load_{load_name}_solar_only"
+        self._attr_device_info = _load_device_info(entry, load_name)
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        last = await self.async_get_last_state()
+        if last is not None and last.state == STATE_ON:
+            self.coordinator.set_solar_only(self._load_name, True)
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.is_solar_only(self._load_name)
+
+    async def async_turn_on(self, **kwargs: object) -> None:
+        self.coordinator.set_solar_only(self._load_name, True)
+        self.async_write_ha_state()
+
+    async def async_turn_off(self, **kwargs: object) -> None:
+        self.coordinator.set_solar_only(self._load_name, False)
         self.async_write_ha_state()

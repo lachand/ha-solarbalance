@@ -87,6 +87,7 @@ const STR_EN = {
   "Aucun appareil batterie détecté.": "No battery device detected.",
   "Aucune action batterie planifiée": "No battery action planned",
   "Prévision PV": "PV forecast",
+  "Solaire seulement": "Solar only",
 };
 
 class SolarBalancePanel extends HTMLElement {
@@ -289,7 +290,12 @@ class SolarBalancePanel extends HTMLElement {
 
   /** Per-load control switches, grouped by load (force-charge + shed-exempt). */
   _loadSwitches() {
-    const KEYS = { force_charge_now: "force", shed_exempt: "shed", off_peak_only: "offpeak" };
+    const KEYS = {
+      force_charge_now: "force",
+      shed_exempt: "shed",
+      off_peak_only: "offpeak",
+      solar_only: "solar",
+    };
     const out = {};
     const h = this._hass;
     if (!h || !h.entities) return out;
@@ -324,6 +330,7 @@ class SolarBalancePanel extends HTMLElement {
           <span class="load-btns">
             ${btn(l.force, "⚡ " + this._t("Charge en cours"), "⚡ " + this._t("Charger maintenant"), "")}
             ${btn(l.offpeak, "🕓 " + this._t("Heures creuses"), "🕓 " + this._t("HC seulement"), "")}
+            ${btn(l.solar, "☀️ " + this._t("Solaire seulement"), "☀️ " + this._t("Solaire seulement"), "")}
             ${btn(l.shed, "🔓 " + this._t("Ne pas délester"), "🔌 " + this._t("Délestable"), "")}
           </span>
         </div>`

@@ -37,6 +37,7 @@ from .const import (
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_NOTIFICATIONS_ENABLED,
+    CONF_OVERLOAD_PROTECTION_ENABLED,
     CONF_PREDICTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
     CONF_PV_FORECAST_TOMORROW_ENTITY,
@@ -77,6 +78,7 @@ from .const import (
     DEFAULT_HP_PRICE,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
+    DEFAULT_OVERLOAD_PROTECTION_ENABLED,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
@@ -96,6 +98,7 @@ from .const import (
     EVENT_MODE_CHANGED,
     EVENT_SHEDDING,
     EVENT_TEMPO_RED_DAY,
+    OVERLOAD_PROTECTION_FRACTION,
     STORE_KEY,
     STORE_VERSION,
 )
@@ -112,6 +115,7 @@ from .core.controllers.evening_shed import (
 )
 from .core.controllers.load_dispatch import LoadCommand, LoadDispatchController
 from .core.controllers.load_settle import SettleState, advance_settle, arm_settle
+from .core.controllers.overload import SheddableLoad, relieve_overload
 from .core.controllers.regulation import (
     apply_slew_limit,
     predictive_steering_w,
@@ -322,6 +326,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._force_charge_req: dict[str, ForceChargeRequest] = {}
         # Loads restricted to cheap/off-peak tariff windows only.
         self._off_peak_only: set[str] = set()
+        # Loads allowed to run only on real PV surplus (e.g. pool pump).
+        self._solar_only: set[str] = set()
         # Last applied command per load (for per-load status sensors).
         self._last_load_commands: dict[str, LoadCommand] = {}
         # Tariff resolution priority: explicit object (tests) > YAML tariff: block
@@ -406,6 +412,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         self._predictive_control_enabled = bool(cfg.get(CONF_PREDICTIVE_CONTROL_ENABLED, False))
         self._evening_shed_enabled = bool(cfg.get(CONF_EVENING_SHED_ENABLED, False))
+        self._overload_protection_enabled = bool(
+            cfg.get(CONF_OVERLOAD_PROTECTION_ENABLED, DEFAULT_OVERLOAD_PROTECTION_ENABLED)
+        )
         self._tempo_red_prep_enabled = bool(cfg.get(CONF_TEMPO_RED_PREP_ENABLED, False))
         self._tempo_red_prep_soc_pct = float(
             cfg.get(CONF_TEMPO_RED_PREP_SOC_PCT, DEFAULT_TEMPO_RED_PREP_SOC_PCT)
@@ -1096,6 +1105,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         else:
             self._off_peak_only.discard(load_name)
 
+    def is_solar_only(self, load_name: str) -> bool:
+        """True when this load may run only on real PV surplus."""
+        return load_name in self._solar_only
+
+    def set_solar_only(self, load_name: str, enabled: bool) -> None:
+        """Restrict (or not) a load to running only on PV surplus."""
+        if enabled:
+            self._solar_only.add(load_name)
+        else:
+            self._solar_only.discard(load_name)
+
     def load_energy_today_kwh(self, load_name: str) -> float:
         """Energy delivered to a load since local midnight (kWh)."""
         return round(self._load_energy_kwh.get(load_name, 0.0), 3)
@@ -1552,12 +1572,16 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Off-peak-only loads: forbid running outside cheap tariff windows
         # (overridable by the deadline guarantee and manual force-charge below).
         commands = self._apply_off_peak(commands, snapshot)
+        commands = self._apply_solar_only(commands, surplus_w)
         # Departure deadline has the final say: a grid-backed charge to meet the
         # required energy by the target time overrides shedding/fast-charge.
         commands = self._apply_deadline(commands, snapshot)
         # Manual "charge now" is the strongest override: force full power even
         # without surplus, regardless of shed / fast-charge / dispatch.
         commands = self._apply_force_charge(commands, snapshot)
+        # Final safety net: keep grid import under the breaker, shedding the least
+        # important loads first (overrides everything, including force-charge).
+        commands = self._apply_overload_protection(commands, snapshot, grid_filtered_w)
         self._last_load_commands = {c.load_name: c for c in commands}
         await self._load_publisher.apply(commands)
         self._update_load_settle(commands)
@@ -1872,7 +1896,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         """Assemble inputs and evaluate the evening battery-priority shedding."""
         remaining_pv_kwh, remaining_hours = self._remaining_production(snapshot)
         sheddable = [
-            (load.name, float(_load_nominal_w(load)))
+            (load.name, float(_load_nominal_w(load)), int(load.priority))
             for load in self._loads
             if load.interruptible and load.name not in self._shed_exempt
         ]
@@ -2024,6 +2048,56 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             total += min(draw, float(_load_nominal_w(load)))
         return total
 
+    def _load_floor_w(self, load: Load) -> tuple[float, bool]:
+        """Return (floor_w, reducible) for overload relief — how low a load may run."""
+        if load.control_type is LoadControlType.MODULATING:
+            return float(load.min_power_w or 0), True
+        if load.control_type is LoadControlType.STEPPED and load.steps:
+            return float(min(s.power_w for s in load.steps)), True
+        return 0.0, False  # on/off: all-or-nothing
+
+    def _apply_overload_protection(
+        self, commands: tuple[LoadCommand, ...], snapshot: Snapshot, grid_filtered_w: float
+    ) -> tuple[LoadCommand, ...]:
+        """Reduce/cut the least important loads to keep grid import under the breaker."""
+        if not (self._overload_protection_enabled and self._load_publisher.enabled):
+            return commands
+        if not self._subscribed_power_w:
+            return commands
+        safe_limit = self._subscribed_power_w * OVERLOAD_PROTECTION_FRACTION
+        excess = grid_filtered_w - safe_limit
+        if excess <= 0:
+            return commands
+        measured = {ls.name: ls.actual_power_w for ls in snapshot.loads}
+        load_by_name = {ld.name: ld for ld in self._loads}
+        candidates: list[SheddableLoad] = []
+        for load in self._loads:
+            current = max(0.0, measured.get(load.name, 0.0))
+            if current <= 0:
+                continue
+            floor, reducible = self._load_floor_w(load)
+            candidates.append(
+                SheddableLoad(
+                    name=load.name,
+                    priority=load.priority,
+                    current_w=current,
+                    floor_w=floor,
+                    interruptible=load.interruptible,
+                    reducible=reducible,
+                )
+            )
+        targets, uncovered = relieve_overload(candidates, excess)
+        if not targets:
+            return commands
+        _LOGGER.warning(
+            "Overload protection: grid %.0fW > %.0fW limit — reducing %s (%.0fW uncovered)",
+            grid_filtered_w, safe_limit, ", ".join(targets), uncovered,
+        )
+        by_name = {c.load_name: c for c in commands}
+        for name, target_w in targets.items():
+            by_name[name] = self._command_for_power(load_by_name[name], target_w)
+        return tuple(by_name.values())
+
     def _apply_off_peak(
         self, commands: tuple[LoadCommand, ...], snapshot: Snapshot
     ) -> tuple[LoadCommand, ...]:
@@ -2036,6 +2110,20 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return tuple(
             LoadCommand(load_name=c.load_name, on=False, rationale="off_peak_only")
             if c.load_name in self._off_peak_only
+            else c
+            for c in commands
+        )
+
+    def _apply_solar_only(
+        self, commands: tuple[LoadCommand, ...], surplus_w: float
+    ) -> tuple[LoadCommand, ...]:
+        """Force solar-only loads off unless the PV surplus covers their power."""
+        if not self._solar_only:
+            return commands
+        nominal = {ld.name: _load_nominal_w(ld) for ld in self._loads}
+        return tuple(
+            LoadCommand(load_name=c.load_name, on=False, rationale="solar_only")
+            if c.load_name in self._solar_only and surplus_w < nominal.get(c.load_name, 0.0)
             else c
             for c in commands
         )

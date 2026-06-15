@@ -126,6 +126,12 @@ DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD: Final = 0.25  # €/kWh
 STORE_KEY: Final = "solarbalance.state"
 STORE_VERSION: Final = 1
 
+# Active grid-overload protection: shed/reduce loads before the breaker trips.
+CONF_OVERLOAD_PROTECTION_ENABLED: Final = "overload_protection_enabled"
+DEFAULT_OVERLOAD_PROTECTION_ENABLED: Final = False
+# Act when projected import exceeds this fraction of the subscribed power.
+OVERLOAD_PROTECTION_FRACTION: Final = 0.95
+
 # Bus events (for automations / blueprints / logbook). Edge-triggered.
 EVENT_MODE_CHANGED: Final = "solarbalance_mode_changed"
 EVENT_SHEDDING: Final = "solarbalance_shedding"

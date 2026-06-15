@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-06-15
+
+> Vague 2 de la [roadmap](docs/BACKLOG.md) — délestage intelligent & protection réseau.
+
+### Added
+
+- **Protection active de la puissance souscrite** (`overload_protection_enabled`, off par défaut) — quand l'import réseau dépasse 95 % de la puissance souscrite, les consommateurs les **moins prioritaires** sont **réduits puis coupés en cascade** jusqu'à repasser sous le seuil. Surcharge réseau évitée avant la disjonction. Appliqué en dernier (prioritaire sur la charge forcée).
+- **Load-balancing EV** — les consommateurs modulables/à paliers (chargeur EV) sont **réduits vers leur plancher** (baisse d'ampérage) **avant** d'être coupés, par la même cascade.
+- **Mode « Solaire seulement » par consommateur** — interrupteur `switch.solarbalance_<load>_solar_only` (+ toggle panneau) : n'autorise le consommateur (ex. pompe piscine) que lorsque le **surplus PV** couvre sa puissance. Restauré au redémarrage.
+
+### Changed
+
+- **Délestage fin de journée en cascade** — l'`evening_shed` ne coupe plus tout d'un bloc : il déleste les consommateurs **par priorité croissante** et **seulement assez** pour combler le déficit de charge batterie.
+
 ## [1.8.0] — 2026-06-15
 
 > Vague 1 de la [roadmap](docs/BACKLOG.md) — plomberie & intégration HA.
@@ -205,6 +219,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.9.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.6.0...v1.6.1
