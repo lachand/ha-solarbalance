@@ -31,6 +31,45 @@ async def entry(hass: HomeAssistant) -> MockConfigEntry:
     return e
 
 
+async def test_export_then_import_config_roundtrip(hass: HomeAssistant) -> None:
+    """export_config returns the sub-entries; import_config re-creates them."""
+    from homeassistant.config_entries import ConfigSubentryData
+
+    battery = ConfigSubentryData(
+        subentry_type="battery", title="stream", unique_id=None,
+        data={"name": "stream", "roles": {"battery": {
+            "capacity_kwh": 3.92, "max_charge_power_w": 1200, "max_discharge_power_w": 2300,
+            "soc_entity": "sensor.soc", "power_entity": "sensor.bp"}}},
+    )
+    src = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
+              CONF_PRIORITIES: [k.value for k in StrategyKind]},
+        subentries_data=[battery],
+    )
+    src.add_to_hass(hass)
+    await hass.config_entries.async_setup(src.entry_id)
+    await hass.async_block_till_done()
+
+    exported = await hass.services.async_call(
+        DOMAIN, "export_config", {}, blocking=True, return_response=True
+    )
+    assert len(exported["subentries"]) == 1
+    assert exported["subentries"][0]["data"]["name"] == "stream"
+
+    res = await hass.services.async_call(
+        DOMAIN, "import_config",
+        {"subentries": [{"type": "load", "title": "wh",
+                         "data": {"name": "wh", "control_type": "on_off", "priority": 3,
+                                  "nominal_power_w": 2000, "switch_entity": "switch.wh"}}]},
+        blocking=True, return_response=True,
+    )
+    assert res["imported"] == 1
+    await hass.async_block_till_done()
+    titles = {s.title for s in src.subentries.values()}
+    assert {"stream", "wh"} <= titles
+
+
 async def test_options_menu_then_tariff_section_merges(hass, entry) -> None:
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] == FlowResultType.MENU

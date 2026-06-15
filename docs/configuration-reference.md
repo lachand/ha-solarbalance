@@ -158,6 +158,8 @@ Each configured load gets control switches (also reachable from the panel's
 |---|---|---|
 | `solarbalance.force_charge_load` | `load` (name, required), `kwh`, `hours` | Start a grid-backed "charge now" for a load. Auto-clears once `kwh` is delivered or `hours` elapse; without either, runs until cancelled (equivalent to the switch). |
 | `solarbalance.cancel_force_charge_load` | `load` | Cancel a manual charge-now request. |
+| `solarbalance.export_config` | — | Returns all UI sub-entries (response data) to back up / migrate. |
+| `solarbalance.import_config` | `subentries` | Re-create devices/loads from a previously exported list (reloads the entry). |
 
 (Plus `pause`, `resume`, `set_mode`, `force_charge`, `force_discharge`, `activate_storm_mode`.)
 

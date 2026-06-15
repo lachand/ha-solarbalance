@@ -634,6 +634,7 @@ def _load_subentry_schema(d: dict[str, Any]) -> vol.Schema:
         f"{s['level']}:{s['power_w']}" for s in d.get("steps", [])
     ) if d.get("steps") else d.get("steps_text", "")
     dl = d.get("deadline_constraint") or {}
+    tw = d.get("time_window") or {}
     return vol.Schema(
         {
             vol.Required("name", default=d.get("name", "")): selector.TextSelector(),
@@ -694,6 +695,12 @@ def _load_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Optional(
                 "deadline_before", default=dl.get("before_time", "")
             ): selector.TextSelector(),
+            vol.Optional(
+                "window_start", default=tw.get("start", "")
+            ): selector.TextSelector(),
+            vol.Optional(
+                "window_end", default=tw.get("end", "")
+            ): selector.TextSelector(),
         }
     )
 
@@ -713,6 +720,10 @@ def _load_input_to_dict(user_input: dict[str, Any]) -> dict[str, Any]:
     before = (user_input.get("deadline_before") or "").strip()
     if req not in (None, "") and before:
         load["deadline_constraint"] = {"kwh_required": req, "before_time": before}
+    w_start = (user_input.get("window_start") or "").strip()
+    w_end = (user_input.get("window_end") or "").strip()
+    if w_start and w_end:
+        load["time_window"] = {"start": w_start, "end": w_end}
     return load
 
 

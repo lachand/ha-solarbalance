@@ -74,9 +74,18 @@ async def test_grid_only_force_charge_offset(coord) -> None:
 
 async def test_load_status_reflects_overrides(coord) -> None:
     coord._last_load_commands = {"voiture": LoadCommand(load_name="voiture", on=True)}
-    assert coord.load_status("voiture") == "actif"
+    assert coord.load_status("voiture") == "active"
     coord.request_force_charge_load("voiture")
-    assert coord.load_status("voiture") == "charge forcée"
+    assert coord.load_status("voiture") == "force_charge"
     coord.cancel_force_charge_load("voiture")
     coord._last_load_commands = {"voiture": LoadCommand(load_name="voiture", on=False)}
-    assert coord.load_status("voiture") == "inactif"
+    assert coord.load_status("voiture") == "inactive"
+
+
+async def test_decision_reason_localised(coord) -> None:
+    # Code is language-independent; the sentence follows the HA language.
+    assert isinstance(coord.decision_reason_code, str)
+    coord.hass.config.language = "en"
+    assert "—" in coord.decision_reason or coord.decision_reason
+    coord.hass.config.language = "fr"
+    assert coord.decision_reason  # non-empty FR string

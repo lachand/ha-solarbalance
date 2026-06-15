@@ -19,6 +19,7 @@ Sensors published:
 
 import logging
 from datetime import datetime
+from typing import ClassVar
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -559,9 +560,13 @@ class SolarBalanceLoadEnergyTodaySensor(_SolarBalanceSensor):
 
 
 class SolarBalanceLoadStatusSensor(_SolarBalanceSensor):
-    """Current control status of a load (actif / délesté / charge forcée…)."""
+    """Current control status of a load (enum, translated by the frontend)."""
 
     _attr_translation_key = "load_status"
+    _attr_device_class = SensorDeviceClass.ENUM
+    _attr_options: ClassVar[list[str]] = [
+        "active", "inactive", "shed", "off_peak_wait", "force_charge", "unknown",
+    ]
     _attr_icon = "mdi:power-plug"
 
     def __init__(

@@ -150,3 +150,111 @@ async def test_full_tick_force_charge_is_grid_backed(hass: HomeAssistant) -> Non
     # -480 W (0.6 * 800) it would be if the loop tried to zero the full grid import.
     target = coordinator.diagnostics.fleet_target_w
     assert -300.0 < target <= 0.0
+
+
+@pytest.mark.asyncio
+async def test_full_tick_off_peak_load_not_turned_on(hass: HomeAssistant) -> None:
+    """An off-peak-only load is not switched on outside a cheap window, even on surplus."""
+    devices, meters, loads = _config()
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, loads, None, None)
+
+    # Big export → dispatch would normally turn the load on.
+    hass.states.async_set("sensor.grid_power", "-1500")
+    hass.states.async_set("sensor.pv_power", "2000")
+    hass.states.async_set("sensor.batt_soc", "50")
+    hass.states.async_set("sensor.batt_power", "0")
+    hass.states.async_set("sensor.wh_power", "0")
+    hass.states.async_set("switch.water_heater", "off")
+
+    async_mock_service(hass, "number", "set_value")
+    turn_on_calls = async_mock_service(hass, "homeassistant", "turn_on")
+    async_mock_service(hass, "homeassistant", "turn_off")
+
+    # Flat tariff above the cheap threshold (0.15) → never a cheap window.
+    entry = MockConfigEntry(domain=DOMAIN, data={**_ENTRY_DATA, "import_price": 0.30})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    turn_on_calls.clear()  # ignore the initial setup tick
+    coordinator.set_off_peak_only("wh", True)
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    # Despite the surplus, the off-peak guard keeps the load off.
+    assert not any(
+        "switch.water_heater" in (c.data.get("entity_id") or "") for c in turn_on_calls
+    )
+    assert coordinator.load_status("wh") == "off_peak_wait"
+
+
+@pytest.mark.asyncio
+async def test_full_tick_force_charge_turns_switch_on(hass: HomeAssistant) -> None:
+    """Force-charge turns the load on even with no surplus."""
+    devices, meters, loads = _config()
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, loads, None, None)
+
+    hass.states.async_set("sensor.grid_power", "300")  # importing, no surplus
+    hass.states.async_set("sensor.pv_power", "0")
+    hass.states.async_set("sensor.batt_soc", "50")
+    hass.states.async_set("sensor.batt_power", "0")
+    hass.states.async_set("sensor.wh_power", "0")
+    hass.states.async_set("switch.water_heater", "off")
+
+    async_mock_service(hass, "number", "set_value")
+    turn_on_calls = async_mock_service(hass, "homeassistant", "turn_on")
+
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    coordinator.request_force_charge_load("wh")
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    assert any(
+        "switch.water_heater" in (c.data.get("entity_id") or "") for c in turn_on_calls
+    )
+    assert coordinator.load_status("wh") == "force_charge"
+
+
+@pytest.mark.asyncio
+async def test_anti_yoyo_freezes_zi_over_consecutive_ticks(hass: HomeAssistant) -> None:
+    """While settling, the ZI loop is frozen: the one-shot feed-forward then 0."""
+    from custom_components.solarbalance.core.controllers.load_settle import SettleState
+
+    devices, meters, loads = _config()
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, loads, None, None)
+
+    hass.states.async_set("sensor.grid_power", "1000")  # importing → PI would react
+    hass.states.async_set("sensor.pv_power", "0")
+    hass.states.async_set("sensor.batt_soc", "50")
+    hass.states.async_set("sensor.batt_power", "0")
+    hass.states.async_set("sensor.wh_power", "0")
+    hass.states.async_set("switch.water_heater", "off")
+    async_mock_service(hass, "number", "set_value")
+    async_mock_service(hass, "homeassistant", "turn_on")
+    async_mock_service(hass, "homeassistant", "turn_off")
+
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    coordinator._settle_state = SettleState(ticks_remaining=2, feedforward_w=500.0)
+
+    # Tick 1: ZI frozen, correction = the one-shot feed-forward (not the PI value).
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert coordinator.diagnostics.zero_injection_correction_w == pytest.approx(500.0)
+    assert coordinator._settle_state.ticks_remaining == 1
+
+    # Tick 2: still frozen, feed-forward exhausted (0), window about to close.
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert coordinator.diagnostics.zero_injection_correction_w == pytest.approx(0.0)
+    assert coordinator._settle_state.ticks_remaining == 0

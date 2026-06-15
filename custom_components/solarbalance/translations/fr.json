@@ -230,7 +230,9 @@
             "assist_floor_soc_pct": "Charge rapide : SoC batterie mini pour assister (%)",
             "pause_when_inefficient": "Charge rapide : pause plutôt que charge lente",
             "deadline_kwh": "Échéance : énergie requise (kWh)",
-            "deadline_before": "Échéance : avant l'heure (HH:MM)"
+            "deadline_before": "Échéance : avant l'heure (HH:MM)",
+            "window_start": "Début de plage autorisée (HH:MM)",
+            "window_end": "Fin de plage autorisée (HH:MM)"
           },
           "data_description": {
             "control_type": "on_off (switch), stepped (paliers, ex. voiture par ampérage), modulating (puissance continue).",
@@ -263,7 +265,9 @@
             "assist_floor_soc_pct": "Charge rapide : SoC batterie mini pour assister (%)",
             "pause_when_inefficient": "Charge rapide : pause plutôt que charge lente",
             "deadline_kwh": "Échéance : énergie requise (kWh)",
-            "deadline_before": "Échéance : avant l'heure (HH:MM)"
+            "deadline_before": "Échéance : avant l'heure (HH:MM)",
+            "window_start": "Début de plage autorisée (HH:MM)",
+            "window_end": "Fin de plage autorisée (HH:MM)"
           },
           "data_description": {
             "control_type": "on_off (switch), stepped (paliers, ex. voiture par ampérage), modulating (puissance continue).",
@@ -607,7 +611,15 @@
         "name": "Énergie du jour"
       },
       "load_status": {
-        "name": "État"
+        "name": "État",
+        "state": {
+          "active": "Actif",
+          "inactive": "Inactif",
+          "shed": "Délesté",
+          "off_peak_wait": "Attente heures creuses",
+          "force_charge": "Charge forcée",
+          "unknown": "Inconnu"
+        }
       }
     },
     "select": {

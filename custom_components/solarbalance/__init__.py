@@ -200,6 +200,46 @@ def _register_services(hass: HomeAssistant) -> None:
             coord.cancel_force_charge_load(str(call.data["load"]))
             coord.async_update_listeners()
 
+    async def handle_export_config(call: ServiceCall) -> dict[str, Any]:
+        coord = _get_coordinator(hass)
+        if coord is None:
+            return {"subentries": []}
+        return {
+            "subentries": [
+                {"type": s.subentry_type, "title": s.title, "data": dict(s.data)}
+                for s in coord.config_entry.subentries.values()
+            ]
+        }
+
+    async def handle_import_config(call: ServiceCall) -> dict[str, Any]:
+        import uuid
+
+        from homeassistant.config_entries import ConfigSubentry
+
+        coord = _get_coordinator(hass)
+        if coord is None:
+            return {"imported": 0}
+        valid_types = {"battery", "mppt", "battery_mppt", "load", "meter", "device"}
+        imported = 0
+        for sub in call.data.get("subentries", []):
+            stype = sub.get("type")
+            data = sub.get("data")
+            if stype not in valid_types or not isinstance(data, dict):
+                _LOGGER.warning("import_config: skipping invalid sub-entry %r", sub)
+                continue
+            hass.config_entries.async_add_subentry(
+                coord.config_entry,
+                ConfigSubentry(
+                    data=data,
+                    subentry_type=stype,
+                    title=str(sub.get("title") or data.get("name", stype)),
+                    unique_id=None,
+                    subentry_id=uuid.uuid4().hex,
+                ),
+            )
+            imported += 1
+        return {"imported": imported}
+
     async def handle_activate_storm_mode(call: ServiceCall) -> None:
         coord = _get_coordinator(hass)
         if coord:
@@ -217,6 +257,15 @@ def _register_services(hass: HomeAssistant) -> None:
         DOMAIN, "cancel_force_charge_load", handle_cancel_force_charge_load
     )
     hass.services.async_register(DOMAIN, "activate_storm_mode", handle_activate_storm_mode)
+
+    from homeassistant.core import SupportsResponse
+
+    hass.services.async_register(
+        DOMAIN, "export_config", handle_export_config, supports_response=SupportsResponse.ONLY
+    )
+    hass.services.async_register(
+        DOMAIN, "import_config", handle_import_config, supports_response=SupportsResponse.OPTIONAL
+    )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

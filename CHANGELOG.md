@@ -37,6 +37,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.7.0] — 2026-06-15
+
+### Added
+
+- **Fenêtres horaires par consommateur dans l'UI** — le formulaire d'un load expose `time_window` (début/fin HH:MM) : le load n'est autorisé que dans cette plage.
+- **Sauvegarde/restauration de la configuration** — services `solarbalance.export_config` (renvoie les sub-entries en données de réponse) et `solarbalance.import_config` (recrée des appareils/loads depuis cette liste), pour migrer ou repartir d'une base.
+
+### Changed
+
+- **États traduisibles (EN/FR)** — `sensor.<load>_status` devient un capteur `enum` traduit par le frontend (`actif`/`active`, `délesté`/`shed`…) ; l'attribut `reason` du capteur de mode suit désormais la langue de Home Assistant. Fini les chaînes françaises codées en dur.
+
+### Tests
+
+- **Couverture de bout en bout sur tick réel** — off-peak (load coupé hors heures creuses), charge forcée (switch commandé `on`), anti-yoyo (gel ZI + feed-forward sur ticks consécutifs), export/import de config.
+
 ## [1.6.1] — 2026-06-15
 
 ### Fixed
@@ -176,6 +191,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.7.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.4.0...v1.5.0

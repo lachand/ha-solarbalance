@@ -94,6 +94,22 @@ def test_load_input_parses_steps_and_deadline() -> None:
     assert built.deadline_constraint is not None
 
 
+def test_load_input_time_window() -> None:
+    from custom_components.solarbalance.config_flow import _load_input_to_dict
+    from custom_components.solarbalance.yaml_loader import build_load_from_dict
+
+    ui = {
+        "name": "wh", "control_type": "on_off", "priority": 3, "nominal_power_w": 2000,
+        "switch_entity": "switch.wh", "window_start": "22:00", "window_end": "06:00",
+    }
+    load = _load_input_to_dict(ui)
+    assert load["time_window"] == {"start": "22:00", "end": "06:00"}
+    built = build_load_from_dict(load)
+    assert built.time_window is not None and built.time_window.start == "22:00"
+    # No window when one bound is blank.
+    assert "time_window" not in _load_input_to_dict({**ui, "window_end": ""})
+
+
 def test_load_subentry_builds_via_assembler() -> None:
     data = {
         "name": "wh",

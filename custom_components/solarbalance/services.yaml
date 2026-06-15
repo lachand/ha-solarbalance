@@ -124,3 +124,22 @@ activate_storm_mode:
           min: 1
           max: 72
           unit_of_measurement: "h"
+
+export_config:
+  name: Export device configuration
+  description: >
+    Return all UI sub-entries (batteries, inverters, meters, loads) as response
+    data — copy it to back up or migrate your configuration.
+
+import_config:
+  name: Import device configuration
+  description: >
+    Re-create UI sub-entries from a previously exported list. Adds them to the
+    current entry (does not delete existing ones); the integration reloads.
+  fields:
+    subentries:
+      name: Sub-entries
+      description: The "subentries" list returned by export_config.
+      required: true
+      selector:
+        object:

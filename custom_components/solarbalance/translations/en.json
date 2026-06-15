@@ -230,7 +230,9 @@
             "assist_floor_soc_pct": "Fast charge: min battery SoC to assist (%)",
             "pause_when_inefficient": "Fast charge: pause rather than slow-charge",
             "deadline_kwh": "Deadline: required energy (kWh)",
-            "deadline_before": "Deadline: before time (HH:MM)"
+            "deadline_before": "Deadline: before time (HH:MM)",
+            "window_start": "Allowed window start (HH:MM)",
+            "window_end": "Allowed window end (HH:MM)"
           },
           "data_description": {
             "control_type": "on_off (switch), stepped (levels, e.g. EV by amperage), modulating (continuous power).",
@@ -263,7 +265,9 @@
             "assist_floor_soc_pct": "Fast charge: min battery SoC to assist (%)",
             "pause_when_inefficient": "Fast charge: pause rather than slow-charge",
             "deadline_kwh": "Deadline: required energy (kWh)",
-            "deadline_before": "Deadline: before time (HH:MM)"
+            "deadline_before": "Deadline: before time (HH:MM)",
+            "window_start": "Allowed window start (HH:MM)",
+            "window_end": "Allowed window end (HH:MM)"
           },
           "data_description": {
             "control_type": "on_off (switch), stepped (levels, e.g. EV by amperage), modulating (continuous power).",
@@ -607,7 +611,15 @@
         "name": "Energy today"
       },
       "load_status": {
-        "name": "Status"
+        "name": "Status",
+        "state": {
+          "active": "Active",
+          "inactive": "Inactive",
+          "shed": "Shed",
+          "off_peak_wait": "Waiting for off-peak",
+          "force_charge": "Force charging",
+          "unknown": "Unknown"
+        }
       }
     },
     "select": {

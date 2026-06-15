@@ -201,6 +201,38 @@ class ForceChargeRequest:
     until: datetime | None = None
 
 
+_REASON_TEXT: dict[str, dict[str, str]] = {
+    "fr": {
+        "vacation_prefix": "Mode vacances — ",
+        "paused": "En pause — aucune régulation active.",
+        "storm": "Mode tempête — remplissage des batteries en cours.",
+        "manual_override": "Override manuel — consigne batterie imposée.",
+        "tempo_red_prep": "Pré-charge avant jour rouge Tempo (charge réseau en heures creuses).",
+        "charge_surplus": "Batteries en charge — surplus solaire stocké.",
+        "charge_offpeak": "Batteries en charge — fenêtre tarifaire basse (heures creuses).",
+        "charge_generic": "Batteries en charge.",
+        "discharge_expensive": "Batteries en décharge — prix élevé (heures pleines).",
+        "discharge_no_pv": "Batteries en décharge — peu de solaire, couvre la maison.",
+        "discharge_selfconsume": "Batteries en décharge — autoconsommation.",
+        "idle": "Équilibre — peu d'échange avec le réseau.",
+    },
+    "en": {
+        "vacation_prefix": "Vacation mode — ",
+        "paused": "Paused — no active regulation.",
+        "storm": "Storm mode — filling the batteries.",
+        "manual_override": "Manual override — battery setpoint forced.",
+        "tempo_red_prep": "Pre-charging before a Tempo red day (off-peak grid charge).",
+        "charge_surplus": "Batteries charging — storing the solar surplus.",
+        "charge_offpeak": "Batteries charging — cheap tariff window (off-peak).",
+        "charge_generic": "Batteries charging.",
+        "discharge_expensive": "Batteries discharging — expensive window (peak hours).",
+        "discharge_no_pv": "Batteries discharging — little solar, covering the home.",
+        "discharge_selfconsume": "Batteries discharging — self-consumption.",
+        "idle": "Balanced — little grid exchange.",
+    },
+}
+
+
 @dataclass(frozen=True)
 class RegulationDiagnostics:
     """Last-tick internal regulation values, exposed as diagnostic sensors."""
@@ -913,18 +945,20 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return issues
 
     @property
-    def decision_reason(self) -> str:
-        """One-sentence, human-readable explanation of the current battery action."""
+    def decision_reason_code(self) -> str:
+        """Stable code for the current battery action (language-independent)."""
         snap = self.data
         if snap is None:
-            return ""
+            return "unknown"
         if self._mode is HemsMode.PAUSED:
-            return "En pause — aucune régulation active."
+            return "paused"
         if self._mode is HemsMode.STORM:
-            return "Mode tempête — remplissage des batteries en cours."
+            return "storm"
         if self._mode is HemsMode.MANUAL_OVERRIDE:
-            return "Override manuel — consigne batterie imposée."
-        prefix = "Mode vacances — " if self._mode is HemsMode.VACATION else ""
+            return "manual_override"
+        if self._mode is HemsMode.NORMAL and self._red_prep_active(snap):
+            return "tempo_red_prep"
+        prefix = "vacation_" if self._mode is HemsMode.VACATION else ""
         ts = dt_util.as_local(snap.timestamp)
         cheap = self._tariff.is_cheap_window(ts, threshold=DEFAULT_COST_MIN_CHEAP_THRESHOLD)
         expensive = self._tariff.is_expensive_window(
@@ -932,25 +966,34 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         fleet = snap.battery_power_total_w
         pv = snap.pv_total_w
-        if self._mode is HemsMode.NORMAL and self._red_prep_active(snap):
-            return prefix + "Pré-charge avant jour rouge Tempo (charge réseau en heures creuses)."
         if fleet > 50:
             if pv > 200 and not expensive:
-                reason = "surplus solaire stocké"
-            elif cheap:
-                reason = "charge en fenêtre tarifaire basse (heures creuses)"
-            else:
-                reason = "charge des batteries"
-            return prefix + f"Batteries en charge — {reason}."
+                return prefix + "charge_surplus"
+            if cheap:
+                return prefix + "charge_offpeak"
+            return prefix + "charge_generic"
         if fleet < -50:
             if expensive:
-                reason = "prix élevé (heures pleines) — décharge pour éviter l'import"
-            elif pv < 100:
-                reason = "peu de solaire — décharge pour couvrir la maison"
-            else:
-                reason = "autoconsommation (décharge pour limiter l'import)"
-            return prefix + f"Batteries en décharge — {reason}."
-        return prefix + "Équilibre — peu d'échange avec le réseau."
+                return prefix + "discharge_expensive"
+            if pv < 100:
+                return prefix + "discharge_no_pv"
+            return prefix + "discharge_selfconsume"
+        return prefix + "idle"
+
+    @property
+    def decision_reason(self) -> str:
+        """One-sentence explanation of the current battery action, localised."""
+        snap = self.data
+        if snap is None:
+            return ""
+        code = self.decision_reason_code
+        lang = "fr" if (self.hass.config.language or "en").startswith("fr") else "en"
+        texts = _REASON_TEXT[lang]
+        prefix = ""
+        if code.startswith("vacation_"):
+            prefix = texts["vacation_prefix"]
+            code = code[len("vacation_"):]
+        return prefix + texts.get(code, texts["idle"])
 
     def _static_config_issues(self) -> list[str]:
         """Configuration mistakes detectable from the declared equipment alone."""
@@ -1049,21 +1092,25 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return round(self._load_energy_kwh.get(load_name, 0.0), 3)
 
     def load_status(self, load_name: str) -> str:
-        """Short human-readable state of a controllable load."""
+        """Stable status token of a controllable load (translated by the frontend).
+
+        One of: ``force_charge`` / ``shed`` / ``off_peak_wait`` / ``active`` /
+        ``inactive`` / ``unknown``.
+        """
         if load_name in self._force_charge_req:
-            return "charge forcée"
+            return "force_charge"
         shed = self._evening_shed
         if shed is not None and shed.active and load_name in shed.shed_load_names:
-            return "délesté"
+            return "shed"
         snap = self.data
         if load_name in self._off_peak_only and snap is not None:
             ts = dt_util.as_local(snap.timestamp)
             if not self._tariff.is_cheap_window(ts, threshold=DEFAULT_COST_MIN_CHEAP_THRESHOLD):
-                return "attente heures creuses"
+                return "off_peak_wait"
         cmd = self._last_load_commands.get(load_name)
         if cmd is None:
-            return "inconnu"
-        return "actif" if cmd.on else "inactif"
+            return "unknown"
+        return "active" if cmd.on else "inactive"
 
     @property
     def fast_charge(self) -> dict[str, FastChargeDecision]:
