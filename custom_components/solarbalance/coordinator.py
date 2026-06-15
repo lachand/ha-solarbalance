@@ -1312,7 +1312,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # Grid-only force-charge: raise the ZI target by the forced loads'
             # power so the battery doesn't discharge to feed them (the grid does).
             effective_setpoint_w = (
-                self._zi_setpoint_w - eq_bias_w + self._force_charge_grid_offset_w()
+                self._zi_setpoint_w - eq_bias_w + self._force_charge_grid_offset_w(snapshot)
             )
             if (
                 self._per_phase_zi
@@ -1947,15 +1947,25 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._ev_deadline = decisions
         return tuple(by_name.values())
 
-    def _force_charge_grid_offset_w(self) -> float:
-        """Nominal power of loads under a manual force-charge (grid-only feed-forward)."""
+    def _force_charge_grid_offset_w(self, snapshot: Snapshot) -> float:
+        """Grid feed-forward for force-charged loads (grid-only, battery spared).
+
+        Uses each forced load's *measured* power — which already flows through the
+        grid meter — so raising the ZI target by it exactly cancels the load's
+        grid contribution: the battery is neither discharged to feed it nor
+        charged from the grid to "reach" it. Clamped to the load's nominal power
+        as a safety bound, and ignores it until the load actually draws.
+        """
         if not self._force_charge_req:
             return 0.0
-        return sum(
-            _load_nominal_w(load)
-            for load in self._loads
-            if load.name in self._force_charge_req
-        )
+        measured = {ls.name: ls.actual_power_w for ls in snapshot.loads}
+        total = 0.0
+        for load in self._loads:
+            if load.name not in self._force_charge_req:
+                continue
+            draw = max(0.0, measured.get(load.name, 0.0))
+            total += min(draw, float(_load_nominal_w(load)))
+        return total
 
     def _apply_off_peak(
         self, commands: tuple[LoadCommand, ...], snapshot: Snapshot

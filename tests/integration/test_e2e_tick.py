@@ -115,3 +115,38 @@ async def test_full_tick_charges_battery_and_runs_load_on_export(hass: HomeAssis
     assert any(
         "switch.water_heater" in (c.data.get("entity_id") or "") for c in turn_on_calls
     )
+
+
+@pytest.mark.asyncio
+async def test_full_tick_force_charge_is_grid_backed(hass: HomeAssistant) -> None:
+    """A forced load draws from the grid; the battery is not discharged to feed it."""
+    devices, meters, loads = _config()
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, loads, None, None)
+
+    # Night, no PV: the load (wh) already draws its 500 W, so the grid carries
+    # house + load. Battery idle at 50 %.
+    hass.states.async_set("sensor.grid_power", "800")  # 300 house + 500 load
+    hass.states.async_set("sensor.pv_power", "0")
+    hass.states.async_set("sensor.batt_soc", "50")
+    hass.states.async_set("sensor.batt_power", "0")
+    hass.states.async_set("sensor.wh_power", "500")
+    hass.states.async_set("switch.water_heater", "on")
+
+    async_mock_service(hass, "number", "set_value")
+    async_mock_service(hass, "homeassistant", "turn_on")
+
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    coordinator.request_force_charge_load("wh")
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+
+    # Grid-only feed-forward cancels the load's 500 W: the battery still discharges
+    # to cover the ~300 W house, but NOT the load — so the target is well above the
+    # -480 W (0.6 * 800) it would be if the loop tried to zero the full grid import.
+    target = coordinator.diagnostics.fleet_target_w
+    assert -300.0 < target <= 0.0

@@ -54,12 +54,22 @@ async def test_anti_yoyo_settle_arms_on_load_drop(coord) -> None:
 
 
 async def test_grid_only_force_charge_offset(coord) -> None:
-    """A forced load raises the ZI grid target by its nominal power (battery spared)."""
-    assert coord._force_charge_grid_offset_w() == 0.0
+    """The grid-only offset tracks the forced load's measured power (battery spared)."""
+    from types import SimpleNamespace
+
+    def snap(actual: float):
+        return SimpleNamespace(loads=(SimpleNamespace(name="voiture", actual_power_w=actual),))
+
+    assert coord._force_charge_grid_offset_w(snap(0.0)) == 0.0
     coord.request_force_charge_load("voiture")
-    assert coord._force_charge_grid_offset_w() == pytest.approx(2000.0)
+    # Not drawing yet → no offset (no pre-charge from grid).
+    assert coord._force_charge_grid_offset_w(snap(0.0)) == 0.0
+    # Drawing 1400 W → offset matches the measured draw.
+    assert coord._force_charge_grid_offset_w(snap(1400.0)) == pytest.approx(1400.0)
+    # Clamped to nominal (2000 W) even if the meter overshoots.
+    assert coord._force_charge_grid_offset_w(snap(5000.0)) == pytest.approx(2000.0)
     coord.cancel_force_charge_load("voiture")
-    assert coord._force_charge_grid_offset_w() == 0.0
+    assert coord._force_charge_grid_offset_w(snap(1400.0)) == 0.0
 
 
 async def test_load_status_reflects_overrides(coord) -> None:

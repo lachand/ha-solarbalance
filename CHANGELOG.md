@@ -37,6 +37,12 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.6.1] — 2026-06-15
+
+### Fixed
+
+- **Charge forcée réseau — feed-forward sur la puissance mesurée** — l'offset zéro-injection utilisait la puissance *nominale* du consommateur (calculée avant qu'il ne consomme), ce qui pouvait faire **charger la batterie depuis le réseau** au démarrage (la nuit) ou quand la charge réelle était inférieure au nominal. Il suit désormais la puissance **mesurée** du consommateur forcé (plafonnée au nominal) : la batterie n'est ni déchargée pour l'alimenter, ni chargée depuis le réseau pour « atteindre » la consigne. La batterie continue de couvrir le reste de la maison. Vérifié par un test de tick complet de bout en bout.
+
 ## [1.6.0] — 2026-06-14
 
 ### Added
@@ -170,6 +176,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.6.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.5...v1.4.0
