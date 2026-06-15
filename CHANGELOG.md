@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.6.0] — 2026-06-14
+
+### Added
+
+- **Charge forcée strictement réseau** — pendant un « Charger maintenant », la consigne zéro-injection est relevée de la puissance du consommateur forcé : la **batterie ne se décharge plus** pour l'alimenter, le réseau s'en charge (fin du yo-yo batterie→voiture).
+- **Capteurs par consommateur** — `sensor.solarbalance_<load>_energy_today` (énergie du jour, kWh) et `sensor.solarbalance_<load>_status` (`actif` / `inactif` / `délesté` / `attente heures creuses` / `charge forcée`), regroupés sous l'appareil du consommateur.
+- **Économies dans le Energy Dashboard** — `savings_this_month` / `savings_this_year` passent en `device_class: monetary` + `state_class: total` avec `last_reset`, donc utilisables nativement dans les tableaux énergie/coûts de HA.
+- **Notification des problèmes de configuration** — les défauts détectés (capacité batterie nulle, plage SoC invalide, `fast_charge` sans `min_charge_w`/puissance) remontent en notification persistante, pas seulement dans le binary_sensor.
+
+### Changed
+
+- Documentation mise à jour (README + référence de configuration) : config UI sans YAML, switches par consommateur, services `force_charge_load`, capteurs d'économies/par-load, diagnostics.
+- Test d'intégration de l'anti-yoyo (armement de la fenêtre de stabilisation sur chute de charge) en plus des tests unitaires.
+
 ## [1.5.0] — 2026-06-14
 
 ### Added
@@ -156,6 +170,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.6.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.5...v1.4.0
 [1.3.5]: https://github.com/solarbalance/ha-solarbalance/compare/v1.3.4...v1.3.5

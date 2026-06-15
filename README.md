@@ -13,14 +13,15 @@ SolarBalance orchestrates photovoltaic production, battery storage, and electric
 ## Highlights
 
 - **Vendor-agnostic** — declare any inverter, battery or charger via Home Assistant entity mapping. Tested with Ecoflow, Jackery; works with Victron, Deye, etc.
-- **Read-first, write-later** — v1 computes and publishes setpoints as HA entities without writing to your hardware. Validate behavior before activating direct control in v2.
+- **No-YAML configuration** — add batteries, inverters, meters and loads from the UI (integration → **Add**), each as an editable sub-entry. Existing YAML is migrated automatically on first start.
 - **Multi-strategy arbitration** — order strategies by priority (self-consumption, cost-min, backup, longevity, peak-shaving, revenue-max) and let the arbiter combine them.
-- **Zero-injection regulation** — software PI controller targeting your grid meter (Shelly 3EM or any signed-power sensor at the PDL).
+- **Zero-injection regulation** — software PI controller targeting your grid meter (Shelly 3EM or any signed-power sensor at the PDL), with an anti-yoyo settle window when a big load drops.
+- **Per-load controls** — each load gets switches: **Charge now** (grid-backed force charge, battery spared), **Keep running** (exempt from shedding), **Off-peak only** (run only in cheap/HC/non-red windows). Reachable from the panel too.
+- **Tariffs** — flat / HC-HP / EDF Tempo / spot (Nordpool/EPEX), in YAML or UI; cost & savings tracking with month/year cumulative sensors wired to the HA Energy dashboard.
 - **Storm mode** — automatic SoC ramp-up on Météo-France weather warnings.
-- **Loadable load types** — on/off, stepped, modulating (EV chargers, dimmable resistive loads).
 - **Forecast-aware** — integrates with existing Solcast / Forecast.Solar / OpenMeteo PV forecasts.
-- **Watchdog & graceful degradation** — stale entity detection auto-switches to `degraded` mode, then auto-recovers without restart.
-- **HA services** — `pause`, `resume`, `force_charge`, `force_discharge`, `set_mode`, `activate_storm_mode` callable from automations or the dashboard.
+- **Diagnostics** — `config_health` binary sensor + persistent notifications for config mistakes (zero battery capacity, missing `min_charge_w`…), plus a downloadable HA diagnostics export.
+- **HA services** — `pause`, `resume`, `force_charge`, `force_discharge`, `force_charge_load`, `cancel_force_charge_load`, `set_mode`, `activate_storm_mode` callable from automations or the dashboard.
 
 ## Companion frontend
 
@@ -70,7 +71,10 @@ solarbalance:
       power_entity: sensor.shelly_3em_total_power
 ```
 
-Then add the integration via UI for global parameters (priorities, zero-injection settings, forecast sources).
+YAML is optional: you can instead add every device/meter/load from the UI
+(integration → **Add a battery / inverter / load / meter**) and edit them later
+with the ✏️ button. Global parameters live in the integration's **Configure**
+options, split into **Regulation & behaviours / PV forecast / Tariff & prices**.
 
 Full guide: [`docs/getting-started.md`](docs/getting-started.md).
 

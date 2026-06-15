@@ -602,6 +602,12 @@
       },
       "savings_year": {
         "name": "Économies cette année"
+      },
+      "load_energy_today": {
+        "name": "Énergie du jour"
+      },
+      "load_status": {
+        "name": "État"
       }
     },
     "select": {

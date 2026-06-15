@@ -18,6 +18,7 @@ Sensors published:
 """
 
 import logging
+from datetime import datetime
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -138,6 +139,18 @@ async def async_setup_entry(
         else:
             async_add_entities(dev_entities)
 
+    # Per-load: energy delivered today + current status, grouped under the load.
+    for load in coordinator._loads:
+        load_entities: list[SensorEntity] = [
+            SolarBalanceLoadEnergyTodaySensor(coordinator, entry, load.name),
+            SolarBalanceLoadStatusSensor(coordinator, entry, load.name),
+        ]
+        sub_id = sub_by_name.get(load.name)
+        if sub_id is not None:
+            async_add_entities(load_entities, config_subentry_id=sub_id)
+        else:
+            async_add_entities(load_entities)
+
 
 # ---------------------------------------------------------------------------
 # Base class
@@ -156,6 +169,16 @@ def _battery_device_info(entry: ConfigEntry, device_name: str) -> DeviceInfo:
     return DeviceInfo(
         identifiers={(DOMAIN, f"{entry.entry_id}_battery_{device_name}")},
         name=device_name,
+        manufacturer="SolarBalance",
+        via_device=(DOMAIN, DOMAIN),
+    )
+
+
+def _load_device_info(entry: ConfigEntry, load_name: str) -> DeviceInfo:
+    """Per-load sub-device (shared with the load's control switches)."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{entry.entry_id}_load_{load_name}")},
+        name=load_name,
         manufacturer="SolarBalance",
         via_device=(DOMAIN, DOMAIN),
     )
@@ -459,9 +482,14 @@ class SolarBalanceCurrentImportPriceSensor(_SolarBalanceSensor):
 
 
 class SolarBalanceSavingsMonthSensor(_SolarBalanceSensor):
-    """Cumulative estimated savings for the current calendar month (EUR)."""
+    """Cumulative estimated savings for the current calendar month (EUR).
+
+    ``state_class=TOTAL`` + ``last_reset`` (1st of the month) so it integrates
+    natively into the Home Assistant Energy dashboard.
+    """
 
     _attr_translation_key = "savings_month"
+    _attr_device_class = SensorDeviceClass.MONETARY
     _attr_native_unit_of_measurement = "EUR"
     _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:cash-multiple"
@@ -474,11 +502,19 @@ class SolarBalanceSavingsMonthSensor(_SolarBalanceSensor):
     def native_value(self) -> float:
         return self.coordinator.savings_month_eur
 
+    @property
+    def last_reset(self) -> datetime | None:
+        return self.coordinator.savings_month_start
+
 
 class SolarBalanceSavingsYearSensor(_SolarBalanceSensor):
-    """Cumulative estimated savings for the current calendar year (EUR)."""
+    """Cumulative estimated savings for the current calendar year (EUR).
+
+    ``state_class=TOTAL`` + ``last_reset`` (Jan 1st) for Energy-dashboard use.
+    """
 
     _attr_translation_key = "savings_year"
+    _attr_device_class = SensorDeviceClass.MONETARY
     _attr_native_unit_of_measurement = "EUR"
     _attr_state_class = SensorStateClass.TOTAL
     _attr_icon = "mdi:cash-multiple"
@@ -490,6 +526,58 @@ class SolarBalanceSavingsYearSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float:
         return self.coordinator.savings_year_eur
+
+    @property
+    def last_reset(self) -> datetime | None:
+        return self.coordinator.savings_year_start
+
+
+class SolarBalanceLoadEnergyTodaySensor(_SolarBalanceSensor):
+    """Energy delivered to a controllable load since local midnight (kWh)."""
+
+    _attr_translation_key = "load_energy_today"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_icon = "mdi:counter"
+    _attr_suggested_display_precision = 2
+
+    def __init__(
+        self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry, load_name: str
+    ) -> None:
+        super().__init__(
+            coordinator,
+            entry,
+            f"load_{load_name}_energy_today",
+            device_info=_load_device_info(entry, load_name),
+        )
+        self._load_name = load_name
+
+    @property
+    def native_value(self) -> float:
+        return self.coordinator.load_energy_today_kwh(self._load_name)
+
+
+class SolarBalanceLoadStatusSensor(_SolarBalanceSensor):
+    """Current control status of a load (actif / délesté / charge forcée…)."""
+
+    _attr_translation_key = "load_status"
+    _attr_icon = "mdi:power-plug"
+
+    def __init__(
+        self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry, load_name: str
+    ) -> None:
+        super().__init__(
+            coordinator,
+            entry,
+            f"load_{load_name}_status",
+            device_info=_load_device_info(entry, load_name),
+        )
+        self._load_name = load_name
+
+    @property
+    def native_value(self) -> str:
+        return self.coordinator.load_status(self._load_name)
 
 
 class SolarBalancePvRemainingTodaySensor(_SolarBalanceSensor):

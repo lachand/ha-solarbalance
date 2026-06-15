@@ -602,6 +602,12 @@
       },
       "savings_year": {
         "name": "Savings this year"
+      },
+      "load_energy_today": {
+        "name": "Energy today"
+      },
+      "load_status": {
+        "name": "Status"
       }
     },
     "select": {

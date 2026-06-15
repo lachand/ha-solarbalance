@@ -24,6 +24,8 @@ Complete reference of every SolarBalance option. Two places hold configuration:
 | `zero_injection_kp` | 0.6 | Proportional gain (lower for slow/cloud batteries). |
 | `max_ramp_w` | 800 | Max change of the fleet target per tick (W); 0 disables. |
 | `grid_filter_samples` | 3 | Rolling-median window on the grid reading; 1 disables. |
+| `zi_settle_ticks` | 2 | Anti-yoyo: freeze the ZI loop for N ticks after a big load drops. |
+| `zi_settle_min_drop_w` | 300 | Min load-power drop (W) that arms the settle window. |
 | `phases` | 1 | Electrical phases (1 or 3). |
 | `subscribed_power_kva` | 6 | Subscribed power; drives the overload gauge/alert. |
 | `backup_reserve_soc_pct` | 20 | Backup-strategy discharge floor (%). |
@@ -136,3 +138,42 @@ forecast:
 
 Solcast/Forecast.Solar users should instead point `pv_forecast_entity` at the
 sensor exposing `detailedHourly` (Solcast) or `watts` (Forecast.Solar).
+
+---
+
+## Per-load controls (switches)
+
+Each configured load gets control switches (also reachable from the panel's
+*Consommateurs* card). All are runtime overrides — no YAML.
+
+| Switch | Effect |
+|---|---|
+| `switch.solarbalance_<load>_force_charge` | **Charge now**: full power immediately, even without surplus. Overrides shedding, fast-charge pause and dispatch. Grid-backed — the ZI target is raised by the load's power so the **battery is not discharged** to feed it. Not restored across restarts. |
+| `switch.solarbalance_<load>_shed_exempt` | **Keep running**: exempt from evening battery-priority shedding and the fast-charge inefficiency pause (interruptible loads only). Restored across restarts. |
+| `switch.solarbalance_<load>_off_peak_only` | **Off-peak only**: forced off whenever the tariff window is not cheap (HP / expensive spot / Tempo red). Overridden by the departure deadline and force-charge. Restored across restarts. |
+
+## Services
+
+| Service | Fields | Description |
+|---|---|---|
+| `solarbalance.force_charge_load` | `load` (name, required), `kwh`, `hours` | Start a grid-backed "charge now" for a load. Auto-clears once `kwh` is delivered or `hours` elapse; without either, runs until cancelled (equivalent to the switch). |
+| `solarbalance.cancel_force_charge_load` | `load` | Cancel a manual charge-now request. |
+
+(Plus `pause`, `resume`, `set_mode`, `force_charge`, `force_discharge`, `activate_storm_mode`.)
+
+## Exposed sensors (selection)
+
+| Sensor | Notes |
+|---|---|
+| `sensor.solarbalance_savings_this_month` / `..._this_year` | Cumulative € savings, `device_class: monetary`, `state_class: total` with `last_reset` → usable in the **Energy dashboard**. Reset on month/year rollover, persisted. |
+| `sensor.solarbalance_<load>_energy_today` | Energy delivered to a load since local midnight (kWh, `total_increasing`). |
+| `sensor.solarbalance_<load>_status` | Load state: `actif` / `inactif` / `délesté` / `attente heures creuses` / `charge forcée`. |
+| `sensor.solarbalance_mode` (attribute `reason`) | Human-readable explanation of the current battery action, shown atop the panel. |
+
+## Diagnostics
+
+- `binary_sensor.solarbalance_config_health` + a **persistent notification** flag
+  config mistakes: zero/missing battery capacity, invalid SoC range, a
+  `fast_charge` load without `min_charge_w` or nominal power.
+- *Settings → Devices & Services → SolarBalance → ⋮ → Download diagnostics*
+  exports engine state, config, last snapshot and regulation values for support.

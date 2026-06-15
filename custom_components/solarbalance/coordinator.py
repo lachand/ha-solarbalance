@@ -286,6 +286,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._force_charge_req: dict[str, ForceChargeRequest] = {}
         # Loads restricted to cheap/off-peak tariff windows only.
         self._off_peak_only: set[str] = set()
+        # Last applied command per load (for per-load status sensors).
+        self._last_load_commands: dict[str, LoadCommand] = {}
         # Tariff resolution priority: explicit object (tests) > YAML tariff: block
         # > UI tariff options > flat configurable import/export prices (defaults so
         # cost/savings accounting works out of the box).
@@ -852,6 +854,21 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return round(self._savings_year_eur, 2)
 
     @property
+    def savings_month_start(self) -> datetime | None:
+        """Local start of the tracked month (last_reset for the month total)."""
+        if not self._savings_month:
+            return None
+        year, month = (int(x) for x in self._savings_month.split("-"))
+        return dt_util.start_of_local_day(date(year, month, 1))
+
+    @property
+    def savings_year_start(self) -> datetime | None:
+        """Local start of the tracked year (last_reset for the year total)."""
+        if self._savings_year is None:
+            return None
+        return dt_util.start_of_local_day(date(self._savings_year, 1, 1))
+
+    @property
     def daily_import_cost_eur(self) -> float:
         """Today's grid-import cost (EUR)."""
         return round(self._energy.import_cost_eur, 3)
@@ -1026,6 +1043,27 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             self._off_peak_only.add(load_name)
         else:
             self._off_peak_only.discard(load_name)
+
+    def load_energy_today_kwh(self, load_name: str) -> float:
+        """Energy delivered to a load since local midnight (kWh)."""
+        return round(self._load_energy_kwh.get(load_name, 0.0), 3)
+
+    def load_status(self, load_name: str) -> str:
+        """Short human-readable state of a controllable load."""
+        if load_name in self._force_charge_req:
+            return "charge forcée"
+        shed = self._evening_shed
+        if shed is not None and shed.active and load_name in shed.shed_load_names:
+            return "délesté"
+        snap = self.data
+        if load_name in self._off_peak_only and snap is not None:
+            ts = dt_util.as_local(snap.timestamp)
+            if not self._tariff.is_cheap_window(ts, threshold=DEFAULT_COST_MIN_CHEAP_THRESHOLD):
+                return "attente heures creuses"
+        cmd = self._last_load_commands.get(load_name)
+        if cmd is None:
+            return "inconnu"
+        return "actif" if cmd.on else "inactif"
 
     @property
     def fast_charge(self) -> dict[str, FastChargeDecision]:
@@ -1271,7 +1309,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # the ZI setpoint, so the single ZI loop produces the extra fleet
             # discharge/charge. 0 when the equaliser is off. Requires ZI.
             eq_bias_w = self._equaliser_bias(snapshot, grid_filtered_w)
-            effective_setpoint_w = self._zi_setpoint_w - eq_bias_w
+            # Grid-only force-charge: raise the ZI target by the forced loads'
+            # power so the battery doesn't discharge to feed them (the grid does).
+            effective_setpoint_w = (
+                self._zi_setpoint_w - eq_bias_w + self._force_charge_grid_offset_w()
+            )
             if (
                 self._per_phase_zi
                 and isinstance(self._zi_controller, PerPhaseZeroInjectionController)
@@ -1460,6 +1502,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Manual "charge now" is the strongest override: force full power even
         # without surplus, regardless of shed / fast-charge / dispatch.
         commands = self._apply_force_charge(commands, snapshot)
+        self._last_load_commands = {c.load_name: c for c in commands}
         await self._load_publisher.apply(commands)
         self._update_load_settle(commands)
 
@@ -1904,6 +1947,16 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._ev_deadline = decisions
         return tuple(by_name.values())
 
+    def _force_charge_grid_offset_w(self) -> float:
+        """Nominal power of loads under a manual force-charge (grid-only feed-forward)."""
+        if not self._force_charge_req:
+            return 0.0
+        return sum(
+            _load_nominal_w(load)
+            for load in self._loads
+            if load.name in self._force_charge_req
+        )
+
     def _apply_off_peak(
         self, commands: tuple[LoadCommand, ...], snapshot: Snapshot
     ) -> tuple[LoadCommand, ...]:
@@ -2285,6 +2338,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             message=(
                 "Les gros consommateurs sont **délestés** pour laisser le solaire restant "
                 "recharger les batteries (production prévue insuffisante pour faire les deux)."
+            ),
+        )
+
+        # Static config mistakes only (degraded/overload/shed have their own alerts).
+        issues = self._static_config_issues()
+        self._fire_alert(
+            "solarbalance_config",
+            bool(issues),
+            title="SolarBalance — Problème de configuration",
+            message=(
+                "Un ou plusieurs problèmes de configuration ont été détectés :\n\n"
+                + "\n".join(f"- {issue}" for issue in issues)
             ),
         )
 
