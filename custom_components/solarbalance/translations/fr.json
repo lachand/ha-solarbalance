@@ -91,7 +91,8 @@
           "soc_equaliser_kp_w_per_pct": "Équaliseur SoC : gain (W/%)",
           "soc_equaliser_deadband_pct": "Équaliseur SoC : bande morte (%)",
           "soc_equaliser_probe_step_w": "Équaliseur SoC : pas de sonde (W)",
-          "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)"
+          "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)",
+          "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)"
         }
       },
       "forecast": {

@@ -37,6 +37,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.10.0] — 2026-06-15
+
+> Vague 3 de la [roadmap](docs/BACKLOG.md) — outils de confiance (1/2). Le **replay** et l'assistant de 1er setup suivront dans une prochaine release de la vague 3.
+
+### Added
+
+- **Mode simulation (dry-run)** — option *Régulation* `dry_run` : le moteur calcule tout (décisions, consignes, capteurs, panneau) mais **n'écrit jamais** sur le matériel, même contrôle actif/loads armés. Idéal pour observer une journée entière en confiance avant d'activer le pilotage réel. Exposé aussi dans l'export de diagnostic.
+- **Service `solarbalance.test_mapping`** — vérifie chaque entité configurée (appareils/compteurs/consommateurs + prévision) et renvoie la liste **ok / indisponible / manquante** (données de réponse), pour valider un mapping fraîchement saisi.
+
 ## [1.9.0] — 2026-06-15
 
 > Vague 2 de la [roadmap](docs/BACKLOG.md) — délestage intelligent & protection réseau.
@@ -219,6 +228,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.10.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.6.1...v1.7.0

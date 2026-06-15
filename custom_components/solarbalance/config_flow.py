@@ -19,6 +19,7 @@ from .const import (
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
+    CONF_DRY_RUN,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
     CONF_EXPORT_PRICE,
@@ -63,6 +64,7 @@ from .const import (
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
+    DEFAULT_DRY_RUN,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FORECAST_SAFETY_FACTOR,
@@ -172,6 +174,7 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
         vol.Optional(
             CONF_LOAD_CONTROL_ENABLED, default=d.get(CONF_LOAD_CONTROL_ENABLED, False)
         ): bool,
+        vol.Optional(CONF_DRY_RUN, default=d.get(CONF_DRY_RUN, DEFAULT_DRY_RUN)): bool,
         vol.Optional(
             CONF_EVENING_SHED_ENABLED, default=d.get(CONF_EVENING_SHED_ENABLED, False)
         ): bool,

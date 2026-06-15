@@ -31,6 +31,7 @@ Complete reference of every SolarBalance option. Two places hold configuration:
 | `backup_reserve_soc_pct` | 20 | Backup-strategy discharge floor (%). |
 | `baseline_window_start_h` / `_end_h` | 2 / 5 | Quiet night window used to average the standby baseline (talon). |
 | `load_control_enabled` | false | Allow writing to load switches/levels. **Required for any load action.** |
+| `dry_run` | false | Observe-only: compute decisions/setpoints/sensors but never write to hardware (even with active/load control on). Good for a confidence run before going live. |
 | `evening_shed_enabled` | false | End-of-day shedding of big loads to prioritise battery charge. |
 | `evening_shed_min_power_w` | 500 | Min power of an interruptible load to be considered "big". |
 | `overload_protection_enabled` | false | Shed/reduce loads (lowest priority first) when grid import exceeds 95 % of the subscribed power, to avoid tripping the breaker. |
@@ -162,6 +163,7 @@ Each configured load gets control switches (also reachable from the panel's
 | `solarbalance.cancel_force_charge_load` | `load` | Cancel a manual charge-now request. |
 | `solarbalance.export_config` | — | Returns all UI sub-entries (response data) to back up / migrate. |
 | `solarbalance.import_config` | `subentries` | Re-create devices/loads from a previously exported list (reloads the entry). |
+| `solarbalance.test_mapping` | — | Report each configured entity as ok / unavailable / missing (response data). |
 
 (Plus `pause`, `resume`, `set_mode`, `force_charge`, `force_discharge`, `activate_storm_mode`.)
 

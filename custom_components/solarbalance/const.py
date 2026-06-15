@@ -126,6 +126,10 @@ DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD: Final = 0.25  # €/kWh
 STORE_KEY: Final = "solarbalance.state"
 STORE_VERSION: Final = 1
 
+# Dry-run: compute everything but never write to hardware (observe-only).
+CONF_DRY_RUN: Final = "dry_run"
+DEFAULT_DRY_RUN: Final = False
+
 # Active grid-overload protection: shed/reduce loads before the breaker trips.
 CONF_OVERLOAD_PROTECTION_ENABLED: Final = "overload_protection_enabled"
 DEFAULT_OVERLOAD_PROTECTION_ENABLED: Final = False

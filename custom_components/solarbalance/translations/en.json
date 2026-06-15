@@ -91,7 +91,8 @@
           "soc_equaliser_kp_w_per_pct": "SoC equaliser: gain (W/%)",
           "soc_equaliser_deadband_pct": "SoC equaliser: deadband (%)",
           "soc_equaliser_probe_step_w": "SoC equaliser: probe step (W)",
-          "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)"
+          "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
+          "dry_run": "Dry-run (compute everything, never write to hardware)"
         }
       },
       "forecast": {

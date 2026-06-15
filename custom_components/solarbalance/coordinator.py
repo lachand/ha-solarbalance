@@ -24,6 +24,7 @@ from .const import (
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
+    CONF_DRY_RUN,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
     CONF_EXPORT_PRICE,
@@ -68,6 +69,7 @@ from .const import (
     DEFAULT_BASELINE_WINDOW_START_H,
     DEFAULT_COST_MIN_CHEAP_THRESHOLD,
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
+    DEFAULT_DRY_RUN,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FORECAST_SAFETY_FACTOR,
@@ -411,6 +413,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             hass, loads, enabled=bool(cfg.get(CONF_LOAD_CONTROL_ENABLED, False))
         )
         self._predictive_control_enabled = bool(cfg.get(CONF_PREDICTIVE_CONTROL_ENABLED, False))
+        self._dry_run = bool(cfg.get(CONF_DRY_RUN, DEFAULT_DRY_RUN))
         self._evening_shed_enabled = bool(cfg.get(CONF_EVENING_SHED_ENABLED, False))
         self._overload_protection_enabled = bool(
             cfg.get(CONF_OVERLOAD_PROTECTION_ENABLED, DEFAULT_OVERLOAD_PROTECTION_ENABLED)
@@ -1055,6 +1058,32 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         """Last evening battery-priority shedding decision (None before first tick)."""
         return self._evening_shed
 
+    def configured_entity_ids(self) -> list[str]:
+        """All HA entity_ids referenced by the configured devices / meters / loads."""
+        import dataclasses
+
+        out: set[str] = set()
+
+        def _collect(obj: object) -> None:
+            if obj is None or not dataclasses.is_dataclass(obj):
+                return
+            for f in dataclasses.fields(obj):
+                val = getattr(obj, f.name, None)
+                if f.name.endswith("_entity") and isinstance(val, str) and "." in val:
+                    out.add(val)
+
+        for device in self._devices:
+            for role in (device.battery, device.mppt, device.inverter):
+                _collect(role)
+        for meter in self._meters:
+            _collect(meter)
+        for load in self._loads:
+            _collect(load)
+        for entity in (self._pv_forecast_entity, self._pv_forecast_tomorrow_entity):
+            if entity:
+                out.add(entity)
+        return sorted(out)
+
     def is_shed_exempt(self, load_name: str) -> bool:
         """True when the user temporarily exempted this load from shedding."""
         return load_name in self._shed_exempt
@@ -1583,7 +1612,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # important loads first (overrides everything, including force-charge).
         commands = self._apply_overload_protection(commands, snapshot, grid_filtered_w)
         self._last_load_commands = {c.load_name: c for c in commands}
-        await self._load_publisher.apply(commands)
+        if not self._dry_run:
+            await self._load_publisher.apply(commands)
         self._update_load_settle(commands)
 
         self._publisher.publish(result, balancing_result=balancing_result)
@@ -2219,6 +2249,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         to 0 W and PV curtailment is released once, then left untouched until the
         entities recover.
         """
+        if self._dry_run:
+            return  # observe-only: compute setpoints/sensors but never write
         if not (self._active_control_enabled and self._active_control.enabled):
             return
         if self._mode is HemsMode.DEGRADED:

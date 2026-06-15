@@ -97,6 +97,12 @@ cancel_force_charge_load:
       selector:
         text:
 
+test_mapping:
+  name: Test entity mapping
+  description: >
+    Check every configured device/meter/load entity and report which are OK,
+    unavailable, or missing (response data). Use it to validate a fresh setup.
+
 set_mode:
   name: Set HEMS mode
   description: Set the global operating mode.

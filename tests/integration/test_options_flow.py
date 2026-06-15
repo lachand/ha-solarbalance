@@ -70,6 +70,35 @@ async def test_export_then_import_config_roundtrip(hass: HomeAssistant) -> None:
     assert {"stream", "wh"} <= titles
 
 
+async def test_test_mapping_reports_entity_availability(hass: HomeAssistant) -> None:
+    from homeassistant.config_entries import ConfigSubentryData
+
+    battery = ConfigSubentryData(
+        subentry_type="battery", title="stream", unique_id=None,
+        data={"name": "stream", "roles": {"battery": {
+            "capacity_kwh": 3.9, "max_charge_power_w": 1200, "max_discharge_power_w": 2300,
+            "soc_entity": "sensor.ecoflow_soc",
+            "power_entity": "sensor.ecoflow_batt_power"}}},
+    )
+    e = MockConfigEntry(
+        domain=DOMAIN,
+        data={CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
+              CONF_PRIORITIES: [k.value for k in StrategyKind]},
+        subentries_data=[battery],
+    )
+    e.add_to_hass(hass)
+    hass.states.async_set("sensor.ecoflow_soc", "55")  # present
+    # sensor.ecoflow_batt_power left missing on purpose
+    await hass.config_entries.async_setup(e.entry_id)
+    await hass.async_block_till_done()
+
+    res = await hass.services.async_call(
+        DOMAIN, "test_mapping", {}, blocking=True, return_response=True
+    )
+    assert "sensor.ecoflow_soc" in res["ok"]
+    assert "sensor.ecoflow_batt_power" in res["missing"]
+
+
 async def test_options_menu_then_tariff_section_merges(hass, entry) -> None:
     result = await hass.config_entries.options.async_init(entry.entry_id)
     assert result["type"] == FlowResultType.MENU

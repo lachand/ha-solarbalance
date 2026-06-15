@@ -47,6 +47,7 @@ async def async_get_config_entry_diagnostics(
         "shed_exempt": sorted(coord._shed_exempt),
         "force_charge_active": sorted(coord._force_charge_req),
         "baseline_talon_w": getattr(coord._baseline_est, "talon_w", None),
+        "dry_run": coord._dry_run,
         "tariff_degraded": coord._tariff_degraded,
         "remaining_pv_today_kwh": coord.remaining_pv_today_kwh,
         "settle_ticks_remaining": coord._settle_state.ticks_remaining,

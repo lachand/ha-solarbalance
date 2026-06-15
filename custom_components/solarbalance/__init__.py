@@ -240,6 +240,23 @@ def _register_services(hass: HomeAssistant) -> None:
             imported += 1
         return {"imported": imported}
 
+    async def handle_test_mapping(call: ServiceCall) -> dict[str, Any]:
+        coord = _get_coordinator(hass)
+        if coord is None:
+            return {"ok": [], "unavailable": [], "missing": []}
+        ok: list[str] = []
+        unavailable: list[str] = []
+        missing: list[str] = []
+        for eid in coord.configured_entity_ids():
+            state = hass.states.get(eid)
+            if state is None:
+                missing.append(eid)
+            elif state.state in ("unavailable", "unknown", ""):
+                unavailable.append(eid)
+            else:
+                ok.append(eid)
+        return {"ok": ok, "unavailable": unavailable, "missing": missing}
+
     async def handle_activate_storm_mode(call: ServiceCall) -> None:
         coord = _get_coordinator(hass)
         if coord:
@@ -265,6 +282,9 @@ def _register_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, "import_config", handle_import_config, supports_response=SupportsResponse.OPTIONAL
+    )
+    hass.services.async_register(
+        DOMAIN, "test_mapping", handle_test_mapping, supports_response=SupportsResponse.ONLY
     )
 
 

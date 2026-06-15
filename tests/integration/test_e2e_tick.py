@@ -118,6 +118,35 @@ async def test_full_tick_charges_battery_and_runs_load_on_export(hass: HomeAssis
 
 
 @pytest.mark.asyncio
+async def test_dry_run_computes_but_never_writes(hass: HomeAssistant) -> None:
+    """In dry-run the engine decides (fleet target set) but writes nothing."""
+    devices, meters, loads = _config()
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, loads, None, None)
+
+    hass.states.async_set("sensor.grid_power", "-1500")  # export → would charge + run load
+    hass.states.async_set("sensor.pv_power", "2000")
+    hass.states.async_set("sensor.batt_soc", "50")
+    hass.states.async_set("sensor.batt_power", "0")
+    hass.states.async_set("sensor.wh_power", "0")
+    hass.states.async_set("switch.water_heater", "off")
+
+    number_calls = async_mock_service(hass, "number", "set_value")
+    turn_on_calls = async_mock_service(hass, "homeassistant", "turn_on")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={**_ENTRY_DATA, "dry_run": True})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    # The decision is still computed (battery would charge on the export)...
+    assert coordinator.diagnostics.fleet_target_w > 0
+    # ...but nothing was written to hardware.
+    assert not number_calls
+    assert not turn_on_calls
+
+
+@pytest.mark.asyncio
 async def test_full_tick_force_charge_is_grid_backed(hass: HomeAssistant) -> None:
     """A forced load draws from the grid; the battery is not discharged to feed it."""
     devices, meters, loads = _config()
