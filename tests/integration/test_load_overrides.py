@@ -82,6 +82,27 @@ async def test_load_status_reflects_overrides(coord) -> None:
     assert coord.load_status("voiture") == "inactive"
 
 
+async def test_bus_events_fire_on_transitions(coord) -> None:
+    from custom_components.solarbalance.const import EVENT_FORCE_CHARGE, EVENT_MODE_CHANGED
+    from custom_components.solarbalance.core.models import HemsMode
+
+    events: list = []
+    coord.hass.bus.async_listen(EVENT_MODE_CHANGED, events.append)
+    coord.hass.bus.async_listen(EVENT_FORCE_CHARGE, events.append)
+
+    coord.mode = HemsMode.PAUSED
+    await coord.hass.async_block_till_done()
+    assert any(e.event_type == EVENT_MODE_CHANGED and e.data["new"] == "paused" for e in events)
+
+    # force-charge edge fires started, then stopped.
+    coord.request_force_charge_load("voiture")
+    coord._fire_edge_events(coord.data)
+    await coord.hass.async_block_till_done()
+    assert any(
+        e.event_type == EVENT_FORCE_CHARGE and e.data["action"] == "started" for e in events
+    )
+
+
 async def test_decision_reason_localised(coord) -> None:
     # Code is language-independent; the sentence follows the HA language.
     assert isinstance(coord.decision_reason_code, str)

@@ -1,0 +1,48 @@
+blueprint:
+  name: SolarBalance — Charger l'EV la nuit (heures creuses)
+  description: >
+    À l'heure choisie (typiquement le début des heures creuses), force la charge
+    d'un consommateur (voiture) via SolarBalance jusqu'à une énergie cible ou une
+    durée maximale. S'arrête automatiquement.
+  domain: automation
+  input:
+    start_time:
+      name: Heure de début (HC)
+      selector:
+        time: {}
+    load_name:
+      name: Nom du consommateur SolarBalance
+      description: Le nom du load tel que configuré (ex. "voiture").
+      selector:
+        text: {}
+    target_kwh:
+      name: Énergie cible (kWh)
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 100
+          step: 0.5
+          unit_of_measurement: kWh
+    max_hours:
+      name: Durée maximale (h)
+      default: 8
+      selector:
+        number:
+          min: 0
+          max: 24
+          step: 0.5
+          unit_of_measurement: h
+
+mode: single
+
+trigger:
+  - platform: time
+    at: !input start_time
+
+action:
+  - service: solarbalance.force_charge_load
+    data:
+      load: !input load_name
+      kwh: !input target_kwh
+      hours: !input max_hours

@@ -1,0 +1,28 @@
+blueprint:
+  name: SolarBalance — Alerte jour rouge Tempo
+  description: >
+    Envoie une notification quand SolarBalance détecte un jour rouge Tempo à venir
+    et démarre la pré-charge des batteries (événement solarbalance_tempo_red_day).
+  domain: automation
+  input:
+    notify_service:
+      name: Service de notification
+      description: ex. notify.mobile_app_mon_telephone
+      selector:
+        text: {}
+
+mode: single
+
+trigger:
+  - platform: event
+    event_type: solarbalance_tempo_red_day
+    event_data:
+      action: started
+
+action:
+  - service: !input notify_service
+    data:
+      title: SolarBalance — Jour rouge Tempo
+      message: >
+        Jour rouge Tempo à venir : pré-charge des batteries en cours pendant les
+        heures creuses. Évitez les gros usages demain en heures pleines.

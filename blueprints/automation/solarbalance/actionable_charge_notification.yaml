@@ -1,0 +1,61 @@
+blueprint:
+  name: SolarBalance — Notification actionnable « Charger maintenant »
+  description: >
+    Quand SolarBalance déleste un consommateur, envoie une notification mobile
+    avec deux boutons : « Charger maintenant » (force la charge réseau) et
+    « Annuler ». Nécessite l'app mobile Home Assistant.
+  domain: automation
+  input:
+    notify_service:
+      name: Service de notification mobile
+      description: ex. notify.mobile_app_mon_telephone
+      selector:
+        text: {}
+    load_name:
+      name: Nom du consommateur SolarBalance
+      selector:
+        text: {}
+
+mode: queued
+
+trigger:
+  - platform: event
+    event_type: solarbalance_shedding
+    event_data:
+      action: started
+    id: shed
+  - platform: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: SB_FORCE_CHARGE
+    id: force
+  - platform: event
+    event_type: mobile_app_notification_action
+    event_data:
+      action: SB_CANCEL
+    id: cancel
+
+action:
+  - choose:
+      - conditions: "{{ trigger.id == 'shed' }}"
+        sequence:
+          - service: !input notify_service
+            data:
+              title: SolarBalance — Consommateur délesté
+              message: "Délestage priorité batterie en cours. Charger quand même ?"
+              data:
+                actions:
+                  - action: SB_FORCE_CHARGE
+                    title: Charger maintenant
+                  - action: SB_CANCEL
+                    title: Annuler
+      - conditions: "{{ trigger.id == 'force' }}"
+        sequence:
+          - service: solarbalance.force_charge_load
+            data:
+              load: !input load_name
+      - conditions: "{{ trigger.id == 'cancel' }}"
+        sequence:
+          - service: solarbalance.cancel_force_charge_load
+            data:
+              load: !input load_name

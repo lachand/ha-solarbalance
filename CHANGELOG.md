@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [1.8.0] — 2026-06-15
+
+> Vague 1 de la [roadmap](docs/BACKLOG.md) — plomberie & intégration HA.
+
+### Added
+
+- **Événements de bus HA** pour les automatisations : `solarbalance_mode_changed`, `solarbalance_shedding` (`started`/`stopped` + loads), `solarbalance_tempo_red_day`, `solarbalance_force_charge`. Déclenchés sur transition (front montant/descendant).
+- **Entrées Logbook** lisibles pour ces événements (FR/EN selon la langue de HA).
+- **Blueprints d'automatisation** (`blueprints/automation/solarbalance/`) : charger l'EV la nuit en HC, alerte jour rouge Tempo, **notification mobile actionnable** (« Charger maintenant » / « Annuler » appelant les services).
+
+### Changed
+
+- **Panneau internationalisé (FR/EN)** — titres de cartes, tuiles, légendes, tableaux et libellés du diagramme suivent la langue de Home Assistant (avant : FR codé en dur).
+
 ## [1.7.0] — 2026-06-15
 
 ### Added
@@ -191,6 +205,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[1.8.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.5.0...v1.6.0

@@ -92,6 +92,10 @@ from .const import (
     DEFAULT_ZI_SETTLE_MIN_DROP_W,
     DEFAULT_ZI_SETTLE_TICKS,
     DOMAIN,
+    EVENT_FORCE_CHARGE,
+    EVENT_MODE_CHANGED,
+    EVENT_SHEDDING,
+    EVENT_TEMPO_RED_DAY,
     STORE_KEY,
     STORE_VERSION,
 )
@@ -376,6 +380,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._baseline_notification_sent: bool = False
         self._notifications_enabled = bool(cfg.get(CONF_NOTIFICATIONS_ENABLED, True))
         self._alerts_sent: dict[str, bool] = {}
+        self._event_edges: dict[str, bool] = {}
         self._daily_history: list[dict[str, Any]] = []
         # Cumulative savings, reset on month/year rollover (persisted).
         self._savings_month_eur: float = 0.0
@@ -573,7 +578,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def mode(self, value: HemsMode) -> None:
         if self._mode != value:
             _LOGGER.info("SolarBalance mode: %s → %s", self._mode.value, value.value)
+            old = self._mode
             self._mode = value
+            self.hass.bus.async_fire(
+                EVENT_MODE_CHANGED, {"old": old.value, "new": value.value}
+            )
 
     @property
     def publisher(self) -> DecisionPublisher:
@@ -1557,6 +1566,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}
         await self._apply_active_control(balancing_result.per_battery_w, soc_by_device, pv_limits)
         self._check_alerts(snapshot)
+        self._fire_edge_events(snapshot)
         return snapshot
 
     # ------------------------------------------------------------------ helpers
@@ -2355,6 +2365,36 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     # Grid import fraction of the subscription that raises / clears the overload alert.
     _OVERLOAD_ON = 0.90
     _OVERLOAD_OFF = 0.80
+
+    def _fire_edge_events(self, snapshot: Snapshot) -> None:
+        """Fire bus events on state transitions (for automations / blueprints / logbook)."""
+
+        def edge(key: str, active: bool) -> str | None:
+            """Return 'started'/'stopped' on a transition, else None."""
+            was = self._event_edges.get(key, False)
+            if active == was:
+                return None
+            self._event_edges[key] = active
+            return "started" if active else "stopped"
+
+        shed = self._evening_shed
+        shed_active = bool(shed and shed.active)
+        if (action := edge("shedding", shed_active)) is not None:
+            self.hass.bus.async_fire(
+                EVENT_SHEDDING,
+                {"action": action, "loads": sorted(shed.shed_load_names) if shed else []},
+            )
+
+        red = self._mode is HemsMode.NORMAL and self._red_prep_active(snapshot)
+        if (action := edge("tempo_red_day", red)) is not None:
+            self.hass.bus.async_fire(EVENT_TEMPO_RED_DAY, {"action": action})
+
+        fc_active = bool(self._force_charge_req)
+        if (action := edge("force_charge", fc_active)) is not None:
+            self.hass.bus.async_fire(
+                EVENT_FORCE_CHARGE,
+                {"action": action, "loads": sorted(self._force_charge_req)},
+            )
 
     def _check_alerts(self, snapshot: Snapshot) -> None:
         """Edge-triggered persistent notifications for degraded / overload / shedding."""

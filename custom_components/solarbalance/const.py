@@ -125,3 +125,9 @@ DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD: Final = 0.25  # €/kWh
 # Persistent store
 STORE_KEY: Final = "solarbalance.state"
 STORE_VERSION: Final = 1
+
+# Bus events (for automations / blueprints / logbook). Edge-triggered.
+EVENT_MODE_CHANGED: Final = "solarbalance_mode_changed"
+EVENT_SHEDDING: Final = "solarbalance_shedding"
+EVENT_TEMPO_RED_DAY: Final = "solarbalance_tempo_red_day"
+EVENT_FORCE_CHARGE: Final = "solarbalance_force_charge"

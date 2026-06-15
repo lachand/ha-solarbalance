@@ -21,6 +21,74 @@ const HISTORY_REFRESH_MS = 60000; // re-fetch history at most this often
 const TICK_MS = 30000; // periodic re-render (freshness + history refresh)
 const FUTURE_CAP_H = 12; // how far ahead to draw the PV forecast
 
+// English translations keyed by the in-source French label. `_t()` returns the
+// French source as-is, or this mapping when Home Assistant runs in English.
+const STR_EN = {
+  "Flux en temps réel": "Real-time flow",
+  "Bilan du jour": "Today's summary",
+  Autoconsommation: "Self-consumption",
+  Autonomie: "Autonomy",
+  Production: "Production",
+  Consommation: "Consumption",
+  "PV restant": "PV remaining",
+  Soutiré: "Imported",
+  Injecté: "Exported",
+  "Talon (nuit)": "Standby (night)",
+  "Coût réseau": "Grid cost",
+  Économies: "Savings",
+  "Éco. ce mois": "Savings (month)",
+  "Éco. cette année": "Savings (year)",
+  Puissance: "Power",
+  "Flux instantané": "Instant flow",
+  Réseau: "Grid",
+  Solaire: "Solar",
+  Batteries: "Batteries",
+  Maison: "Home",
+  "SoC moyen": "Avg SoC",
+  Régulation: "Regulation",
+  "Réseau (filtré)": "Grid (filtered)",
+  "Cible parc": "Fleet target",
+  "Correction zéro-injection": "Zero-injection correction",
+  "Offre équaliseur SoC": "SoC equaliser offer",
+  "Limite de sortie PV": "PV output limit",
+  "Plan prédictif (advisory)": "Predictive plan (advisory)",
+  "Puissance recommandée": "Recommended power",
+  "Coût attendu (24 h)": "Expected cost (24 h)",
+  "Par appareil": "Per device",
+  Consommateurs: "Loads",
+  "Stratégie : ": "Strategy: ",
+  "Charger maintenant": "Charge now",
+  "Charge en cours": "Charging",
+  "Ne pas délester": "Keep running",
+  Délestable: "Sheddable",
+  "Heures creuses": "Off-peak",
+  "HC seulement": "Off-peak only",
+  "Puissance souscrite": "Subscribed power",
+  "Soutirage instantané": "Instant import",
+  "Coûts & économies (€/jour)": "Costs & savings (€/day)",
+  "Coût réseau net": "Net grid cost",
+  Prédictions: "Predictions",
+  "Charge prévue": "Planned charge",
+  "Décharge prévue": "Planned discharge",
+  "SoC prévu": "Planned SoC",
+  Heure: "Time",
+  Batterie: "Battery",
+  Coût: "Cost",
+  Jour: "Day",
+  Prod: "Prod",
+  Conso: "Cons",
+  "Éco.": "Sav.",
+  Température: "Temperature",
+  "Consigne charge": "Charge setpoint",
+  "Consigne décharge": "Discharge setpoint",
+  Historique: "History",
+  "derniers jours": "last days",
+  "Prédictions (advisory) — 24 h": "Predictions (advisory) — 24 h",
+  "Aucun appareil batterie détecté.": "No battery device detected.",
+  "Aucune action batterie planifiée": "No battery action planned",
+  "Prévision PV": "PV forecast",
+};
+
 class SolarBalancePanel extends HTMLElement {
   constructor() {
     super();
@@ -116,6 +184,12 @@ class SolarBalancePanel extends HTMLElement {
   _attr(id, name) {
     const s = this._stateObj(id);
     return s && s.attributes ? s.attributes[name] : undefined;
+  }
+
+  /** Translate an in-source French label to English when HA runs in English. */
+  _t(s) {
+    const lang = (this._hass && this._hass.language) || "";
+    return lang.startsWith("en") ? STR_EN[s] || s : s;
   }
 
   _buildByKey() {
@@ -248,14 +322,14 @@ class SolarBalancePanel extends HTMLElement {
         <div class="load-toggle">
           <span>${l.name}</span>
           <span class="load-btns">
-            ${btn(l.force, "⚡ Charge en cours", "⚡ Charger maintenant", "Forcer la charge maintenant (même sans surplus)")}
-            ${btn(l.offpeak, "🕓 Heures creuses", "🕓 HC seulement", "N'autoriser ce consommateur qu'en heures creuses / prix bas")}
-            ${btn(l.shed, "🔓 Ne pas délester", "🔌 Délestable", "Exempter du délestage et de la pause charge rapide")}
+            ${btn(l.force, "⚡ " + this._t("Charge en cours"), "⚡ " + this._t("Charger maintenant"), "")}
+            ${btn(l.offpeak, "🕓 " + this._t("Heures creuses"), "🕓 " + this._t("HC seulement"), "")}
+            ${btn(l.shed, "🔓 " + this._t("Ne pas délester"), "🔌 " + this._t("Délestable"), "")}
           </span>
         </div>`
       )
       .join("");
-    return `<div class="card"><h3>Consommateurs</h3>${rows}</div>`;
+    return `<div class="card"><h3>${this._t("Consommateurs")}</h3>${rows}</div>`;
   }
 
   // ---- History (WebSocket) ------------------------------------------------
@@ -421,10 +495,10 @@ class SolarBalancePanel extends HTMLElement {
         ${xlbls}
       </svg>
       <div class="legend">
-        <span><i class="sw pv"></i>Solaire</span>
-        <span><i class="sw grid"></i>Réseau</span>
-        <span><i class="sw batt"></i>Batteries</span>
-        ${fc.length ? '<span><i class="sw fc"></i>Prévision PV</span>' : ""}
+        <span><i class="sw pv"></i>${this._t("Solaire")}</span>
+        <span><i class="sw grid"></i>${this._t("Réseau")}</span>
+        <span><i class="sw batt"></i>${this._t("Batteries")}</span>
+        ${fc.length ? `<span><i class="sw fc"></i>${this._t("Prévision PV")}</span>` : ""}
       </div>`;
   }
 
@@ -461,7 +535,7 @@ class SolarBalancePanel extends HTMLElement {
         <circle cx="${cx}" cy="${cy}" r="26" style="stroke:${color}"/>
         <text x="${cx}" y="${cy - 2}" class="fn-ico">${emoji}</text>
         <text x="${cx}" y="${cy + 14}" class="fn-val">${value}</text>
-        <text x="${cx}" y="${cy + 42}" class="fn-lbl">${label}</text>
+        <text x="${cx}" y="${cy + 42}" class="fn-lbl">${this._t(label)}</text>
       </g>`;
   }
 
@@ -516,11 +590,11 @@ class SolarBalancePanel extends HTMLElement {
   _tile(label, value, accent) {
     return `<div class="tile"><div class="tile-v" style="color:${
       accent || "var(--primary-text-color)"
-    }">${value}</div><div class="tile-l">${label}</div></div>`;
+    }">${value}</div><div class="tile-l">${this._t(label)}</div></div>`;
   }
 
   _row(label, value) {
-    return `<div class="row"><span>${label}</span><b>${value}</b></div>`;
+    return `<div class="row"><span>${this._t(label)}</span><b>${value}</b></div>`;
   }
 
   _badge(id) {
@@ -550,12 +624,12 @@ class SolarBalancePanel extends HTMLElement {
     const color = pct >= 90 ? "var(--error-color,#e74c3c)" : pct >= 70 ? "var(--warning-color,#f5a623)" : "var(--success-color,#27ae60)";
     return `
       <div class="card load-card">
-        <h3>Puissance souscrite</h3>
+        <h3>${this._t("Puissance souscrite")}</h3>
         <div class="load-body">
           ${this._gauge(pct, color)}
           <div class="load-info">
             <div class="load-v">${(imp / 1000).toFixed(2)} / ${(sub / 1000).toFixed(0)} kW</div>
-            <div class="load-l">Soutirage instantané</div>
+            <div class="load-l">${this._t("Soutirage instantané")}</div>
           </div>
         </div>
       </div>`;
@@ -631,7 +705,7 @@ class SolarBalancePanel extends HTMLElement {
     const parts = segs
       .filter((seg) => seg.c !== "hold")
       .map((seg) => `${labels[seg.c]} ${hh(seg.startMs)}–${hh(seg.endMs)}`);
-    return parts.length ? parts.join(" · ") : "Aucune action batterie planifiée";
+    return parts.length ? parts.join(" · ") : this._t("Aucune action batterie planifiée");
   }
 
   _predictions() {
@@ -696,7 +770,7 @@ class SolarBalancePanel extends HTMLElement {
 
     return `
       <section class="card pred-card">
-        <h3>Prédictions (advisory) — 24 h</h3>
+        <h3>${this._t("Prédictions (advisory) — 24 h")}</h3>
         <div class="plan-summary">${this._planSummary(sched)}</div>
         <svg viewBox="0 0 ${W} ${H}" class="pred-chart" preserveAspectRatio="none" role="img">
           <line x1="${padL}" y1="${by0.toFixed(1)}" x2="${W - padR}" y2="${by0.toFixed(
@@ -707,12 +781,12 @@ class SolarBalancePanel extends HTMLElement {
           ${labels}
         </svg>
         <div class="legend">
-          <span><i class="sw chg"></i>Charge prévue</span>
-          <span><i class="sw dis"></i>Décharge prévue</span>
-          <span><i class="sw soc"></i>SoC prévu</span>
+          <span><i class="sw chg"></i>${this._t("Charge prévue")}</span>
+          <span><i class="sw dis"></i>${this._t("Décharge prévue")}</span>
+          <span><i class="sw soc"></i>${this._t("SoC prévu")}</span>
         </div>
         <table class="pred-table">
-          <thead><tr><th>Heure</th><th>Batterie</th><th>SoC</th><th>Coût</th></tr></thead>
+          <thead><tr><th>${this._t("Heure")}</th><th>${this._t("Batterie")}</th><th>SoC</th><th>${this._t("Coût")}</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </section>`;
@@ -820,15 +894,15 @@ class SolarBalancePanel extends HTMLElement {
 
     return `
       <section class="card hist-card">
-        <h3>Historique — ${n} derniers jours</h3>
+        <h3>${this._t("Historique")} — ${n} ${this._t("derniers jours")}</h3>
         <svg viewBox="0 0 ${W} ${H}" class="pred-chart" preserveAspectRatio="none" role="img">
           ${bars}${xlbls}
         </svg>
         <div class="legend">
-          <span><i class="sw pv"></i>Production</span>
-          <span><i class="sw co"></i>Consommation</span>
+          <span><i class="sw pv"></i>${this._t("Production")}</span>
+          <span><i class="sw co"></i>${this._t("Consommation")}</span>
         </div>
-        <h3 style="margin-top:14px">Coûts & économies (€/jour)</h3>
+        <h3 style="margin-top:14px">${this._t("Coûts & économies (€/jour)")}</h3>
         <svg viewBox="0 0 ${W} ${H2}" class="pred-chart" preserveAspectRatio="none" role="img">
           <line x1="${padL}" y1="${zeroY.toFixed(1)}" x2="${W - padR}" y2="${zeroY.toFixed(
             1
@@ -836,11 +910,11 @@ class SolarBalancePanel extends HTMLElement {
           ${ebars}${exlbls}
         </svg>
         <div class="legend">
-          <span><i class="sw cost"></i>Coût réseau net (${totCost.toFixed(2)} €)</span>
-          <span><i class="sw sav"></i>Économies (${totSav.toFixed(2)} €)</span>
+          <span><i class="sw cost"></i>${this._t("Coût réseau net")} (${totCost.toFixed(2)} €)</span>
+          <span><i class="sw sav"></i>${this._t("Économies")} (${totSav.toFixed(2)} €)</span>
         </div>
         <table class="pred-table">
-          <thead><tr><th>Jour</th><th>Prod</th><th>Conso</th><th>Autonomie</th><th>Coût</th><th>Éco.</th></tr></thead>
+          <thead><tr><th>${this._t("Jour")}</th><th>${this._t("Prod")}</th><th>${this._t("Conso")}</th><th>${this._t("Autonomie")}</th><th>${this._t("Coût")}</th><th>${this._t("Éco.")}</th></tr></thead>
           <tbody>${rows}</tbody>
         </table>
       </section>`;
@@ -887,7 +961,7 @@ class SolarBalancePanel extends HTMLElement {
             <div class="mode" style="background:${modeColors[mode] || "var(--primary-color)"}">${mode}</div>
             ${this._freshness()}
           </div>
-          <div class="strat">Stratégie : ${strat}</div>
+          <div class="strat">${this._t("Stratégie : ")}${strat}</div>
           ${this._attr(E.mode, "reason") ? `<div class="reason">${this._attr(E.mode, "reason")}</div>` : ""}
         </header>
 
@@ -895,14 +969,14 @@ class SolarBalancePanel extends HTMLElement {
 
         <section class="grid two">
           <div class="card flow-card">
-            <h3>Flux en temps réel</h3>
+            <h3>${this._t("Flux en temps réel")}</h3>
             ${this._flow()}
           </div>
           <div class="card">
-            <h3>Bilan du jour</h3>
+            <h3>${this._t("Bilan du jour")}</h3>
             <div class="donuts">
-              <div class="donut">${this._gauge(st.selfCons, "var(--warning-color,#f5a623)")}<div class="tile-l">Autoconsommation</div></div>
-              <div class="donut">${this._gauge(st.autonomy, "var(--success-color,#27ae60)")}<div class="tile-l">Autonomie</div></div>
+              <div class="donut">${this._gauge(st.selfCons, "var(--warning-color,#f5a623)")}<div class="tile-l">${this._t("Autoconsommation")}</div></div>
+              <div class="donut">${this._gauge(st.autonomy, "var(--success-color,#27ae60)")}<div class="tile-l">${this._t("Autonomie")}</div></div>
             </div>
             <div class="tiles">
               ${this._tile("Production", kwh(st.pv), "var(--warning-color,#f5a623)")}
@@ -927,7 +1001,7 @@ class SolarBalancePanel extends HTMLElement {
 
         <section class="card chart-card">
           <div class="chart-head">
-            <h3>Puissance</h3>
+            <h3>${this._t("Puissance")}</h3>
             ${this._windowSelector()}
           </div>
           ${this._chart()}
@@ -939,7 +1013,7 @@ class SolarBalancePanel extends HTMLElement {
 
         <section class="grid">
           <div class="card">
-            <h3>Flux instantané</h3>
+            <h3>${this._t("Flux instantané")}</h3>
             <div class="tiles">
               ${this._tile("Réseau", this._fmt(E.grid, 0, "W"), "var(--info-color,#3d8bff)")}
               ${this._tile("Solaire", this._fmt(E.pv, 0, "W"), "var(--warning-color,#f5a623)")}
@@ -956,7 +1030,7 @@ class SolarBalancePanel extends HTMLElement {
           ${this._loadsCard()}
 
           <div class="card">
-            <h3>Régulation</h3>
+            <h3>${this._t("Régulation")}</h3>
             ${this._row("Réseau (filtré)", this._fmt(E.gridFiltered, 0, "W"))}
             ${this._row("Cible parc", this._fmt(E.target, 0, "W"))}
             ${this._row("Correction zéro-injection", this._fmt(E.ziCorr, 0, "W"))}
@@ -965,14 +1039,14 @@ class SolarBalancePanel extends HTMLElement {
           </div>
 
           <div class="card">
-            <h3>Plan prédictif (advisory)</h3>
+            <h3>${this._t("Plan prédictif (advisory)")}</h3>
             ${this._row("Puissance recommandée", this._fmt(E.planPower, 0, "W"))}
             ${this._row("Coût attendu (24 h)", this._fmt(E.planCost, 2, "€"))}
           </div>
         </section>
 
-        <h2>Par appareil</h2>
-        <section class="grid">${devCards || '<div class="card"><p>Aucun appareil batterie détecté.</p></div>'}</section>
+        <h2>${this._t("Par appareil")}</h2>
+        <section class="grid">${devCards || `<div class="card"><p>${this._t("Aucun appareil batterie détecté.")}</p></div>`}</section>
       </div>`;
   }
 
