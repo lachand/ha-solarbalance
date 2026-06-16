@@ -8,7 +8,7 @@
 
 SolarBalance orchestrates photovoltaic production, battery storage, and electrical loads in your home to meet one or several energy goals (self-consumption, cost minimization, autonomy, hardware longevity), while adapting to dynamic context (tariffs, weather, grid alerts).
 
-> **Status**: v1.0 MVP — ready for early adopters. Core engine, all strategies, watchdog, services, and Lovelace examples are functional. Direct hardware control (writing to inverters) is scheduled for v2.
+> **Status**: v2.0 in beta — latest pre-release **v2.0.0-beta.7** (enable beta versions in HACS). Core engine, all strategies, **active hardware control**, zero-injection, the **SoC equaliser**, watchdog, services and Lovelace examples are functional. Wave 4 (predictive intelligence & battery-health throttling) is in progress.
 
 ## Highlights
 
@@ -16,6 +16,9 @@ SolarBalance orchestrates photovoltaic production, battery storage, and electric
 - **No-YAML configuration** — add batteries, inverters, meters and loads from the UI (integration → **Add**), each as an editable sub-entry. Existing YAML is migrated automatically on first start.
 - **Multi-strategy arbitration** — order strategies by priority (self-consumption, cost-min, backup, longevity, peak-shaving, revenue-max) and let the arbiter combine them.
 - **Zero-injection regulation** — software PI controller targeting your grid meter (Shelly 3EM or any signed-power sensor at the PDL), with an anti-yoyo settle window when a big load drops.
+- **Active control (v2)** — optionally write charge/discharge/mode setpoints to your batteries and curtail a micro-inverter, through the single `ActiveControlPublisher` (off by default, per-device opt-in).
+- **SoC equaliser** — indirectly steer a non-controllable (e.g. cloud) battery toward the controllable fleet's mean SoC via the zero-injection setpoint; proportional, slow, dead-time-aware (no pumping).
+- **Battery mapping flexibility** — declare battery power as a single signed sensor *or* a separate charge + discharge pair; capacity-weighted (energy-true) average SoC, plus remaining/usable energy sensors (kWh).
 - **Per-load controls** — each load gets switches: **Charge now** (grid-backed force charge, battery spared), **Keep running** (exempt from shedding), **Off-peak only** (run only in cheap/HC/non-red windows). Reachable from the panel too.
 - **Tariffs** — flat / HC-HP / EDF Tempo / spot (Nordpool/EPEX), in YAML or UI; cost & savings tracking with month/year cumulative sensors wired to the HA Energy dashboard.
 - **Storm mode** — automatic SoC ramp-up on Météo-France weather warnings.
