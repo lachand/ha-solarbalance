@@ -7,6 +7,8 @@ import logging
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.loader import async_get_integration
+
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant, ServiceCall
@@ -338,6 +340,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     coordinator = SolarBalanceCoordinator(
         hass, entry, devices, meters, loads, forecast=forecast, tariff_spec=tariff_spec
     )
+    coordinator.version = str((await async_get_integration(hass, DOMAIN)).version)
     await coordinator.async_restore()
     await coordinator.async_config_entry_first_refresh()
 

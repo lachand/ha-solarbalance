@@ -169,13 +169,16 @@ async def async_setup_entry(
 # Base class
 # ---------------------------------------------------------------------------
 
-_DEVICE_INFO = DeviceInfo(
-    identifiers={(DOMAIN, DOMAIN)},
-    name="SolarBalance",
-    manufacturer="SolarBalance",
-    model="HEMS",
-    sw_version="2.0.0",
-)
+
+def _main_device_info(version: str | None) -> DeviceInfo:
+    """Main HEMS device; ``sw_version`` is read from the manifest at setup."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, DOMAIN)},
+        name="SolarBalance",
+        manufacturer="SolarBalance",
+        model="HEMS",
+        sw_version=version,
+    )
 
 
 def _battery_device_info(entry: ConfigEntry, device_name: str) -> DeviceInfo:
@@ -213,7 +216,7 @@ class _SolarBalanceSensor(CoordinatorEntity[SolarBalanceCoordinator], SensorEnti
     ) -> None:
         super().__init__(coordinator)
         self._attr_unique_id = f"{entry.entry_id}_{unique_suffix}"
-        self._attr_device_info = device_info or _DEVICE_INFO
+        self._attr_device_info = device_info or _main_device_info(coordinator.version)
 
 
 # ---------------------------------------------------------------------------

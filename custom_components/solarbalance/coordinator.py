@@ -441,6 +441,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         self._predictive_control_enabled = bool(cfg.get(CONF_PREDICTIVE_CONTROL_ENABLED, False))
         self._dry_run = bool(cfg.get(CONF_DRY_RUN, DEFAULT_DRY_RUN))
+        # Integration version, set by async_setup_entry from the manifest; shown as
+        # the device sw_version (no manual bump needed).
+        self.version: str | None = None
         self._evening_shed_enabled = bool(cfg.get(CONF_EVENING_SHED_ENABLED, False))
         self._overload_protection_enabled = bool(
             cfg.get(CONF_OVERLOAD_PROTECTION_ENABLED, DEFAULT_OVERLOAD_PROTECTION_ENABLED)
