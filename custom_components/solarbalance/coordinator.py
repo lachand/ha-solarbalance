@@ -51,6 +51,7 @@ from .const import (
     CONF_SOC_EQUALISER_ENABLED,
     CONF_SOC_EQUALISER_KP_W_PER_PCT,
     CONF_SOC_EQUALISER_MAX_W,
+    CONF_SOC_EQUALISER_MIN_PV_W,
     CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SPOT_MARKUP,
     CONF_SPOT_PRICE_ENTITY,
@@ -94,6 +95,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
+    DEFAULT_SOC_EQUALISER_MIN_PV_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_SPOT_MARKUP,
     DEFAULT_STORM_TARGET_SOC_PCT,
@@ -503,6 +505,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
                         DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
                     )
+                ),
+                min_pv_w=float(
+                    cfg.get(CONF_SOC_EQUALISER_MIN_PV_W, DEFAULT_SOC_EQUALISER_MIN_PV_W)
                 ),
             )
 
@@ -2343,10 +2348,19 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             for b in snapshot.batteries
             if b.device_name not in self._controllable_battery_names
         }
+        # PV produced by the controllable fleet itself (its own MPPTs): the equaliser
+        # only redistributes this solar, never drains the fleet battery into the
+        # automatic one (round-trip loss).
+        available_pv_w = sum(
+            m.power_w
+            for m in snapshot.mppts
+            if m.available and m.device_name in self._controllable_battery_names
+        )
         result = self._soc_equaliser.step(
             controllable_states=controllable,
             uncontrollable_states=uncontrollable,
             grid_w=grid_w,
+            available_pv_w=available_pv_w,
         )
         if not result.in_deadband:
             _LOGGER.debug(

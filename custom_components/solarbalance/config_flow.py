@@ -46,6 +46,7 @@ from .const import (
     CONF_SOC_EQUALISER_ENABLED,
     CONF_SOC_EQUALISER_KP_W_PER_PCT,
     CONF_SOC_EQUALISER_MAX_W,
+    CONF_SOC_EQUALISER_MIN_PV_W,
     CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SPOT_MARKUP,
     CONF_SPOT_PRICE_ENTITY,
@@ -88,6 +89,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
+    DEFAULT_SOC_EQUALISER_MIN_PV_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_SPOT_MARKUP,
     DEFAULT_TARIFF_TYPE,
@@ -236,6 +238,7 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
         ): bool,
         vol.Optional(
             CONF_SOC_EQUALISER_MAX_W,
+            CONF_SOC_EQUALISER_MIN_PV_W,
             default=d.get(CONF_SOC_EQUALISER_MAX_W, DEFAULT_SOC_EQUALISER_MAX_W),
         ): vol.All(vol.Coerce(int), vol.Range(min=0)),
         vol.Optional(
@@ -250,6 +253,10 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             CONF_SOC_EQUALISER_PROBE_STEP_W,
             default=d.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W),
         ): vol.All(vol.Coerce(float), vol.Range(min=1)),
+        vol.Optional(
+            CONF_SOC_EQUALISER_MIN_PV_W,
+            default=d.get(CONF_SOC_EQUALISER_MIN_PV_W, DEFAULT_SOC_EQUALISER_MIN_PV_W),
+        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
         vol.Optional(
             CONF_SOC_EQUALISER_CADENCE_TICKS,
             default=d.get(CONF_SOC_EQUALISER_CADENCE_TICKS, DEFAULT_SOC_EQUALISER_CADENCE_TICKS),

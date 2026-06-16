@@ -24,6 +24,7 @@ CONF_SOC_EQUALISER_DEADBAND_PCT: Final = "soc_equaliser_deadband_pct"
 CONF_SOC_EQUALISER_PROBE_STEP_W: Final = "soc_equaliser_probe_step_w"
 CONF_SOC_EQUALISER_CADENCE_TICKS: Final = "soc_equaliser_cadence_ticks"
 CONF_SOC_EQUALISER_ADAPTIVE_CADENCE: Final = "soc_equaliser_adaptive_cadence"
+CONF_SOC_EQUALISER_MIN_PV_W: Final = "soc_equaliser_min_pv_w"
 CONF_AUTOTUNE_ENABLED: Final = "autotune_enabled"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"
@@ -80,6 +81,10 @@ DEFAULT_SOC_EQUALISER_PROBE_STEP_W: Final = 600.0
 DEFAULT_SOC_EQUALISER_CADENCE_TICKS: Final = 6
 # Derive the cadence from the measured cloud-battery response lag (vs the floor).
 DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE: Final = True
+# Min PV (W) from the controllable fleet's own MPPTs to run the equaliser: it only
+# redistributes solar, never drains a battery into another (round-trip loss). Also
+# caps the offer to this PV power.
+DEFAULT_SOC_EQUALISER_MIN_PV_W: Final = 200.0
 # Supervisory auto-tuner: damps the ZI kp and the equaliser step cap when they
 # oscillate, restores them toward the configured values when calm. Never more
 # aggressive than configured, hence safe on by default. Floors below.

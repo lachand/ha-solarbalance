@@ -41,18 +41,48 @@ def _run(
     auto_soc: float,
     auto_power_w: float = 0.0,
     grid_w: float = 0.0,
+    available_pv_w: float = 5000.0,
     ticks: int = 1,
 ) -> list[float]:
-    """Step the controller ``ticks`` times with constant inputs, return offers."""
+    """Step the controller ``ticks`` times with constant inputs, return offers.
+
+    ``available_pv_w`` defaults high so the PV gate is open in most tests.
+    """
     out: list[float] = []
     for _ in range(ticks):
         r = ctrl.step(
             controllable_states=[_state("a", fleet_soc)],
             uncontrollable_states={"auto": _state("auto", auto_soc, power_w=auto_power_w)},
             grid_w=grid_w,
+            available_pv_w=available_pv_w,
         )
         out.append(r.grid_setpoint_bias_w)
     return out
+
+
+# -- PV gate & cap (only redistribute solar) -------------------------------
+
+
+def test_no_steering_below_pv_threshold() -> None:
+    ctrl = SocEqualiserController(
+        [("auto", _role())], step_w=150.0, cadence_ticks=1, adaptive_cadence=False, min_pv_w=200.0
+    )
+    out = _run(ctrl, fleet_soc=90.0, auto_soc=20.0, available_pv_w=150.0, ticks=5)
+    assert out == [pytest.approx(0.0)] * 5  # no battery-to-battery transfer without sun
+
+
+def test_offer_capped_at_available_pv() -> None:
+    # Big SoC gap would want a large offer, but PV is only 400 W -> capped at 400.
+    ctrl = SocEqualiserController(
+        [("auto", _role())],
+        step_w=600.0,
+        cadence_ticks=1,
+        adaptive_cadence=False,
+        max_offer_w=2000.0,
+        min_pv_w=200.0,
+    )
+    out = _run(ctrl, fleet_soc=95.0, auto_soc=10.0, available_pv_w=400.0, ticks=12)
+    assert max(out) == pytest.approx(400.0)
 
 
 # -- proportional offer (no integrator windup) -----------------------------
@@ -131,6 +161,7 @@ def test_adaptive_cadence_tracks_measured_lag() -> None:
             controllable_states=[_state("a", 90.0)],
             uncontrollable_states={"auto": _state("auto", 20.0, power_w=p)},
             grid_w=0.0,
+            available_pv_w=5000.0,
         )
     assert result is not None
     assert result.lag_ticks == pytest.approx(3.0)
@@ -158,6 +189,7 @@ def test_export_with_responding_battery_is_not_a_leak() -> None:
             controllable_states=[_state("a", 90.0)],
             uncontrollable_states={"auto": _state("auto", 20.0, power_w=p)},
             grid_w=-500.0,
+            available_pv_w=5000.0,
         )
         offers.append(r.grid_setpoint_bias_w)
     assert offers == [pytest.approx(450.0), pytest.approx(600.0), pytest.approx(750.0)]
@@ -277,22 +309,24 @@ def test_unavailable_uncontrollable_skipped() -> None:
         controllable_states=[_state("a", 90.0)],
         uncontrollable_states={"auto": _state("auto", 50.0, available=False)},
         grid_w=0.0,
+        available_pv_w=5000.0,
     )
     assert r.grid_setpoint_bias_w == 0.0
     assert r.in_deadband is True
 
 
 @pytest.mark.parametrize(
-    ("kp", "max_w", "deadband", "step", "cadence", "max_cadence", "rearm", "leak"),
+    ("kp", "max_w", "deadband", "step", "cadence", "max_cadence", "rearm", "leak", "min_pv"),
     [
-        (-1.0, 1500.0, 2.0, 150.0, 6, 30, 1.0, 3),
-        (80.0, -1.0, 2.0, 150.0, 6, 30, 1.0, 3),
-        (80.0, 1500.0, -1.0, 150.0, 6, 30, 1.0, 3),
-        (80.0, 1500.0, 2.0, 0.0, 6, 30, 1.0, 3),
-        (80.0, 1500.0, 2.0, 150.0, 0, 30, 1.0, 3),
-        (80.0, 1500.0, 2.0, 150.0, 6, 3, 1.0, 3),
-        (80.0, 1500.0, 2.0, 150.0, 6, 30, -1.0, 3),
-        (80.0, 1500.0, 2.0, 150.0, 6, 30, 1.0, 0),
+        (-1.0, 1500.0, 2.0, 150.0, 6, 30, 1.0, 3, 200.0),
+        (80.0, -1.0, 2.0, 150.0, 6, 30, 1.0, 3, 200.0),
+        (80.0, 1500.0, -1.0, 150.0, 6, 30, 1.0, 3, 200.0),
+        (80.0, 1500.0, 2.0, 0.0, 6, 30, 1.0, 3, 200.0),
+        (80.0, 1500.0, 2.0, 150.0, 0, 30, 1.0, 3, 200.0),
+        (80.0, 1500.0, 2.0, 150.0, 6, 3, 1.0, 3, 200.0),
+        (80.0, 1500.0, 2.0, 150.0, 6, 30, -1.0, 3, 200.0),
+        (80.0, 1500.0, 2.0, 150.0, 6, 30, 1.0, 0, 200.0),
+        (80.0, 1500.0, 2.0, 150.0, 6, 30, 1.0, 3, -1.0),
     ],
 )
 def test_invalid_params_rejected(
@@ -304,6 +338,7 @@ def test_invalid_params_rejected(
     max_cadence: int,
     rearm: float,
     leak: int,
+    min_pv: float,
 ) -> None:
     with pytest.raises(ValueError):
         SocEqualiserController(
@@ -316,4 +351,5 @@ def test_invalid_params_rejected(
             max_cadence_ticks=max_cadence,
             rearm_margin_pct=rearm,
             leak_persist_ticks=leak,
+            min_pv_w=min_pv,
         )

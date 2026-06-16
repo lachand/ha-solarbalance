@@ -37,6 +37,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.0-beta.13] — 2026-06-16
+
+### Added
+
+- **Équaliseur SoC : gate & plafond sur la production PV** — l'équaliseur ne
+  redistribue désormais que du **solaire**. Il n'agit que si la **PV du parc
+  pilotable** (ses propres MPPT) dépasse `soc_equaliser_min_pv_w` (défaut 200 W),
+  et l'offre est **plafonnée à cette production**. Évite de transvaser une batterie
+  dans une autre en perte (~15-25 % aller-retour) et d'agir la nuit ; ne décharge
+  jamais le parc au-delà de sa propre production PV.
+
 ## [2.0.0-beta.12] — 2026-06-16
 
 ### Changed
@@ -429,6 +440,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.0-beta.13]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.12...v2.0.0-beta.13
 [2.0.0-beta.12]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.11...v2.0.0-beta.12
 [2.0.0-beta.11]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.10...v2.0.0-beta.11
 [2.0.0-beta.10]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.9...v2.0.0-beta.10

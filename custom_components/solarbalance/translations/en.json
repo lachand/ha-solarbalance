@@ -93,6 +93,7 @@
           "soc_equaliser_kp_w_per_pct": "SoC equaliser: gain (W/%)",
           "soc_equaliser_deadband_pct": "SoC equaliser: deadband (%)",
           "soc_equaliser_probe_step_w": "SoC equaliser: step per move (W)",
+          "soc_equaliser_min_pv_w": "SoC equaliser: min PV to run / cap (W)",
           "soc_equaliser_cadence_ticks": "SoC equaliser: cadence (ticks between moves)",
           "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)",
           "autotune_enabled": "Auto-tune: damp ZI/equaliser gains when they oscillate",

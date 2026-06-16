@@ -8,7 +8,7 @@
 
 SolarBalance orchestrates photovoltaic production, battery storage, and electrical loads in your home to meet one or several energy goals (self-consumption, cost minimization, autonomy, hardware longevity), while adapting to dynamic context (tariffs, weather, grid alerts).
 
-> **Status**: v2.0 in beta — latest pre-release **v2.0.0-beta.12** (enable beta versions in HACS). Core engine, all strategies, **active hardware control**, zero-injection, the **SoC equaliser**, watchdog, services and Lovelace examples are functional. Wave 4 (predictive intelligence & battery-health throttling) is in progress.
+> **Status**: v2.0 in beta — latest pre-release **v2.0.0-beta.13** (enable beta versions in HACS). Core engine, all strategies, **active hardware control**, zero-injection, the **SoC equaliser**, watchdog, services and Lovelace examples are functional. Wave 4 (predictive intelligence & battery-health throttling) is in progress.
 
 ## Highlights
 

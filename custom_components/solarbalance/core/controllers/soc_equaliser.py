@@ -111,9 +111,12 @@ class SocEqualiserController:
         max_cadence_ticks: int = 30,
         rearm_margin_pct: float = 1.0,
         leak_persist_ticks: int = 3,
+        min_pv_w: float = 200.0,
     ) -> None:
         if kp_w_per_pct < 0:
             raise ValueError("kp_w_per_pct must be non-negative")
+        if min_pv_w < 0:
+            raise ValueError("min_pv_w must be non-negative")
         if max_offer_w < 0:
             raise ValueError("max_offer_w must be non-negative")
         if soc_deadband_pct < 0:
@@ -138,6 +141,7 @@ class SocEqualiserController:
         self._max_cadence_ticks = max_cadence_ticks
         self._rearm_margin = rearm_margin_pct
         self._leak_persist_floor = leak_persist_ticks
+        self._min_pv_w = min_pv_w
         # Dynamic state (not persisted across restarts; starts neutral).
         self._offer_w = 0.0
         self._armed = True
@@ -161,6 +165,7 @@ class SocEqualiserController:
         controllable_states: Sequence[BatteryState],
         uncontrollable_states: Mapping[str, BatteryState],
         grid_w: float,
+        available_pv_w: float = 0.0,
     ) -> SocEqualiserResult:
         """Update the offer for one tick and return it.
 
@@ -170,9 +175,21 @@ class SocEqualiserController:
             uncontrollable_states: Steered battery states, keyed by device name.
             grid_w: Current (filtered) grid power, positive = import. Used to
                 detect when the offer is leaking to the grid.
+            available_pv_w: PV production of the controllable fleet. The offer is
+                gated on it (``< min_pv_w`` -> no steering) and capped to it, so
+                the equaliser only redistributes **solar** -- never drains a
+                battery into another at a round-trip loss.
         """
         available = [s for s in controllable_states if s.available]
         if not available or not self._uncontrollable:
+            self._offer_w = self._slew(self._offer_w, 0.0)
+            self._reset_dynamics()
+            return self._result(None, in_deadband=True)
+
+        if available_pv_w < self._min_pv_w:
+            # Not enough solar to redistribute: relax to 0 rather than move stored
+            # energy battery-to-battery (lossy).
+            self._armed = False
             self._offer_w = self._slew(self._offer_w, 0.0)
             self._reset_dynamics()
             return self._result(None, in_deadband=True)
@@ -216,6 +233,9 @@ class SocEqualiserController:
 
         self._armed = True
         offer_target = self._clamp_offer(offer_target)
+        # Never transfer more than the controllable fleet's PV: redistribute solar,
+        # don't drain its battery into the automatic one (round-trip loss).
+        offer_target = max(-available_pv_w, min(available_pv_w, offer_target))
         if self._prev_fa_meas is None:
             self._prev_fa_meas = fa_meas
         self._observe_lag(fa_meas)

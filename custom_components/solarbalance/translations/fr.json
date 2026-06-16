@@ -93,6 +93,7 @@
           "soc_equaliser_kp_w_per_pct": "Équaliseur SoC : gain (W/%)",
           "soc_equaliser_deadband_pct": "Équaliseur SoC : bande morte (%)",
           "soc_equaliser_probe_step_w": "Équaliseur SoC : pas par mouvement (W)",
+          "soc_equaliser_min_pv_w": "Équaliseur SoC : PV mini pour agir / plafond (W)",
           "soc_equaliser_cadence_ticks": "Équaliseur SoC : cadence (ticks entre mouvements)",
           "soc_equaliser_adaptive_cadence": "Équaliseur SoC : cadence adaptative (suit le retard mesuré)",
           "autotune_enabled": "Auto-réglage : amortit les gains ZI/équaliseur en cas d'oscillation",
