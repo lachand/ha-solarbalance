@@ -15,6 +15,8 @@ CONF_PHASES: Final = "phases"
 CONF_SUBSCRIBED_POWER_KVA: Final = "subscribed_power_kva"
 CONF_PV_FORECAST_ENTITY: Final = "pv_forecast_entity"
 CONF_WEATHER_WARNING_ENTITY: Final = "weather_warning_entity"
+CONF_WEATHER_PHENOMENA: Final = "weather_phenomena"
+CONF_WEATHER_MIN_LEVEL: Final = "weather_min_level"
 CONF_SOC_EQUALISER_ENABLED: Final = "soc_equaliser_enabled"
 CONF_SOC_EQUALISER_MAX_W: Final = "soc_equaliser_max_w"
 CONF_SOC_EQUALISER_KP_W_PER_PCT: Final = "soc_equaliser_kp_w_per_pct"
@@ -62,6 +64,8 @@ DEFAULT_ZERO_INJECTION_HYSTERESIS_W: Final = 50
 # (0.3-0.4) for slow/cloud batteries with actuation lag. See SPECIFICATIONS §6.3.
 DEFAULT_ZERO_INJECTION_KP: Final = 0.6
 DEFAULT_PHASES: Final = 1
+# Minimum Météo-France colour that triggers storm mode (jaune | orange | rouge).
+DEFAULT_WEATHER_MIN_LEVEL: Final = "orange"
 DEFAULT_BALANCING_ALPHA: Final = 0.6
 DEFAULT_SOC_EQUALISER_MAX_W: Final = 1500
 DEFAULT_SOC_EQUALISER_KP_W_PER_PCT: Final = 80.0

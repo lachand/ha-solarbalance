@@ -26,6 +26,7 @@ from ..core.models import (
     PowerSignConvention,
     Snapshot,
 )
+from ..core.weather import PHENOMENA, normalize_phenomenon, weather_warning_active
 
 _LOGGER = logging.getLogger(__name__)
 _INVALID_STATES = {STATE_UNAVAILABLE, STATE_UNKNOWN, None, ""}
@@ -43,6 +44,8 @@ class EntityReader:
         *,
         pv_forecast_entity: str | None = None,
         weather_warning_entity: str | None = None,
+        weather_phenomena: Sequence[str] = (),
+        weather_min_rank: int = 2,
         current_import_price: float | None = None,
         current_export_price: float | None = None,
         state_getter: Callable[[str], State | None] | None = None,
@@ -53,6 +56,8 @@ class EntityReader:
         self._loads = tuple(loads or [])
         self._pv_forecast_entity = pv_forecast_entity
         self._weather_warning_entity = weather_warning_entity
+        self._weather_phenomena = tuple(weather_phenomena)
+        self._weather_min_rank = weather_min_rank
         self._current_import_price = current_import_price
         self._current_export_price = current_export_price
         # Indirection so a replay can feed historical states instead of live ones.
@@ -212,6 +217,16 @@ class EntityReader:
         state = self._get_state(self._weather_warning_entity)
         if state is None:
             return False
+        # Météo-France weather_alert exposes one attribute per phenomenon (e.g.
+        # "Vent violent": "Orange"). When present, filter by the watched phenomena
+        # and minimum level so e.g. a Canicule alert does not trigger storm mode.
+        if any(normalize_phenomenon(k) in PHENOMENA for k in state.attributes):
+            return weather_warning_active(
+                state.attributes,
+                watched=self._weather_phenomena,
+                min_rank=self._weather_min_rank,
+            )
+        # Plain binary_sensor (on/off) or a single-level sensor.
         if state.state == "on":
             return True
         if state.state == "off":
