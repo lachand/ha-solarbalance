@@ -154,6 +154,12 @@ STORE_VERSION: Final = 1
 CONF_DRY_RUN: Final = "dry_run"
 DEFAULT_DRY_RUN: Final = False
 
+# Don't discharge the controllable fleet to feed a self-charging non-controllable
+# (cloud) battery: raise the ZI setpoint by that battery's charge power so the
+# loop tolerates it (it draws from the grid) instead of draining the fleet.
+CONF_EXCLUDE_NONCONTROLLABLE_CHARGE: Final = "exclude_noncontrollable_charge"
+DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE: Final = True
+
 # Active grid-overload protection: shed/reduce loads before the breaker trips.
 CONF_OVERLOAD_PROTECTION_ENABLED: Final = "overload_protection_enabled"
 DEFAULT_OVERLOAD_PROTECTION_ENABLED: Final = False

@@ -37,6 +37,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.1] — 2026-06-16
+
+### Added
+
+- **Ne pas décharger le parc pour nourrir une batterie non-pilotable qui se
+  recharge seule** — une batterie cloud (sans pilotage actif) peut décider de se
+  recharger toute seule ; sa charge passe par le compteur, donc la zéro-injection
+  déchargeait le parc pilotable pour la couvrir (transfert batterie→batterie en
+  pertes, pire la nuit sans PV). Le setpoint ZI est désormais relevé de la
+  puissance de charge de cette batterie (plafonné à l'import réseau, après le
+  feed-forward de charge forcée) → la batterie cloud tire **sur le réseau**
+  (une seule conversion) au lieu de **vider le parc**. Activé par défaut, option
+  *« Ne pas décharger le parc pour alimenter une batterie non-pilotable (cloud)
+  qui se recharge seule »* dans *Configurer → Régulation*.
+
+### Changed
+
+- **`sw_version` du device lu depuis le manifest** — la version logicielle de
+  l'appareil HEMS est lue automatiquement au démarrage (plus de valeur en dur).
+
 ## [2.0.0] — 2026-06-16
 
 Première version **stable de la v2** (Vague 4, étape 1) — consolide les
@@ -462,6 +482,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.1]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.13...v2.0.0
 [2.0.0-beta.13]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.12...v2.0.0-beta.13
 [2.0.0-beta.12]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.11...v2.0.0-beta.12

@@ -30,6 +30,7 @@ from .const import (
     CONF_DRY_RUN,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
+    CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
     CONF_EXPORT_PRICE,
     CONF_FORECAST_SAFETY_FACTOR,
     CONF_GRID_FILTER_SAMPLES,
@@ -80,6 +81,7 @@ from .const import (
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
     DEFAULT_DRY_RUN,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
+    DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FORECAST_SAFETY_FACTOR,
     DEFAULT_GRID_FILTER_SAMPLES,
@@ -135,6 +137,7 @@ from .core.controllers.overload import SheddableLoad, relieve_overload
 from .core.controllers.regulation import (
     apply_equaliser_offer,
     apply_slew_limit,
+    noncontrollable_charge_offset_w,
     predictive_steering_w,
     resolve_fleet_target_w,
 )
@@ -441,6 +444,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         self._predictive_control_enabled = bool(cfg.get(CONF_PREDICTIVE_CONTROL_ENABLED, False))
         self._dry_run = bool(cfg.get(CONF_DRY_RUN, DEFAULT_DRY_RUN))
+        self._exclude_noncontrollable_charge = bool(
+            cfg.get(
+                CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
+                DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
+            )
+        )
         # Integration version, set by async_setup_entry from the manifest; shown as
         # the device sw_version (no manual bump needed).
         self.version: str | None = None
@@ -1500,7 +1509,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # The equaliser offer is NOT biased into the ZI setpoint anymore (it
             # could not force a discharge against local PV charging); it is applied
             # as a direct floor on the fleet target below (apply_equaliser_offer).
-            effective_setpoint_w = self._zi_setpoint_w + self._force_charge_grid_offset_w(snapshot)
+            force_offset_w = self._force_charge_grid_offset_w(snapshot)
+            effective_setpoint_w = (
+                self._zi_setpoint_w
+                + force_offset_w
+                + self._noncontrollable_charge_offset_w(snapshot, grid_filtered_w, force_offset_w)
+            )
             if (
                 self._per_phase_zi
                 and isinstance(self._zi_controller, PerPhaseZeroInjectionController)
@@ -2227,6 +2241,31 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             draw = max(0.0, measured.get(load.name, 0.0))
             total += min(draw, float(_load_nominal_w(load)))
         return total
+
+    def _noncontrollable_charge_offset_w(
+        self, snapshot: Snapshot, grid_filtered_w: float, force_offset_w: float
+    ) -> float:
+        """Don't drain the controllable fleet to feed a self-charging cloud battery.
+
+        A non-controllable (e.g. cloud) battery -- one without active control --
+        may decide to charge on its own. Its charge power flows through the grid
+        meter, so the zero-injection loop would otherwise discharge the
+        controllable fleet to cover it: a lossy battery-to-battery transfer, worst
+        at night with no PV. Raising the ZI setpoint by that charge power makes the
+        loop tolerate it instead, so the cloud battery draws from the grid (single
+        conversion) rather than draining the fleet.
+
+        Capped at the remaining grid *import* (after the force-charge feed-forward)
+        so it never makes the fleet charge from the grid during a PV surplus.
+        """
+        if not self._exclude_noncontrollable_charge:
+            return 0.0
+        charge = sum(
+            max(0.0, b.power_w)
+            for b in snapshot.batteries
+            if b.available and b.device_name not in self._controllable_battery_names
+        )
+        return noncontrollable_charge_offset_w(charge, grid_filtered_w, force_offset_w)
 
     def _load_floor_w(self, load: Load) -> tuple[float, bool]:
         """Return (floor_w, reducible) for overload relief — how low a load may run."""

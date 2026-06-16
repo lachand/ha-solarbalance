@@ -98,7 +98,8 @@
           "soc_equaliser_adaptive_cadence": "Équaliseur SoC : cadence adaptative (suit le retard mesuré)",
           "autotune_enabled": "Auto-réglage : amortit les gains ZI/équaliseur en cas d'oscillation",
           "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)",
-          "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)"
+          "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
+          "exclude_noncontrollable_charge": "Ne pas décharger le parc pour alimenter une batterie non-pilotable (cloud) qui se recharge seule"
         }
       },
       "forecast": {

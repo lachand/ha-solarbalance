@@ -60,6 +60,27 @@ def apply_equaliser_offer(target_w: float, offer_w: float) -> float:
     return target_w
 
 
+def noncontrollable_charge_offset_w(
+    charge_w: float, grid_w: float, force_offset_w: float = 0.0
+) -> float:
+    """Zero-injection setpoint offset that spares the fleet a cloud battery's charge.
+
+    A non-controllable (e.g. cloud) battery may charge on its own; that power flows
+    through the grid meter, so the zero-injection loop would discharge the
+    controllable fleet to cover it -- a lossy battery-to-battery transfer (worst at
+    night with no PV). Raising the ZI setpoint by ``charge_w`` makes the loop
+    tolerate that import instead, so the cloud battery draws from the grid.
+
+    ``charge_w`` is the cloud battery's charge power (>= 0). The offer is capped at
+    the remaining grid *import* (``grid_w - force_offset_w``, after the
+    force-charge feed-forward) so it never makes the fleet charge from the grid
+    during a PV surplus (when the grid is exporting, the cap is 0).
+    """
+    if charge_w <= 0.0:
+        return 0.0
+    return min(charge_w, max(0.0, grid_w - force_offset_w))
+
+
 def predictive_steering_w(
     *,
     base_target_w: float,

@@ -23,6 +23,7 @@ from .const import (
     CONF_DRY_RUN,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
+    CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
     CONF_EXPORT_PRICE,
     CONF_FORECAST_SAFETY_FACTOR,
     CONF_GRID_FILTER_SAMPLES,
@@ -73,6 +74,7 @@ from .const import (
     DEFAULT_BASELINE_WINDOW_START_H,
     DEFAULT_DRY_RUN,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
+    DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FORECAST_SAFETY_FACTOR,
     DEFAULT_GRID_FILTER_SAMPLES,
@@ -205,6 +207,13 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             CONF_LOAD_CONTROL_ENABLED, default=d.get(CONF_LOAD_CONTROL_ENABLED, False)
         ): bool,
         vol.Optional(CONF_DRY_RUN, default=d.get(CONF_DRY_RUN, DEFAULT_DRY_RUN)): bool,
+        vol.Optional(
+            CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
+            default=d.get(
+                CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
+                DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
+            ),
+        ): bool,
         vol.Optional(
             CONF_EVENING_SHED_ENABLED, default=d.get(CONF_EVENING_SHED_ENABLED, False)
         ): bool,

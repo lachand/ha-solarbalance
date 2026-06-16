@@ -5,6 +5,7 @@ import pytest
 from custom_components.solarbalance.core.controllers.regulation import (
     apply_equaliser_offer,
     apply_slew_limit,
+    noncontrollable_charge_offset_w,
     predictive_steering_w,
     resolve_fleet_target_w,
 )
@@ -26,6 +27,30 @@ from custom_components.solarbalance.core.controllers.regulation import (
 )
 def test_apply_equaliser_offer(target: float, offer: float, expected: float) -> None:
     assert apply_equaliser_offer(target, offer) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("charge", "grid", "force_offset", "expected"),
+    [
+        # Night: cloud battery charges 400 from AC -> grid imports 400. Spare the
+        # whole 400 so the fleet does not discharge to feed it.
+        (400.0, 400.0, 0.0, 400.0),
+        # Grid imports less than the cloud charge -> only spare what's on the grid
+        # (the rest is already covered by PV/fleet, not a battery-to-battery drain).
+        (400.0, 250.0, 0.0, 250.0),
+        # PV surplus (grid exporting) -> no offset, never charge the fleet from grid.
+        (400.0, -1100.0, 0.0, 0.0),
+        # Force-charge feed-forward already consumes part of the import.
+        (400.0, 700.0, 300.0, 400.0),
+        (400.0, 500.0, 300.0, 200.0),
+        # No cloud battery charging -> no offset.
+        (0.0, 400.0, 0.0, 0.0),
+    ],
+)
+def test_noncontrollable_charge_offset(
+    charge: float, grid: float, force_offset: float, expected: float
+) -> None:
+    assert noncontrollable_charge_offset_w(charge, grid, force_offset) == pytest.approx(expected)
 
 
 def test_resolve_zi_owns_loop() -> None:

@@ -98,7 +98,8 @@
           "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)",
           "autotune_enabled": "Auto-tune: damp ZI/equaliser gains when they oscillate",
           "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
-          "dry_run": "Dry-run (compute everything, never write to hardware)"
+          "dry_run": "Dry-run (compute everything, never write to hardware)",
+          "exclude_noncontrollable_charge": "Don't discharge the fleet to feed a self-charging non-controllable (cloud) battery"
         }
       },
       "forecast": {
