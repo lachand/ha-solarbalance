@@ -1073,6 +1073,25 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def _static_config_issues(self) -> list[str]:
         """Configuration mistakes detectable from the declared equipment alone."""
         issues: list[str] = []
+        ac_devices = [
+            d.name
+            for d in self._devices
+            if (d.battery is not None and d.battery.active_control_enabled)
+            or (d.mppt is not None and d.mppt.active_control_enabled)
+        ]
+        if ac_devices and not self._active_control_enabled:
+            issues.append(
+                "Pilotage actif configuré sur "
+                + ", ".join(f"« {n} »" for n in ac_devices)
+                + " mais l'option globale « Pilotage actif » est désactivée → "
+                "les consignes ne sont PAS écrites sur le matériel "
+                "(Configurer → Régulation)."
+            )
+        elif ac_devices and self._dry_run:
+            issues.append(
+                "Pilotage actif configuré mais mode Simulation (dry_run) actif → "
+                "les consignes sont calculées mais jamais écrites."
+            )
         for device in self._devices:
             battery = device.battery
             if battery is None:

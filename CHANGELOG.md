@@ -37,6 +37,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.0-beta.11] — 2026-06-16
+
+### Added
+
+- **Garde-fou pilotage actif** — si un appareil a `active_control_enabled` mais que
+  l'option **globale** est désactivée (ou que `dry_run` est actif), un diagnostic
+  `config_health` + notification persistante avertit que **les consignes ne sont
+  pas écrites**. Évite le piège « device coché mais global off → rien ne se passe ».
+
 ## [2.0.0-beta.10] — 2026-06-16
 
 ### Added
@@ -406,6 +415,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.0-beta.11]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.10...v2.0.0-beta.11
 [2.0.0-beta.10]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.9...v2.0.0-beta.10
 [2.0.0-beta.9]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.8...v2.0.0-beta.9
 [2.0.0-beta.8]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.7...v2.0.0-beta.8
