@@ -210,7 +210,10 @@
         }
       },
       "error": {
-        "invalid_device": "Configuration de batterie invalide — vérifiez les entités (domaine requis, ex. number.x) et les consignes."
+        "invalid_device": "Configuration de batterie invalide — vérifiez les entités (domaine requis, ex. number.x) et les consignes.",
+        "battery_no_power": "Capteur de puissance manquant : renseignez l'entité Puissance signée, OU les deux entités de puissance Charge et Décharge.",
+        "battery_active_no_setpoint": "Pilotage actif coché mais aucune entité de consigne — ajoutez une consigne charge, décharge ou mode (number./select.), ou décochez le pilotage actif.",
+        "battery_active_needs_controllable": "Le pilotage actif exige une batterie pilotable — activez Pilotable, ou décochez le pilotage actif."
       }
     },
     "load": {
@@ -472,7 +475,10 @@
         }
       },
       "error": {
-        "invalid_device": "Configuration invalide — vérifiez les entités batterie et onduleur (domaine requis)."
+        "invalid_device": "Configuration invalide — vérifiez les entités batterie et onduleur (domaine requis).",
+        "battery_no_power": "Capteur de puissance manquant : renseignez l'entité Puissance signée, OU les deux entités de puissance Charge et Décharge.",
+        "battery_active_no_setpoint": "Pilotage actif coché mais aucune entité de consigne — ajoutez une consigne charge, décharge ou mode (number./select.), ou décochez le pilotage actif.",
+        "battery_active_needs_controllable": "Le pilotage actif exige une batterie pilotable — activez Pilotable, ou décochez le pilotage actif."
       }
     }
   },

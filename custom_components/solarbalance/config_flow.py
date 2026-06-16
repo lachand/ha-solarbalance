@@ -584,6 +584,10 @@ class _EquipmentSubentryFlow(ConfigSubentryFlow):
     def _prefill(self, data: dict[str, Any]) -> dict[str, Any]:
         return dict(data)
 
+    def _error_key_for(self, exc: Exception) -> str:
+        """Map a build/validation exception to a form error key (overridable)."""
+        return self._error_key
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self._show("user", user_input)
 
@@ -601,7 +605,7 @@ class _EquipmentSubentryFlow(ConfigSubentryFlow):
                 self._build(data)
             except (vol.Invalid, ValueError, KeyError) as exc:
                 _LOGGER.warning("Invalid %s subentry: %s", self._subentry_type, exc)
-                errors["base"] = self._error_key
+                errors["base"] = self._error_key_for(exc)
             else:
                 title = str(user_input["name"])
                 if step_id == "reconfigure":
@@ -630,6 +634,18 @@ class _DeviceSubentryFlow(_EquipmentSubentryFlow):
         build_device_from_dict(data)
 
 
+def _battery_error_key(exc: Exception, default: str) -> str:
+    """Map a battery build error to a specific form error key for clearer UX."""
+    msg = str(exc)
+    if "either power_entity or both" in msg:
+        return "battery_no_power"
+    if "active_control_enabled requires at least one" in msg:
+        return "battery_active_no_setpoint"
+    if "active_control_enabled requires controllable" in msg:
+        return "battery_active_needs_controllable"
+    return default
+
+
 class BatterySubentryFlowHandler(_DeviceSubentryFlow):
     """Add or reconfigure a battery device from the UI."""
 
@@ -641,6 +657,9 @@ class BatterySubentryFlowHandler(_DeviceSubentryFlow):
 
     def _prefill(self, data: dict[str, Any]) -> dict[str, Any]:
         return _battery_flat(data)
+
+    def _error_key_for(self, exc: Exception) -> str:
+        return _battery_error_key(exc, self._error_key)
 
 
 def _parse_steps(text: str) -> list[dict[str, int]]:
@@ -993,3 +1012,6 @@ class BatteryMpptSubentryFlowHandler(_DeviceSubentryFlow):
         prefill = _battery_flat(data)
         prefill["roles"] = {"mppt": data.get("roles", {}).get("mppt", {})}
         return prefill
+
+    def _error_key_for(self, exc: Exception) -> str:
+        return _battery_error_key(exc, self._error_key)

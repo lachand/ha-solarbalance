@@ -37,6 +37,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.0-beta.3] — 2026-06-16
+
+### Changed
+
+- **Messages d'erreur de config batterie spécifiques** — au lieu du texte
+  générique « Invalid battery configuration… », le formulaire indique désormais la
+  cause exacte : *capteur de puissance manquant* (renseigner Puissance signée OU
+  Charge + Décharge), *pilotage actif sans consigne*, ou *pilotage actif sans
+  batterie pilotable*. (FR/EN, types Batterie et Batterie + onduleur.)
+
 ## [2.0.0-beta.2] — 2026-06-16
 
 > Vague 4 (étape 1, **pré-release**) — capteurs d'énergie, mapping 2 capteurs en
@@ -318,6 +328,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.0-beta.3]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.2...v2.0.0-beta.3
 [2.0.0-beta.2]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.1...v2.0.0-beta.2
 [2.0.0-beta.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.11.1...v2.0.0-beta.1
 [1.11.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.11.0...v1.11.1

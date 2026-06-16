@@ -210,7 +210,10 @@
         }
       },
       "error": {
-        "invalid_device": "Invalid battery configuration — check the entities (domain required, e.g. number.x) and setpoints."
+        "invalid_device": "Invalid battery configuration — check the entities (domain required, e.g. number.x) and setpoints.",
+        "battery_no_power": "Missing battery power sensor: set the signed Power entity, OR both the Charge and Discharge power entities.",
+        "battery_active_no_setpoint": "Active control is on but no setpoint entity is set — add a charge, discharge or mode setpoint (number./select.), or turn Active control off.",
+        "battery_active_needs_controllable": "Active control requires a controllable battery — enable Controllable, or turn Active control off."
       }
     },
     "load": {
@@ -472,7 +475,10 @@
         }
       },
       "error": {
-        "invalid_device": "Invalid configuration — check the battery and inverter entities (domain required)."
+        "invalid_device": "Invalid configuration — check the battery and inverter entities (domain required).",
+        "battery_no_power": "Missing battery power sensor: set the signed Power entity, OR both the Charge and Discharge power entities.",
+        "battery_active_no_setpoint": "Active control is on but no setpoint entity is set — add a charge, discharge or mode setpoint (number./select.), or turn Active control off.",
+        "battery_active_needs_controllable": "Active control requires a controllable battery — enable Controllable, or turn Active control off."
       }
     }
   },
