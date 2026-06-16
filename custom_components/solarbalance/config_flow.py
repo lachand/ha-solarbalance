@@ -598,6 +598,7 @@ class _EquipmentSubentryFlow(ConfigSubentryFlow):
 
     async def _show(self, step_id: str, user_input: dict[str, Any] | None) -> SubentryFlowResult:
         errors: dict[str, str] = {}
+        placeholders: dict[str, str] = {"reason": ""}
         defaults: dict[str, Any] = user_input or {}
         if user_input is not None:
             try:
@@ -606,6 +607,7 @@ class _EquipmentSubentryFlow(ConfigSubentryFlow):
             except (vol.Invalid, ValueError, KeyError) as exc:
                 _LOGGER.warning("Invalid %s subentry: %s", self._subentry_type, exc)
                 errors["base"] = self._error_key_for(exc)
+                placeholders["reason"] = str(exc)
             else:
                 title = str(user_input["name"])
                 if step_id == "reconfigure":
@@ -619,7 +621,10 @@ class _EquipmentSubentryFlow(ConfigSubentryFlow):
         elif step_id == "reconfigure":
             defaults = self._prefill(self._get_reconfigure_subentry().data)
         return self.async_show_form(
-            step_id=step_id, data_schema=self._schema(defaults), errors=errors
+            step_id=step_id,
+            data_schema=self._schema(defaults),
+            errors=errors,
+            description_placeholders=placeholders,
         )
 
 
