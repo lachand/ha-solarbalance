@@ -66,9 +66,10 @@ DEFAULT_BALANCING_ALPHA: Final = 0.6
 DEFAULT_SOC_EQUALISER_MAX_W: Final = 1500
 DEFAULT_SOC_EQUALISER_KP_W_PER_PCT: Final = 80.0
 DEFAULT_SOC_EQUALISER_DEADBAND_PCT: Final = 2.0
-# Max change of the steering offer per move (W), symmetric (incl. resets). The
-# offer is proportional to the SoC error (not integrating). See SPECIFICATIONS §6.6.
-DEFAULT_SOC_EQUALISER_PROBE_STEP_W: Final = 150.0
+# Upper bound on the steering-offer change per move (W). The step is proportional
+# to the remaining gap (fast when far, gentle near equilibrium), capped here.
+# See SPECIFICATIONS §6.6.
+DEFAULT_SOC_EQUALISER_PROBE_STEP_W: Final = 600.0
 # Min ticks between offer moves (slow outer loop). With adaptive cadence on, the
 # effective value tracks the automatic battery's measured response lag.
 DEFAULT_SOC_EQUALISER_CADENCE_TICKS: Final = 6

@@ -37,6 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.0-beta.7] — 2026-06-16
+
+### Changed
+
+- **Équaliseur SoC — pas proportionnel à l'écart** : l'offre fait des **gros pas
+  quand le SoC est loin de la cible** (un grand écart se corrige en quelques
+  minutes au lieu de ~30) et des **pas doux près de l'équilibre** (anti-pompage
+  conservé). Plafond `soc_equaliser_probe_step_w` relevé (défaut 150 → 600 W ;
+  c'est désormais la borne haute du pas, pas un pas fixe).
+
+### Reverted
+
+- **Filtre vigilances Météo-France par phénomène (beta.6)** — provoquait un
+  passage en mode dégradé (« entité manquante »). Retiré ; sera réintégré proprement
+  après diagnostic.
+
 ## [2.0.0-beta.5] — 2026-06-16
 
 ### Fixed
@@ -347,6 +363,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.0-beta.7]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.5...v2.0.0-beta.7
 [2.0.0-beta.5]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.4...v2.0.0-beta.5
 [2.0.0-beta.4]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.3...v2.0.0-beta.4
 [2.0.0-beta.3]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.2...v2.0.0-beta.3

@@ -59,8 +59,9 @@ def _run(
 
 
 def test_offer_converges_to_proportional_target_and_holds() -> None:
-    # error 5 %, kp 80 -> offer target 400 W. The offer slews there and *stops*
-    # (an integrator would keep ramping 150, 300, 450, 600...).
+    # error 5 %, kp 80 -> offer target 400 W. Steps are proportional to the
+    # remaining gap; the offer approaches 400, settles and holds without ever
+    # overshooting (an integrator would keep ramping past it).
     ctrl = SocEqualiserController(
         [("auto", _role())],
         kp_w_per_pct=80.0,
@@ -69,14 +70,10 @@ def test_offer_converges_to_proportional_target_and_holds() -> None:
         adaptive_cadence=False,
         max_offer_w=1500.0,
     )
-    out = _run(ctrl, fleet_soc=55.0, auto_soc=50.0, ticks=5)
-    assert out == [
-        pytest.approx(150.0),
-        pytest.approx(300.0),
-        pytest.approx(400.0),
-        pytest.approx(400.0),
-        pytest.approx(400.0),
-    ]
+    out = _run(ctrl, fleet_soc=55.0, auto_soc=50.0, ticks=10)
+    assert out == sorted(out)  # monotonically approaching
+    assert max(out) <= 400.0 + 1e-6  # never overshoots the target
+    assert out[-1] == pytest.approx(400.0)  # settled at the proportional target
 
 
 def test_above_target_offers_negative() -> None:
@@ -214,8 +211,9 @@ def test_decays_to_zero_within_deadband() -> None:
         soc_deadband_pct=2.0,
     )
     _run(ctrl, fleet_soc=90.0, auto_soc=20.0, ticks=2)  # offer 300
-    out = _run(ctrl, fleet_soc=50.5, auto_soc=50.0, ticks=3)  # within deadband -> decay
-    assert out == [pytest.approx(150.0), pytest.approx(0.0), pytest.approx(0.0)]
+    out = _run(ctrl, fleet_soc=50.5, auto_soc=50.0, ticks=8)  # within deadband -> decay
+    assert out == sorted(out, reverse=True)  # monotonically relaxing toward 0
+    assert out[-1] == pytest.approx(0.0)  # reaches 0
 
 
 # -- symmetric slew on reset (fix #3) --------------------------------------

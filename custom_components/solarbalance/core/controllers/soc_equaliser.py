@@ -49,6 +49,11 @@ _LEAK_W = 100.0
 _FA_RESPONSE_W = 100.0
 # EMA weight for the measured response-lag estimate (slow, robust to noise).
 _LAG_EMA_ALPHA = 0.3
+# Per-move step is proportional to the remaining distance to the target: big steps
+# when far (fast correction of a large SoC gap), gentle steps near equilibrium (no
+# pumping). Bounded below by _MIN_STEP_W and above by the configured step_w.
+_APPROACH_GAIN = 0.5
+_MIN_STEP_W = 25.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -81,7 +86,8 @@ class SocEqualiserController:
         kp_w_per_pct: Gain mapping SoC error (%) to the offer target (W).
         max_offer_w: Hard clamp on the grid-setpoint offer.
         soc_deadband_pct: SoC deadband half-width; within it, no steering.
-        step_w: Max change of the offer per move (symmetric slew, incl. resets).
+        step_w: Upper bound on the per-move offer change (the step is proportional
+            to the remaining gap, capped here; symmetric, incl. resets).
         cadence_ticks: Minimum ticks between offer moves (the slow-loop floor).
         adaptive_cadence: Derive the cadence from the measured response lag.
         max_cadence_ticks: Upper clamp on the (adaptive) cadence.
@@ -249,13 +255,17 @@ class SocEqualiserController:
         return max(-self._max_offer_w, min(self._max_offer_w, value))
 
     def _slew(self, value: float, target: float) -> float:
-        """Move ``value`` toward ``target`` by at most ``step_w`` (symmetric)."""
-        delta = target - value
-        if delta > self._step_w:
-            delta = self._step_w
-        elif delta < -self._step_w:
-            delta = -self._step_w
-        return value + delta
+        """Move ``value`` toward ``target``, proportionally to the remaining gap.
+
+        The step is ``|remaining| * _APPROACH_GAIN`` bounded to ``[_MIN_STEP_W,
+        step_w]`` -- big when far (a large SoC gap is corrected in a few moves),
+        gentle near equilibrium (no pumping). Snaps to target within the floor.
+        """
+        remaining = target - value
+        if abs(remaining) <= _MIN_STEP_W:
+            return target
+        magnitude = min(self._step_w, max(_MIN_STEP_W, abs(remaining) * _APPROACH_GAIN))
+        return value + (magnitude if remaining > 0 else -magnitude)
 
     def _is_leaking(self, grid_w: float, fa_meas: float) -> bool:
         """True when the offer is reaching the grid, not the automatic battery."""
