@@ -52,6 +52,31 @@ def test_oscillation_detected_around_a_nonzero_offset() -> None:
     assert out < 600.0
 
 
+def test_no_suggestion_while_calm() -> None:
+    t = RegulationAutoTuner(default=0.6, min_value=0.15, window_ticks=10, adapt_every=5)
+    _feed(t, [float(i) for i in range(60)])  # calm -> stays at default
+    assert t.suggested_value() is None
+
+
+def test_suggests_operating_point_after_repeated_damping() -> None:
+    t = RegulationAutoTuner(
+        default=0.6, min_value=0.15, window_ticks=10, adapt_every=5, loosen_factor=0.8
+    )
+    # Sustained oscillation -> repeatedly loosened, EMA settles well below default.
+    _feed(t, [100.0 if i % 2 == 0 else -100.0 for i in range(400)])
+    s = t.suggested_value()
+    assert s is not None
+    assert s < 0.6 * (1 - 0.15)  # meaningfully below the configured default
+    assert s >= 0.15
+
+
+def test_reset_clears_suggestion() -> None:
+    t = RegulationAutoTuner(default=0.6, min_value=0.15, window_ticks=10, adapt_every=5)
+    _feed(t, [100.0 if i % 2 == 0 else -100.0 for i in range(400)])
+    t.reset()
+    assert t.suggested_value() is None
+
+
 def test_reset_restores_default() -> None:
     t = RegulationAutoTuner(default=0.6, min_value=0.15, window_ticks=10, adapt_every=5)
     _feed(t, [100.0 if i % 2 == 0 else -100.0 for i in range(60)])

@@ -406,6 +406,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._baseline_notification_sent: bool = False
         self._notifications_enabled = bool(cfg.get(CONF_NOTIFICATIONS_ENABLED, True))
         self._alerts_sent: dict[str, bool] = {}
+        self._autotune_suggested: dict[str, float] = {}
         self._event_edges: dict[str, bool] = {}
         self._daily_history: list[dict[str, Any]] = []
         # Cumulative savings, reset on month/year rollover (persisted).
@@ -1624,6 +1625,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             autotune_zi_kp=self._zi_tuner.value if self._zi_tuner else 0.0,
             autotune_equaliser_step_w=self._eq_tuner.value if self._eq_tuner else 0.0,
         )
+        self._autotune_suggestions()
 
         # Surplus available to pilotable loads: the export we would still have
         # after the controllable fleet takes its allocated charge. Uses the
@@ -2587,6 +2589,45 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 async_dismiss(self.hass, self._BASELINE_NOTIFICATION_ID)
                 self._baseline_notification_sent = False
             self._negative_baseline_ticks = 0
+
+    def _autotune_suggestions(self) -> None:
+        """Suggest a new configured value when a tuner keeps fighting the default.
+
+        When the auto-tuner has had to adapt a gain repeatedly and settles away
+        from the configured value, propose that operating point as a persistent
+        notification (debounced; dismissed when it no longer suggests anything).
+        """
+        if not self._notifications_enabled:
+            return
+        from homeassistant.components.persistent_notification import async_create, async_dismiss
+
+        for name, tuner, option, suggested_text in (
+            ("zi_kp", self._zi_tuner, "zero_injection_kp", lambda v: f"{v:.2f}"),
+            (
+                "eq_step",
+                self._eq_tuner,
+                "soc_equaliser_probe_step_w",
+                lambda v: f"{v:.0f} W",
+            ),
+        ):
+            notif_id = f"solarbalance_autotune_{name}"
+            suggested = tuner.suggested_value() if tuner is not None else None
+            if suggested is None:
+                if self._autotune_suggested.pop(name, None) is not None:
+                    async_dismiss(self.hass, notif_id)
+                continue
+            last = self._autotune_suggested.get(name)
+            if last is not None and abs(suggested - last) < 0.05 * max(abs(last), 1.0):
+                continue  # already notified ~this value
+            self._autotune_suggested[name] = suggested
+            async_create(
+                self.hass,
+                f"L'auto-réglage ajuste souvent **{option}**. Valeur suggérée : "
+                f"**{suggested_text(suggested)}**. Tu peux la définir dans "
+                f"Configurer → Régulation (l'auto-réglage repartira de cette base).",
+                title="SolarBalance — réglage suggéré",
+                notification_id=notif_id,
+            )
 
     def _fire_alert(self, notif_id: str, active: bool, *, title: str, message: str) -> None:
         """Create a persistent notification on the rising edge, dismiss on the falling edge."""

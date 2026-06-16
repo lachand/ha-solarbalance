@@ -37,6 +37,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.0-beta.10] — 2026-06-16
+
+### Added
+
+- **Suggestion de réglage par l'auto-tuner** — quand l'auto-réglage ajuste souvent
+  un gain et se stabilise nettement loin de la valeur configurée, une notification
+  persistante **propose la nouvelle valeur** (`zero_injection_kp` /
+  `soc_equaliser_probe_step_w`) à définir dans *Configurer → Régulation*. Débouncée,
+  retirée quand elle n'a plus lieu d'être.
+
+### Changed
+
+- **Intégration continue au vert** — `ruff` (lint + format), `mypy --strict` sur
+  `core/` et tests core tous propres : tri d'imports, `datetime.UTC`, unicode ASCII
+  dans docstrings/commentaires, typage du parseur de tarif, docstrings de protocole,
+  per-file-ignores D102 pour les plateformes HA. Aucun changement fonctionnel.
+
 ## [2.0.0-beta.9] — 2026-06-16
 
 ### Added
@@ -389,6 +406,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.0-beta.10]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.9...v2.0.0-beta.10
 [2.0.0-beta.9]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.8...v2.0.0-beta.9
 [2.0.0-beta.8]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.7...v2.0.0-beta.8
 [2.0.0-beta.7]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.5...v2.0.0-beta.7

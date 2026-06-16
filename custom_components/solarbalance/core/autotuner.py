@@ -13,6 +13,12 @@ no Home Assistant imports.
 
 from collections import deque
 
+# Suggestion: once the tuner has adapted at least this many times and its smoothed
+# value sits this far (relative) from the configured default, propose it.
+_SUGGEST_AFTER_ADAPTS = 8
+_SUGGEST_REL_DELTA = 0.15
+_EMA_ALPHA = 0.3
+
 
 def _sign(x: float) -> int:
     if x > 0.0:
@@ -68,6 +74,10 @@ class RegulationAutoTuner:
         self._signs: deque[int] = deque(maxlen=window_ticks)
         self._last: float | None = None
         self._ticks = 0
+        # Suggestion tracking: when the tuner keeps adjusting, its EMA reflects the
+        # value the loop actually wants -- worth proposing as a new configured value.
+        self._adapt_count = 0
+        self._value_ema = default
 
     @property
     def value(self) -> float:
@@ -80,6 +90,8 @@ class RegulationAutoTuner:
         self._signs.clear()
         self._last = None
         self._ticks = 0
+        self._adapt_count = 0
+        self._value_ema = self._default
 
     def step(self, signal: float) -> float:
         """Record one sample of the control signal; adapt on schedule.
@@ -97,9 +109,28 @@ class RegulationAutoTuner:
             reversals = self._reversals()
             if reversals >= self._osc_high:
                 self._value = max(self._min, self._value * self._loosen)
+                self._adapt_count += 1
             elif reversals <= self._osc_low:
-                self._value = min(self._default, self._value * self._tighten)
+                restored = min(self._default, self._value * self._tighten)
+                if restored != self._value:
+                    self._adapt_count += 1
+                self._value = restored
+            self._value_ema = _EMA_ALPHA * self._value + (1.0 - _EMA_ALPHA) * self._value_ema
         return self._value
+
+    def suggested_value(self) -> float | None:
+        """A value to propose to the user, or ``None``.
+
+        Returns the smoothed operating point once the tuner has adapted often
+        enough (it keeps fighting the configured value) and that point sits
+        meaningfully away from the configured default -- a hint that the default
+        is mistuned. ``None`` while the default is working fine.
+        """
+        if self._adapt_count < _SUGGEST_AFTER_ADAPTS:
+            return None
+        if abs(self._value_ema - self._default) < _SUGGEST_REL_DELTA * self._default:
+            return None
+        return self._value_ema
 
     def _reversals(self) -> int:
         reversals = 0
