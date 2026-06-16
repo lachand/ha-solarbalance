@@ -37,6 +37,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.0] — 2026-06-16
+
+Première version **stable de la v2** (Vague 4, étape 1) — consolide les
+pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11 :
+
+- **Pilotage actif** des batteries/onduleurs (écriture des consignes charge /
+  décharge / mode + écrêtage micro-onduleur), opt-in global et par appareil, avec
+  garde-fou si configuré mais non activé.
+- **Équaliseur SoC** robuste pour batterie non-pilotable (cloud) : offre
+  proportionnelle, cadence lente **adaptative** au retard mesuré, anti-windup
+  conscient du temps mort, **plancher de décharge direct** (pousse le PV vers la
+  batterie auto même en charge), **gate & plafond sur la production PV** (ne
+  redistribue que du solaire, jamais de transvasement lossy).
+- **Auto-réglage supervisé** des gains ZI/équaliseur (amortit le pompage, restaure
+  au calme, borné) + **suggestion** de nouvelles valeurs.
+- **Observabilité énergie** : SoC moyen **pondéré par capacité**, capteurs
+  `battery_remaining` / `battery_usable`, diagnostics auto-réglage.
+- **Mapping batterie** : capteur signé **ou** couple charge/décharge, dans l'UI.
+- **Filtre vigilances Météo-France par phénomène** (ex. exclure Canicule).
+- **Corrections UI** (création batterie/compteur/load en float) + intégration
+  continue au vert.
+
 ## [2.0.0-beta.13] — 2026-06-16
 
 ### Added
@@ -440,6 +462,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.0]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.13...v2.0.0
 [2.0.0-beta.13]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.12...v2.0.0-beta.13
 [2.0.0-beta.12]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.11...v2.0.0-beta.12
 [2.0.0-beta.11]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.10...v2.0.0-beta.11

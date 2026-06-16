@@ -173,7 +173,8 @@ _DEVICE_INFO = DeviceInfo(
     identifiers={(DOMAIN, DOMAIN)},
     name="SolarBalance",
     manufacturer="SolarBalance",
-    model="HEMS v1",
+    model="HEMS",
+    sw_version="2.0.0",
 )
 
 
