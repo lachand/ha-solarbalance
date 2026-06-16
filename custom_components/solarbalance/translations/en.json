@@ -74,6 +74,8 @@
           "baseline_window_start_h": "Talon: night window start (h)",
           "baseline_window_end_h": "Talon: night window end (h)",
           "weather_warning_entity": "Météo-France warning entity (optional)",
+          "weather_phenomena": "Weather: phenomena that trigger storm mode",
+          "weather_min_level": "Weather: minimum alert level",
           "load_control_enabled": "Enable load control (switches)",
           "evening_shed_enabled": "End-of-day shedding (battery-charge priority)",
           "predictive_control_enabled": "Active predictive control (tariff-driven battery steering)",
@@ -483,6 +485,26 @@
     }
   },
   "selector": {
+    "weather_phenomena": {
+      "options": {
+        "canicule": "Heatwave",
+        "grandfroid": "Extreme cold",
+        "ventviolent": "High wind",
+        "orages": "Thunderstorms",
+        "neigeverglas": "Snow / ice",
+        "inondation": "Flooding",
+        "pluieinondation": "Rain / flooding",
+        "vaguessubmersion": "Coastal flooding",
+        "avalanches": "Avalanches"
+      }
+    },
+    "weather_min_level": {
+      "options": {
+        "jaune": "Yellow",
+        "orange": "Orange",
+        "rouge": "Red"
+      }
+    },
     "meter_kind": {
       "options": {
         "pdl": "PDL (grid)",

@@ -59,6 +59,8 @@ from .const import (
     CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
     CONF_VACATION_SOC_MAX_PCT,
+    CONF_WEATHER_MIN_LEVEL,
+    CONF_WEATHER_PHENOMENA,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_KP,
@@ -95,6 +97,7 @@ from .const import (
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_VACATION_SOC_MAX_PCT,
+    DEFAULT_WEATHER_MIN_LEVEL,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
     DEFAULT_ZI_SETTLE_MIN_DROP_W,
@@ -171,6 +174,7 @@ from .core.tariff import (
     build_tariff,
     parse_tempo_color,
 )
+from .core.weather import level_rank
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -412,6 +416,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             loads,
             pv_forecast_entity=self._pv_forecast_entity,
             weather_warning_entity=cfg.get("weather_warning_entity") or None,
+            weather_phenomena=cfg.get(CONF_WEATHER_PHENOMENA, ()) or (),
+            weather_min_rank=level_rank(
+                str(cfg.get(CONF_WEATHER_MIN_LEVEL, DEFAULT_WEATHER_MIN_LEVEL))
+            )
+            or 2,
         )
         self._publisher = DecisionPublisher()
         self._balancing = BalancingController(devices, alpha=DEFAULT_BALANCING_ALPHA)

@@ -79,6 +79,8 @@ Le Config Flow HA configure les **paramètres globaux**. Les équipements (batte
 | **Puissance souscrite** | 6 kVA | Puissance souscrite au contrat (3–36 kVA). Utilisée par la stratégie écrêtage de pointe. |
 | **Entité prévision PV** | — (optionnel) | Sensor HA exprimant la puissance PV prévue *maintenant* (en W). Compatible Solcast, Forecast.Solar, OpenMeteo via template. |
 | **Entité alerte météo** | — (optionnel) | `binary_sensor` ou `sensor` Météo-France vigilance. Déclenche le mode Tempête. |
+| **Météo : phénomènes** (`weather_phenomena`) | tous | Quels phénomènes de l'entité Météo-France déclenchent le mode Tempête (ex. décocher *Canicule*). Lu via les **attributs** de l'entité (`sensor.<dept>_weather_alert`). Sans effet sur un `binary_sensor` simple. |
+| **Météo : niveau minimum** (`weather_min_level`) | orange | Couleur minimale qui déclenche : `jaune`, `orange` ou `rouge`. |
 | **Pilotage actif** (`active_control_enabled`) | Désactivé | Autorise SolarBalance à **écrire** des consignes vers le matériel (v2). Tant que c'est off, l'intégration ne fait que publier des sensors de consigne. Requiert aussi `active_control_enabled: true` au niveau de l'appareil. |
 | **Équaliseur SoC** (`soc_equaliser_enabled`) | Désactivé | Pilote indirectement les batteries non-pilotables (`controllable: false`) vers le SoC moyen du parc. Sans effet si aucune batterie non-pilotable n'est déclarée. **Off par défaut** : sur batterie lente (cloud), peut induire des oscillations réseau — n'activer qu'après validation. |
 | **Équaliseur — puissance max** (`soc_equaliser_max_w`) | 1500 W | Biais de steering agrégé maximal appliqué au parc pilotable. |
