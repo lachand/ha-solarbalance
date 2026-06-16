@@ -42,9 +42,7 @@ async def async_setup_entry(
     # Per-load "do not shed" override, attached to the load's UI subentry when it
     # has one (so it groups under that load), else the main device.
     sub_by_name = {
-        sub.data["name"]: sub_id
-        for sub_id, sub in entry.subentries.items()
-        if sub.data.get("name")
+        sub.data["name"]: sub_id for sub_id, sub in entry.subentries.items() if sub.data.get("name")
     }
     for load in coordinator._loads:
         switches: list[SwitchEntity] = [
@@ -86,9 +84,7 @@ class ZeroInjectionSwitch(CoordinatorEntity[SolarBalanceCoordinator], SwitchEnti
         self.async_write_ha_state()
 
 
-class LoadShedExemptSwitch(
-    CoordinatorEntity[SolarBalanceCoordinator], SwitchEntity, RestoreEntity
-):
+class LoadShedExemptSwitch(CoordinatorEntity[SolarBalanceCoordinator], SwitchEntity, RestoreEntity):
     """Temporarily exempt a load from shedding (evening-shed + fast-charge pause).
 
     When on, the load is never forced off for battery priority nor paused for
@@ -205,9 +201,7 @@ class LoadOffPeakOnlySwitch(
         self.async_write_ha_state()
 
 
-class LoadSolarOnlySwitch(
-    CoordinatorEntity[SolarBalanceCoordinator], SwitchEntity, RestoreEntity
-):
+class LoadSolarOnlySwitch(CoordinatorEntity[SolarBalanceCoordinator], SwitchEntity, RestoreEntity):
     """Allow a load to run only on real PV surplus (e.g. a pool pump).
 
     When on, the load is forced off whenever the instantaneous PV surplus is

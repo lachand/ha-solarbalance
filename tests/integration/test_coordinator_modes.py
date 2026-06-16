@@ -104,6 +104,7 @@ async def test_tariff_misconfig_falls_back_to_flat(hass: HomeAssistant) -> None:
 @pytest.mark.asyncio
 async def test_spot_hourly_prices(hass: HomeAssistant) -> None:
     from custom_components.solarbalance.const import CONF_SPOT_PRICE_ENTITY, CONF_TARIFF_TYPE
+
     raw = [
         {"start": "2026-06-14T10:00:00+00:00", "end": "2026-06-14T11:00:00+00:00", "value": 0.12},
         {"start": "2026-06-14T11:00:00+00:00", "end": "2026-06-14T12:00:00+00:00", "value": 0.40},
@@ -126,6 +127,7 @@ async def test_spot_hourly_prices(hass: HomeAssistant) -> None:
 @pytest.mark.asyncio
 async def test_spot_naive_timestamps_do_not_crash(hass: HomeAssistant) -> None:
     from custom_components.solarbalance.const import CONF_SPOT_PRICE_ENTITY, CONF_TARIFF_TYPE
+
     # Naive (tz-less) start/end must not raise on comparison → fall back to state.
     raw = [{"start": "2026-06-14T10:00:00", "end": "2026-06-14T11:00:00", "value": 0.12}]
     hass.states.async_set("sensor.spot", "0.30", {"raw_today": raw})

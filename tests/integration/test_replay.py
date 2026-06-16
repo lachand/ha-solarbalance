@@ -1,6 +1,6 @@
 """Replay building blocks: historical snapshot reconstruction + forward-fill."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from homeassistant.core import HomeAssistant, State
@@ -27,7 +27,7 @@ from custom_components.solarbalance.replay import _values_at, async_replay_day
 
 
 def test_values_at_forward_fills_last_known() -> None:
-    t0 = datetime(2026, 6, 14, 0, 0, tzinfo=timezone.utc)
+    t0 = datetime(2026, 6, 14, 0, 0, tzinfo=UTC)
     timelines = {
         "sensor.grid": [(t0, "100"), (t0 + timedelta(hours=2), "300")],
     }
@@ -43,18 +43,24 @@ def test_entity_reader_builds_snapshot_from_historical_states() -> None:
         Device(
             name="batt",
             battery=BatteryRole(
-                capacity_kwh=5.0, max_charge_power_w=2000, max_discharge_power_w=2000,
-                soc_entity="sensor.soc", power_entity="sensor.bp",
+                capacity_kwh=5.0,
+                max_charge_power_w=2000,
+                max_discharge_power_w=2000,
+                soc_entity="sensor.soc",
+                power_entity="sensor.bp",
             ),
         )
     ]
     meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid")]
     historical = {"sensor.grid": "-1500", "sensor.soc": "62", "sensor.bp": "400"}
     reader = EntityReader(
-        None, devices, meters, [],
+        None,
+        devices,
+        meters,
+        [],
         state_getter=lambda eid: State(eid, historical[eid]) if eid in historical else None,
     )
-    when = datetime(2026, 6, 14, 12, 0, tzinfo=timezone.utc)
+    when = datetime(2026, 6, 14, 12, 0, tzinfo=UTC)
     snap = reader.snapshot(timestamp=when)
     assert snap.timestamp == when
     assert snap.grid_power_w == -1500.0
@@ -76,8 +82,11 @@ async def test_async_replay_day_runs_arbiter_and_summarises(
         Device(
             name="batt",
             battery=BatteryRole(
-                capacity_kwh=5.0, max_charge_power_w=2000, max_discharge_power_w=2000,
-                soc_entity="sensor.soc", power_entity="sensor.bp",
+                capacity_kwh=5.0,
+                max_charge_power_w=2000,
+                max_discharge_power_w=2000,
+                soc_entity="sensor.soc",
+                power_entity="sensor.bp",
             ),
         )
     ]
@@ -89,8 +98,12 @@ async def test_async_replay_day_runs_arbiter_and_summarises(
 
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
-              CONF_PRIORITIES: [k.value for k in StrategyKind]},
+        data={
+            CONF_TICK_INTERVAL_S: 10,
+            CONF_PHASES: 1,
+            CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_PRIORITIES: [k.value for k in StrategyKind],
+        },
     )
     entry.add_to_hass(hass)
     await hass.config_entries.async_setup(entry.entry_id)
@@ -100,8 +113,10 @@ async def test_async_replay_day_runs_arbiter_and_summarises(
     # Stub the recorder: a couple of history points across today.
     midnight = dt_util.start_of_local_day(dt_util.now())
     hist = {
-        "sensor.grid": [State("sensor.grid", "-1500", last_updated=midnight),
-                        State("sensor.grid", "800", last_updated=midnight + timedelta(hours=3))],
+        "sensor.grid": [
+            State("sensor.grid", "-1500", last_updated=midnight),
+            State("sensor.grid", "800", last_updated=midnight + timedelta(hours=3)),
+        ],
         "sensor.soc": [State("sensor.soc", "55", last_updated=midnight)],
         "sensor.bp": [State("sensor.bp", "0", last_updated=midnight)],
     }

@@ -1,12 +1,11 @@
 """Tests for the load dispatch controller."""
 
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 
 import pytest
 
 from custom_components.solarbalance.core.controllers.load_dispatch import (
     LoadDispatchController,
-    LoadDispatchResult,
 )
 from custom_components.solarbalance.core.models import (
     Load,
@@ -129,6 +128,7 @@ class TestLoadDispatchController:
         )
         now = _now()
         from datetime import timedelta
+
         state = LoadState(
             name="boiler",
             actual_power_w=0.0,

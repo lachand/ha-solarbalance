@@ -68,8 +68,12 @@ async def async_get_config_entry_diagnostics(
             "grid_power_w": snap.grid_power_w,
             "pv_power_w": getattr(snap, "pv_power_w", None),
             "batteries": [
-                {"device": b.device_name, "soc_pct": b.soc_pct,
-                 "power_w": b.power_w, "available": b.available}
+                {
+                    "device": b.device_name,
+                    "soc_pct": b.soc_pct,
+                    "power_w": b.power_w,
+                    "available": b.available,
+                }
                 for b in snap.batteries
             ],
         }

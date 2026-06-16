@@ -16,16 +16,28 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, time, timedelta
 from enum import StrEnum
-from typing import Protocol
+from typing import Any, Protocol
 
 
 class Tariff(Protocol):
     """Common interface for all tariff resolvers (price + cheap/expensive)."""
 
-    def current_import_price(self, dt: datetime) -> float | None: ...
-    def current_export_price(self, dt: datetime) -> float | None: ...
-    def is_cheap_window(self, dt: datetime, *, threshold: float) -> bool: ...
-    def is_expensive_window(self, dt: datetime, *, threshold: float) -> bool: ...
+    def current_import_price(self, dt: datetime) -> float | None:
+        """Import price (EUR/kWh) at ``dt``, or None if unknown."""
+        ...
+
+    def current_export_price(self, dt: datetime) -> float | None:
+        """Export price (EUR/kWh) at ``dt``, or None if unknown."""
+        ...
+
+    def is_cheap_window(self, dt: datetime, *, threshold: float) -> bool:
+        """Whether ``dt`` is a cheap-import window (price <= threshold)."""
+        ...
+
+    def is_expensive_window(self, dt: datetime, *, threshold: float) -> bool:
+        """Whether ``dt`` is an expensive window (price >= threshold)."""
+        ...
+
 
 # ---------------------------------------------------------------------------
 # Slot definition
@@ -251,7 +263,7 @@ class TempoTariff:
         """Return the HC or HP import price for the current Tempo colour.
 
         The Tempo "day" starts at 06:00 and ends at 06:00 the next morning.
-        Ticks in the HC window 00:00–06:00 belong to the Tempo day that started
+        Ticks in the HC window 00:00-06:00 belong to the Tempo day that started
         at 06:00 the *previous* calendar day, so we look up that day's colour.
         """
         tempo_dt = dt - timedelta(hours=6) if dt.hour < 6 else dt
@@ -384,6 +396,11 @@ def parse_tempo_color(state: str | None) -> TempoColor:
     return TempoColor.UNKNOWN
 
 
+def _spec_get(spec: Mapping[str, object], key: str, default: object = None) -> Any:
+    """Read an untyped value from a validated tariff spec (parsing helper)."""
+    return spec.get(key, default)
+
+
 def build_tariff(
     spec: Mapping[str, object],
     *,
@@ -397,34 +414,31 @@ def build_tariff(
     the configured HA entities).
     """
     kind = str(spec.get("type", "flat"))
-    export_price = float(spec.get("export_price", 0.0) or 0.0)
+    export_price = float(_spec_get(spec, "export_price", 0.0) or 0.0)
 
     if kind == "spot":
         if spot_price_provider is None:
             raise ValueError("spot tariff requires a spot_price_provider")
         return EpexSpotTariff(
             spot_price_provider,
-            markup=float(spec.get("markup", 0.0) or 0.0),
+            markup=float(_spec_get(spec, "markup", 0.0) or 0.0),
             export_price=export_price,
-            price_cap=spec.get("price_cap"),  # type: ignore[arg-type]
-            price_floor=spec.get("price_floor"),  # type: ignore[arg-type]
+            price_cap=_spec_get(spec, "price_cap"),
+            price_floor=_spec_get(spec, "price_floor"),
         )
 
     if kind == "hc_hp":
-        slots = spec.get("slots") or []
-        triples = [
-            (str(s["start"]), str(s["end"]), float(s["price"]))
-            for s in slots  # type: ignore[union-attr]
-        ]
+        slots = _spec_get(spec, "slots") or []
+        triples = [(str(s["start"]), str(s["end"]), float(s["price"])) for s in slots]
         return make_hchp_tariff(triples, export_price=export_price)
 
     if kind == "tempo":
         if color_provider is None:
             raise ValueError("tempo tariff requires a color_provider")
         prices = dict(_TEMPO_DEFAULTS)
-        raw_prices = spec.get("prices") or {}
+        raw_prices = _spec_get(spec, "prices") or {}
         for color in (TempoColor.BLUE, TempoColor.WHITE, TempoColor.RED):
-            entry = raw_prices.get(color.value)  # type: ignore[union-attr]
+            entry = raw_prices.get(color.value)
             if entry:
                 prices[color] = TempoSlotPrices(
                     hc_price=float(entry["hc"]),
@@ -435,6 +449,6 @@ def build_tariff(
 
     # flat
     return TariffConfig(
-        default_import_price=float(spec.get("import_price", 0.0) or 0.0),
+        default_import_price=float(_spec_get(spec, "import_price", 0.0) or 0.0),
         default_export_price=export_price,
     )

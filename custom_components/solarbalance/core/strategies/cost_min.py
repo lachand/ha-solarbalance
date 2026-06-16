@@ -34,12 +34,14 @@ class CostMinStrategy(Strategy):
         """Initialise the strategy.
 
         Args:
+            *args: Forwarded to the base ``Strategy`` (devices, etc.).
             tariff: Accepted for API compatibility; prices are read from the snapshot
                 (the coordinator injects resolved tariff prices each tick). Not stored.
             cheap_threshold: Import price at or below which we want to charge (€/kWh).
             expensive_threshold: Import price above which we want to discharge (€/kWh).
             charge_soc_target_pct: Upper SoC target when charging for cost reasons.
             discharge_soc_floor_pct: Lower SoC floor when discharging for cost reasons.
+            **kwargs: Forwarded to the base ``Strategy``.
         """
         super().__init__(*args, **kwargs)  # type: ignore[arg-type]
         if cheap_threshold > expensive_threshold:

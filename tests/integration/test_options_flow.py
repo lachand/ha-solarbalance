@@ -21,7 +21,9 @@ async def entry(hass: HomeAssistant) -> MockConfigEntry:
     e = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_TICK_INTERVAL_S: 10,
+            CONF_PHASES: 1,
+            CONF_SUBSCRIBED_POWER_KVA: 6,
             CONF_PRIORITIES: [k.value for k in StrategyKind],
         },
     )
@@ -36,15 +38,30 @@ async def test_export_then_import_config_roundtrip(hass: HomeAssistant) -> None:
     from homeassistant.config_entries import ConfigSubentryData
 
     battery = ConfigSubentryData(
-        subentry_type="battery", title="stream", unique_id=None,
-        data={"name": "stream", "roles": {"battery": {
-            "capacity_kwh": 3.92, "max_charge_power_w": 1200, "max_discharge_power_w": 2300,
-            "soc_entity": "sensor.soc", "power_entity": "sensor.bp"}}},
+        subentry_type="battery",
+        title="stream",
+        unique_id=None,
+        data={
+            "name": "stream",
+            "roles": {
+                "battery": {
+                    "capacity_kwh": 3.92,
+                    "max_charge_power_w": 1200,
+                    "max_discharge_power_w": 2300,
+                    "soc_entity": "sensor.soc",
+                    "power_entity": "sensor.bp",
+                }
+            },
+        },
     )
     src = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
-              CONF_PRIORITIES: [k.value for k in StrategyKind]},
+        data={
+            CONF_TICK_INTERVAL_S: 10,
+            CONF_PHASES: 1,
+            CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_PRIORITIES: [k.value for k in StrategyKind],
+        },
         subentries_data=[battery],
     )
     src.add_to_hass(hass)
@@ -58,11 +75,25 @@ async def test_export_then_import_config_roundtrip(hass: HomeAssistant) -> None:
     assert exported["subentries"][0]["data"]["name"] == "stream"
 
     res = await hass.services.async_call(
-        DOMAIN, "import_config",
-        {"subentries": [{"type": "load", "title": "wh",
-                         "data": {"name": "wh", "control_type": "on_off", "priority": 3,
-                                  "nominal_power_w": 2000, "switch_entity": "switch.wh"}}]},
-        blocking=True, return_response=True,
+        DOMAIN,
+        "import_config",
+        {
+            "subentries": [
+                {
+                    "type": "load",
+                    "title": "wh",
+                    "data": {
+                        "name": "wh",
+                        "control_type": "on_off",
+                        "priority": 3,
+                        "nominal_power_w": 2000,
+                        "switch_entity": "switch.wh",
+                    },
+                }
+            ]
+        },
+        blocking=True,
+        return_response=True,
     )
     assert res["imported"] == 1
     await hass.async_block_till_done()
@@ -74,16 +105,30 @@ async def test_test_mapping_reports_entity_availability(hass: HomeAssistant) -> 
     from homeassistant.config_entries import ConfigSubentryData
 
     battery = ConfigSubentryData(
-        subentry_type="battery", title="stream", unique_id=None,
-        data={"name": "stream", "roles": {"battery": {
-            "capacity_kwh": 3.9, "max_charge_power_w": 1200, "max_discharge_power_w": 2300,
-            "soc_entity": "sensor.ecoflow_soc",
-            "power_entity": "sensor.ecoflow_batt_power"}}},
+        subentry_type="battery",
+        title="stream",
+        unique_id=None,
+        data={
+            "name": "stream",
+            "roles": {
+                "battery": {
+                    "capacity_kwh": 3.9,
+                    "max_charge_power_w": 1200,
+                    "max_discharge_power_w": 2300,
+                    "soc_entity": "sensor.ecoflow_soc",
+                    "power_entity": "sensor.ecoflow_batt_power",
+                }
+            },
+        },
     )
     e = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
-              CONF_PRIORITIES: [k.value for k in StrategyKind]},
+        data={
+            CONF_TICK_INTERVAL_S: 10,
+            CONF_PHASES: 1,
+            CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_PRIORITIES: [k.value for k in StrategyKind],
+        },
         subentries_data=[battery],
     )
     e.add_to_hass(hass)

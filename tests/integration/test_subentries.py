@@ -99,8 +99,13 @@ def test_load_input_time_window() -> None:
     from custom_components.solarbalance.yaml_loader import build_load_from_dict
 
     ui = {
-        "name": "wh", "control_type": "on_off", "priority": 3, "nominal_power_w": 2000,
-        "switch_entity": "switch.wh", "window_start": "22:00", "window_end": "06:00",
+        "name": "wh",
+        "control_type": "on_off",
+        "priority": 3,
+        "nominal_power_w": 2000,
+        "switch_entity": "switch.wh",
+        "window_start": "22:00",
+        "window_end": "06:00",
     }
     load = _load_input_to_dict(ui)
     assert load["time_window"] == {"start": "22:00", "end": "06:00"}
@@ -161,14 +166,27 @@ def test_meter_input_coerces_phases_and_builds() -> None:
 
 
 def test_build_from_subentries_mixed_types() -> None:
-    bat = {"name": "b", "roles": {"battery": {
-        "capacity_kwh": 5.0, "max_charge_power_w": 1000, "max_discharge_power_w": 1000,
-        "soc_entity": "sensor.s", "power_entity": "sensor.p",
-    }}}
+    bat = {
+        "name": "b",
+        "roles": {
+            "battery": {
+                "capacity_kwh": 5.0,
+                "max_charge_power_w": 1000,
+                "max_discharge_power_w": 1000,
+                "soc_entity": "sensor.s",
+                "power_entity": "sensor.p",
+            }
+        },
+    }
     mppt = {"name": "m", "roles": {"mppt": {"peak_power_w": 800, "power_entity": "sensor.pv"}}}
     meter = {"name": "pdl", "kind": "pdl", "power_entity": "sensor.grid"}
-    ld = {"name": "wh", "control_type": "on_off", "priority": 1, "nominal_power_w": 2000,
-          "switch_entity": "switch.wh"}
+    ld = {
+        "name": "wh",
+        "control_type": "on_off",
+        "priority": 1,
+        "nominal_power_w": 2000,
+        "switch_entity": "switch.wh",
+    }
     entry = _entry_with_subentries(
         _sub("battery", bat), _sub("mppt", mppt), _sub("meter", meter), _sub("load", ld)
     )
@@ -267,10 +285,15 @@ async def test_battery_sensors_linked_to_subentry(hass) -> None:
         unique_id=None,
         data={
             "name": "stream",
-            "roles": {"battery": {
-                "capacity_kwh": 3.92, "max_charge_power_w": 1200, "max_discharge_power_w": 2300,
-                "soc_entity": "sensor.stream_soc", "power_entity": "sensor.stream_power",
-            }},
+            "roles": {
+                "battery": {
+                    "capacity_kwh": 3.92,
+                    "max_charge_power_w": 1200,
+                    "max_discharge_power_w": 2300,
+                    "soc_entity": "sensor.stream_soc",
+                    "power_entity": "sensor.stream_power",
+                }
+            },
         },
     )
     entry = MockConfigEntry(
@@ -290,7 +313,8 @@ async def test_battery_sensors_linked_to_subentry(hass) -> None:
     sub_id = next(iter(entry.subentries))
     reg = er.async_get(hass)
     battery_entities = [
-        e for e in reg.entities.values()
+        e
+        for e in reg.entities.values()
         if e.config_entry_id == entry.entry_id and "_stream_" in e.unique_id
     ]
     assert battery_entities, "no per-battery sensors registered"
@@ -318,8 +342,12 @@ async def test_load_shed_exempt_switch_created_and_linked(hass) -> None:
         title="voiture",
         unique_id=None,
         data={
-            "name": "voiture", "control_type": "on_off", "priority": 5,
-            "interruptible": True, "switch_entity": "switch.borne", "nominal_power_w": 2000,
+            "name": "voiture",
+            "control_type": "on_off",
+            "priority": 5,
+            "interruptible": True,
+            "switch_entity": "switch.borne",
+            "nominal_power_w": 2000,
         },
     )
     entry = MockConfigEntry(
@@ -374,14 +402,20 @@ async def test_force_charge_switch_request_and_autoclear(hass) -> None:
         title="voiture",
         unique_id=None,
         data={
-            "name": "voiture", "control_type": "on_off", "priority": 5,
-            "interruptible": True, "switch_entity": "switch.borne", "nominal_power_w": 2000,
+            "name": "voiture",
+            "control_type": "on_off",
+            "priority": 5,
+            "interruptible": True,
+            "switch_entity": "switch.borne",
+            "nominal_power_w": 2000,
         },
     )
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_TICK_INTERVAL_S: 10,
+            CONF_PHASES: 1,
+            CONF_SUBSCRIBED_POWER_KVA: 6,
             CONF_PRIORITIES: [k.value for k in StrategyKind],
         },
         subentries_data=[load],
@@ -431,14 +465,26 @@ async def test_off_peak_only_forces_load_off_outside_cheap_window(hass) -> None:
     from custom_components.solarbalance.core.models import StrategyKind
 
     load = ConfigSubentryData(
-        subentry_type="load", title="voiture", unique_id=None,
-        data={"name": "voiture", "control_type": "on_off", "priority": 5,
-              "interruptible": True, "switch_entity": "switch.borne", "nominal_power_w": 2000},
+        subentry_type="load",
+        title="voiture",
+        unique_id=None,
+        data={
+            "name": "voiture",
+            "control_type": "on_off",
+            "priority": 5,
+            "interruptible": True,
+            "switch_entity": "switch.borne",
+            "nominal_power_w": 2000,
+        },
     )
     entry = MockConfigEntry(
         domain=DOMAIN,
-        data={CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
-              CONF_PRIORITIES: [k.value for k in StrategyKind]},
+        data={
+            CONF_TICK_INTERVAL_S: 10,
+            CONF_PHASES: 1,
+            CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_PRIORITIES: [k.value for k in StrategyKind],
+        },
         subentries_data=[load],
     )
     entry.add_to_hass(hass)
@@ -471,15 +517,19 @@ def test_optional_empty_fields_pass_schema_validation() -> None:
 
     stored = {
         "name": "stream",
-        "roles": {"battery": {
-            "capacity_kwh": 3.92, "max_charge_power_w": 1200, "max_discharge_power_w": 2300,
-            "soc_entity": "sensor.soc", "power_entity": "sensor.bp",
-        }},
+        "roles": {
+            "battery": {
+                "capacity_kwh": 3.92,
+                "max_charge_power_w": 1200,
+                "max_discharge_power_w": 2300,
+                "soc_entity": "sensor.soc",
+                "power_entity": "sensor.bp",
+            }
+        },
     }
     schema = _battery_subentry_schema(_battery_flat(stored))
     submit = {
-        str(m): (m.default() if m.default is not vol.UNDEFINED else None)
-        for m in schema.schema
+        str(m): (m.default() if m.default is not vol.UNDEFINED else None) for m in schema.schema
     }
     # temperature_entity / cycles_entity / usable_capacity_kwh are blank ("").
     validated = schema(submit)
@@ -507,8 +557,11 @@ def test_battery_mppt_subentry_assembles() -> None:
         "name": "stream",
         "roles": {
             "battery": {
-                "capacity_kwh": 3.92, "max_charge_power_w": 1200, "max_discharge_power_w": 2300,
-                "soc_entity": "sensor.soc", "power_entity": "sensor.bp",
+                "capacity_kwh": 3.92,
+                "max_charge_power_w": 1200,
+                "max_discharge_power_w": 2300,
+                "soc_entity": "sensor.soc",
+                "power_entity": "sensor.bp",
             },
             "mppt": {"peak_power_w": 1000, "power_entity": "sensor.pv"},
         },

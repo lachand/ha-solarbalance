@@ -105,9 +105,7 @@ class Arbiter:
             return self._strategies[0].kind if self._strategies else None
         return self._strategies[best_idx].kind
 
-    def _merge_battery_targets(
-        self, decisions: Sequence[Decision]
-    ) -> dict[str, BatteryTarget]:
+    def _merge_battery_targets(self, decisions: Sequence[Decision]) -> dict[str, BatteryTarget]:
         merged: dict[str, BatteryTarget] = {}
         device_names: set[str] = set()
         for d in decisions:
@@ -122,8 +120,12 @@ class Arbiter:
                 if target is None:
                     continue
                 # Resolve narrowing: take the more restrictive bound.
-                soc_min = target.soc_min_pct if soc_min is None else max(soc_min, target.soc_min_pct)
-                soc_max = target.soc_max_pct if soc_max is None else min(soc_max, target.soc_max_pct)
+                soc_min = (
+                    target.soc_min_pct if soc_min is None else max(soc_min, target.soc_min_pct)
+                )
+                soc_max = (
+                    target.soc_max_pct if soc_max is None else min(soc_max, target.soc_max_pct)
+                )
                 if preferred_w is None and target.preferred_power_w is not None:
                     preferred_w = target.preferred_power_w
 

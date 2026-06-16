@@ -66,10 +66,7 @@ def _load_eligible(
         return True
 
     # Daily runtime cap
-    if (
-        load.max_daily_runtime_s is not None
-        and state.daily_runtime_s >= load.max_daily_runtime_s
-    ):
+    if load.max_daily_runtime_s is not None and state.daily_runtime_s >= load.max_daily_runtime_s:
         return False
 
     # Daily energy cap
@@ -80,7 +77,11 @@ def _load_eligible(
         return False
 
     # Anti-short-cycle: min_off_duration_s
-    if load.min_off_duration_s > 0 and state.actual_power_w == 0.0 and state.last_off_at is not None:
+    if (
+        load.min_off_duration_s > 0
+        and state.actual_power_w == 0.0
+        and state.last_off_at is not None
+    ):
         off_duration = (now - state.last_off_at).total_seconds()
         if off_duration < load.min_off_duration_s:
             return False
@@ -153,8 +154,10 @@ class LoadDispatchController:
 
             commands.append(cmd)
             if cmd.on:
-                allocated = cmd.power_w if cmd.power_w is not None else (
-                    _step_power(load, cmd.step_level) or _nominal(load)
+                allocated = (
+                    cmd.power_w
+                    if cmd.power_w is not None
+                    else (_step_power(load, cmd.step_level) or _nominal(load))
                 )
                 remaining -= allocated
                 if remaining < 0:
@@ -184,16 +187,10 @@ class LoadDispatchController:
             if eligible and remaining >= nominal:
                 return LoadCommand(load_name=load.name, on=True, rationale="keep_on")
             # Check min_on_duration
-            if (
-                load.min_on_duration_s > 0
-                and state is not None
-                and state.last_on_at is not None
-            ):
+            if load.min_on_duration_s > 0 and state is not None and state.last_on_at is not None:
                 on_duration = (now - state.last_on_at).total_seconds()
                 if on_duration < load.min_on_duration_s:
-                    return LoadCommand(
-                        load_name=load.name, on=True, rationale="min_on_guard"
-                    )
+                    return LoadCommand(load_name=load.name, on=True, rationale="min_on_guard")
             return LoadCommand(load_name=load.name, on=False, rationale="turn_off")
         # Currently off: activate if eligible and surplus sufficient
         if eligible and remaining >= nominal:
@@ -210,7 +207,9 @@ class LoadDispatchController:
         now: datetime,
     ) -> LoadCommand:
         if not eligible:
-            return LoadCommand(load_name=load.name, on=False, step_level=0, rationale="not_eligible")
+            return LoadCommand(
+                load_name=load.name, on=False, step_level=0, rationale="not_eligible"
+            )
 
         current_power = _current_power(load, state)
         best = _best_step_for_surplus(load, remaining + current_power)
@@ -223,7 +222,9 @@ class LoadDispatchController:
                     return LoadCommand(
                         load_name=load.name, on=True, step_level=cur_level, rationale="min_on_guard"
                     )
-            return LoadCommand(load_name=load.name, on=False, step_level=0, rationale="no_step_fits")
+            return LoadCommand(
+                load_name=load.name, on=False, step_level=0, rationale="no_step_fits"
+            )
 
         return LoadCommand(
             load_name=load.name,
@@ -274,6 +275,7 @@ class LoadDispatchController:
 
 
 # ------------------------------------------------------------------ module helpers
+
 
 def _nominal(load: Load) -> float:
     return float(load.nominal_power_w or 0)

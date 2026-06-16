@@ -18,9 +18,17 @@ from custom_components.solarbalance.core.controllers.load_dispatch import LoadCo
 from custom_components.solarbalance.core.models import StrategyKind
 
 _LOAD = ConfigSubentryData(
-    subentry_type="load", title="voiture", unique_id=None,
-    data={"name": "voiture", "control_type": "on_off", "priority": 5,
-          "interruptible": True, "switch_entity": "switch.borne", "nominal_power_w": 2000},
+    subentry_type="load",
+    title="voiture",
+    unique_id=None,
+    data={
+        "name": "voiture",
+        "control_type": "on_off",
+        "priority": 5,
+        "interruptible": True,
+        "switch_entity": "switch.borne",
+        "nominal_power_w": 2000,
+    },
 )
 
 
@@ -29,7 +37,9 @@ async def coord(hass: HomeAssistant):
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_TICK_INTERVAL_S: 10,
+            CONF_PHASES: 1,
+            CONF_SUBSCRIBED_POWER_KVA: 6,
             CONF_LOAD_CONTROL_ENABLED: True,
             CONF_PRIORITIES: [k.value for k in StrategyKind],
         },
@@ -124,9 +134,7 @@ async def test_bus_events_fire_on_transitions(coord) -> None:
     coord.request_force_charge_load("voiture")
     coord._fire_edge_events(coord.data)
     await coord.hass.async_block_till_done()
-    assert any(
-        e.event_type == EVENT_FORCE_CHARGE and e.data["action"] == "started" for e in events
-    )
+    assert any(e.event_type == EVENT_FORCE_CHARGE and e.data["action"] == "started" for e in events)
 
 
 async def test_decision_reason_localised(coord) -> None:

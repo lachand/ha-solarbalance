@@ -32,9 +32,7 @@ class TestBalancingController:
     ) -> None:
         """A battery flagged controllable=false never receives an allocation."""
         assert jackery_device.battery is not None
-        auto = replace(
-            jackery_device, battery=replace(jackery_device.battery, controllable=False)
-        )
+        auto = replace(jackery_device, battery=replace(jackery_device.battery, controllable=False))
         controller = BalancingController([ecoflow_device, auto], alpha=1.0)
         result = controller.allocate(
             total_power_w=1000.0,

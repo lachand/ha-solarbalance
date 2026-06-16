@@ -8,7 +8,10 @@ from custom_components.solarbalance.core.controllers.overload import (
 
 def _l(name, prio, cur, floor=0.0, interruptible=True, reducible=None):
     return SheddableLoad(
-        name=name, priority=prio, current_w=cur, floor_w=floor,
+        name=name,
+        priority=prio,
+        current_w=cur,
+        floor_w=floor,
         interruptible=interruptible,
         reducible=(floor > 0) if reducible is None else reducible,
     )

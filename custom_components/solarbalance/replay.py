@@ -48,7 +48,13 @@ async def async_replay_day(
     try:
         states = await get_instance(hass).async_add_executor_job(
             history.get_significant_states,
-            hass, start, end, entity_ids, None, True, False,
+            hass,
+            start,
+            end,
+            entity_ids,
+            None,
+            True,
+            False,
         )
     except (HomeAssistantError, RuntimeError, KeyError, ValueError, TypeError) as exc:
         return {"error": f"recorder unavailable: {exc}", "date": target.isoformat()}
@@ -77,10 +83,11 @@ async def async_replay_day(
     while t < end:
         value_at = _values_at(timelines, t)
         reader = EntityReader(
-            hass, devices, meters, loads,
-            state_getter=lambda eid, _v=value_at: (
-                State(eid, _v[eid]) if eid in _v else None
-            ),
+            hass,
+            devices,
+            meters,
+            loads,
+            state_getter=lambda eid, _v=value_at: State(eid, _v[eid]) if eid in _v else None,
         )
         snap = reader.snapshot(timestamp=t)
         result = coordinator._arbiter.run(snap)
@@ -94,8 +101,15 @@ async def async_replay_day(
         exp_w = max(0.0, -snap.grid_power_w)
         bucket = hours.setdefault(
             local.hour,
-            {"grid_w": 0.0, "batt_target_w": 0.0, "cost_eur": 0.0,
-             "import_kwh": 0.0, "export_kwh": 0.0, "_n": 0, "_strats": Counter()},
+            {
+                "grid_w": 0.0,
+                "batt_target_w": 0.0,
+                "cost_eur": 0.0,
+                "import_kwh": 0.0,
+                "export_kwh": 0.0,
+                "_n": 0,
+                "_strats": Counter(),
+            },
         )
         bucket["grid_w"] += snap.grid_power_w
         bucket["batt_target_w"] += batt_target
@@ -115,13 +129,15 @@ async def async_replay_day(
         tot_cost += b["cost_eur"]
         tot_imp += b["import_kwh"]
         tot_exp += b["export_kwh"]
-        hourly.append({
-            "hour": hour,
-            "grid_w": round(b["grid_w"] / n),
-            "battery_target_w": round(b["batt_target_w"] / n),
-            "strategy": b["_strats"].most_common(1)[0][0] if b["_strats"] else None,
-            "cost_eur": round(b["cost_eur"], 3),
-        })
+        hourly.append(
+            {
+                "hour": hour,
+                "grid_w": round(b["grid_w"] / n),
+                "battery_target_w": round(b["batt_target_w"] / n),
+                "strategy": b["_strats"].most_common(1)[0][0] if b["_strats"] else None,
+                "cost_eur": round(b["cost_eur"], 3),
+            }
+        )
 
     return {
         "date": target.isoformat(),
@@ -136,9 +152,7 @@ async def async_replay_day(
     }
 
 
-def _values_at(
-    timelines: dict[str, list[tuple[datetime, str]]], t: datetime
-) -> dict[str, str]:
+def _values_at(timelines: dict[str, list[tuple[datetime, str]]], t: datetime) -> dict[str, str]:
     """Last known value of each entity at or before ``t`` (forward-filled)."""
     out: dict[str, str] = {}
     for eid, series in timelines.items():

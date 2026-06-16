@@ -22,17 +22,15 @@ class TestTariffSlot:
     @pytest.mark.parametrize(
         ("start", "end", "query_hour", "expected"),
         [
-            (6, 22, 10, True),   # inside daytime window
-            (6, 22, 5, False),   # before start
+            (6, 22, 10, True),  # inside daytime window
+            (6, 22, 5, False),  # before start
             (6, 22, 22, False),  # end is exclusive
-            (22, 6, 23, True),   # overnight: late evening
-            (22, 6, 0, True),    # overnight: after midnight
-            (22, 6, 6, False),   # overnight: end is exclusive
+            (22, 6, 23, True),  # overnight: late evening
+            (22, 6, 0, True),  # overnight: after midnight
+            (22, 6, 6, False),  # overnight: end is exclusive
         ],
     )
-    def test_applies_at(
-        self, start: int, end: int, query_hour: int, expected: bool
-    ) -> None:
+    def test_applies_at(self, start: int, end: int, query_hour: int, expected: bool) -> None:
         slot = TariffSlot(
             name="test",
             start=time(start, 0),
@@ -65,10 +63,12 @@ class TestTariffSlot:
 
 class TestTariffConfig:
     def test_first_matching_slot_wins(self) -> None:
-        cfg = TariffConfig(slots=[
-            TariffSlot("hc", time(0), time(6), import_price=0.15),
-            TariffSlot("hp", time(6), time(22), import_price=0.25),
-        ])
+        cfg = TariffConfig(
+            slots=[
+                TariffSlot("hc", time(0), time(6), import_price=0.15),
+                TariffSlot("hp", time(6), time(22), import_price=0.25),
+            ]
+        )
         assert cfg.current_import_price(_dt(3)) == pytest.approx(0.15)
         assert cfg.current_import_price(_dt(10)) == pytest.approx(0.25)
 

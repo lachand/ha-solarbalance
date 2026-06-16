@@ -75,8 +75,7 @@ class ActiveControlPublisher:
         self._reserve_entities: dict[str, str] = {
             device.name: device.battery.reserve_soc_setpoint_entity
             for device in devices
-            if device.battery is not None
-            and device.battery.reserve_soc_setpoint_entity is not None
+            if device.battery is not None and device.battery.reserve_soc_setpoint_entity is not None
         }
         self._last_power: dict[str, float] = {}
         self._last_mode: dict[str, str] = {}
@@ -94,14 +93,19 @@ class ActiveControlPublisher:
                     _LOGGER.warning(
                         "Active control: %s %s_setpoint_entity %r has no domain "
                         "(expected e.g. number.%s) — writes will fail",
-                        name, label, eid, eid,
+                        name,
+                        label,
+                        eid,
+                        eid,
                     )
         for name, eid in {**self._pv_limit_entities, **self._reserve_entities}.items():
             if "." not in eid:
                 _LOGGER.warning(
                     "Active control: %s setpoint entity %r has no domain "
                     "(expected e.g. number.%s) — writes will fail",
-                    name, eid, eid,
+                    name,
+                    eid,
+                    eid,
                 )
 
     @property

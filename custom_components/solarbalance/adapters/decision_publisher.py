@@ -25,7 +25,9 @@ class DecisionPublisher:
         self._latest: ArbitrationResult | None = None
         self._latest_balancing: BalancingResult | None = None
 
-    def publish(self, result: ArbitrationResult, *, balancing_result: BalancingResult | None = None) -> None:
+    def publish(
+        self, result: ArbitrationResult, *, balancing_result: BalancingResult | None = None
+    ) -> None:
         """Cache the most recent arbitration and balancing results for entity consumption."""
         _LOGGER.debug(
             "Publishing decision (dominant=%s, batteries=%d, grid_import_max=%s)",
@@ -50,11 +52,7 @@ class DecisionPublisher:
     def setpoint_charge_per_battery_w(self) -> Mapping[str, float]:
         """Actual per-battery charge power from the last balancing pass (W, positive)."""
         if self._latest_balancing is not None:
-            return {
-                name: pw
-                for name, pw in self._latest_balancing.per_battery_w.items()
-                if pw > 0
-            }
+            return {name: pw for name, pw in self._latest_balancing.per_battery_w.items() if pw > 0}
         if self._latest is None:
             return {}
         return {
@@ -68,9 +66,7 @@ class DecisionPublisher:
         """Actual per-battery discharge power from the last balancing pass (W, positive value)."""
         if self._latest_balancing is not None:
             return {
-                name: -pw
-                for name, pw in self._latest_balancing.per_battery_w.items()
-                if pw < 0
+                name: -pw for name, pw in self._latest_balancing.per_battery_w.items() if pw < 0
             }
         if self._latest is None:
             return {}

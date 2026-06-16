@@ -30,14 +30,16 @@ async def async_setup_entry(
 ) -> None:
     """Set up SolarBalance binary_sensor entities from a config entry."""
     coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
-    async_add_entities([
-        StormModeBinarySensor(coordinator, entry),
-        WeatherWarningBinarySensor(coordinator, entry),
-        DegradedBinarySensor(coordinator, entry),
-        EveningShedBinarySensor(coordinator, entry),
-        EvFastChargeBinarySensor(coordinator, entry),
-        ConfigHealthBinarySensor(coordinator, entry),
-    ])
+    async_add_entities(
+        [
+            StormModeBinarySensor(coordinator, entry),
+            WeatherWarningBinarySensor(coordinator, entry),
+            DegradedBinarySensor(coordinator, entry),
+            EveningShedBinarySensor(coordinator, entry),
+            EvFastChargeBinarySensor(coordinator, entry),
+            ConfigHealthBinarySensor(coordinator, entry),
+        ]
+    )
 
 
 class _SBBinarySensor(CoordinatorEntity[SolarBalanceCoordinator], BinarySensorEntity):

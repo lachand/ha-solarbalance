@@ -46,8 +46,7 @@ def main() -> int:
         for v in violations:
             print(f"  {v}", file=sys.stderr)
         print(
-            "\ncore/ must remain HA-agnostic (see AGENTS.md). "
-            "Move HA-coupled code to adapters/.",
+            "\ncore/ must remain HA-agnostic (see AGENTS.md). Move HA-coupled code to adapters/.",
             file=sys.stderr,
         )
         return 1

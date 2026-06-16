@@ -45,8 +45,9 @@ class ForecastReader:
         try:
             return float(state.state)
         except (TypeError, ValueError):
-            _LOGGER.debug("PV forecast entity %s state %r not numeric",
-                          self._pv_entity, state.state)
+            _LOGGER.debug(
+                "PV forecast entity %s state %r not numeric", self._pv_entity, state.state
+            )
             return None
 
     def weather_warning_active(self) -> bool:

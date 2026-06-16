@@ -24,9 +24,7 @@ async def test_daily_energy_persists_across_instances(hass: HomeAssistant) -> No
     entry.add_to_hass(hass)
 
     first = SolarBalanceCoordinator(hass, entry, [], [], [])
-    first._energy.restore(
-        day=dt_util.now().date(), pv_kwh=4.2, grid_import_kwh=1.3
-    )
+    first._energy.restore(day=dt_util.now().date(), pv_kwh=4.2, grid_import_kwh=1.3)
     await first._store.async_save(first._persisted_state())
 
     # Simulate an integration reload: a fresh coordinator over the same store.

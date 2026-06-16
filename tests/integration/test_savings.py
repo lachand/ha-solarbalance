@@ -22,7 +22,9 @@ async def coordinator(hass: HomeAssistant):
     entry = MockConfigEntry(
         domain=DOMAIN,
         data={
-            CONF_TICK_INTERVAL_S: 10, CONF_PHASES: 1, CONF_SUBSCRIBED_POWER_KVA: 6,
+            CONF_TICK_INTERVAL_S: 10,
+            CONF_PHASES: 1,
+            CONF_SUBSCRIBED_POWER_KVA: 6,
             CONF_PRIORITIES: [k.value for k in StrategyKind],
         },
     )

@@ -29,7 +29,6 @@ class TestLongevityStrategy:
         ecoflow_device: Device,
     ) -> None:
         from dataclasses import replace
-        from custom_components.solarbalance.core.models import BatteryRole
 
         # Rebuild device with the target chemistry
         new_battery = replace(ecoflow_device.battery, chemistry=chemistry)  # type: ignore[union-attr]
@@ -66,8 +65,12 @@ class TestLongevityStrategy:
 
     def test_no_batteries_returns_empty_targets(self) -> None:
         from custom_components.solarbalance.core.models import (
-            MpptRole, Device as Dev,
+            Device as Dev,
         )
+        from custom_components.solarbalance.core.models import (
+            MpptRole,
+        )
+
         mppt_only = Dev(name="mppt", mppt=MpptRole(peak_power_w=1000, power_entity="s.pv"))
         strat = LongevityStrategy([mppt_only], loads=[])
         snap = make_snapshot(grid_w=0.0)

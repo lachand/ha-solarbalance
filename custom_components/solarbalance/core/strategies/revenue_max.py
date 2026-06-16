@@ -117,8 +117,7 @@ class RevenueMaxStrategy(Strategy):
             grid_constraint = GridConstraint(max_export_w=max_export)
         else:
             rationale = (
-                f"revenue_max: cheap import "
-                f"(price={import_price:.4f} <= {self._cheap_threshold})"
+                f"revenue_max: cheap import (price={import_price:.4f} <= {self._cheap_threshold})"
             )
             grid_constraint = GridConstraint()
 

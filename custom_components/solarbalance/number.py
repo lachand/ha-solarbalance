@@ -30,10 +30,12 @@ async def async_setup_entry(
 ) -> None:
     """Set up SolarBalance number entities from a config entry."""
     coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
-    async_add_entities([
-        ZeroInjectionSetpointNumber(coordinator, entry),
-        ZeroInjectionHysteresisNumber(coordinator, entry),
-    ])
+    async_add_entities(
+        [
+            ZeroInjectionSetpointNumber(coordinator, entry),
+            ZeroInjectionHysteresisNumber(coordinator, entry),
+        ]
+    )
 
 
 class _SBNumber(CoordinatorEntity[SolarBalanceCoordinator], NumberEntity):

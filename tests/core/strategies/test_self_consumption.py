@@ -21,10 +21,10 @@ class TestSelfConsumptionStrategy:
     @pytest.mark.parametrize(
         ("grid_w", "expected_sign"),
         [
-            (-500.0, 1),    # exporting → want to charge (positive preferred power)
-            (300.0, -1),    # importing → want to discharge (negative)
-            (0.0, 0),       # balanced → idle
-            (0.5, 0),       # below 1 W threshold → idle
+            (-500.0, 1),  # exporting → want to charge (positive preferred power)
+            (300.0, -1),  # importing → want to discharge (negative)
+            (0.0, 0),  # balanced → idle
+            (0.5, 0),  # below 1 W threshold → idle
         ],
     )
     def test_preferred_power_sign_follows_grid(
@@ -33,9 +33,7 @@ class TestSelfConsumptionStrategy:
         strat = SelfConsumptionStrategy([ecoflow_device], loads=[])
         snap = make_snapshot(
             grid_w=grid_w,
-            batteries=(
-                BatteryState(device_name="ecoflow_living_room", soc_pct=50.0, power_w=0.0),
-            ),
+            batteries=(BatteryState(device_name="ecoflow_living_room", soc_pct=50.0, power_w=0.0),),
             mppts=(MpptState(device_name="ecoflow_living_room", power_w=0.0),),
         )
         decision = strat.compute(snap)
@@ -90,7 +88,5 @@ class TestSelfConsumptionStrategy:
             ),
         )
         decision = strat.compute(snap)
-        total_preferred = sum(
-            t.preferred_power_w or 0.0 for t in decision.battery_targets.values()
-        )
+        total_preferred = sum(t.preferred_power_w or 0.0 for t in decision.battery_targets.values())
         assert total_preferred == pytest.approx(-grid_w, abs=0.1)

@@ -69,7 +69,7 @@ class TestTempoTariff:
         assert cfg.default_import_price == tariff.current_import_price(dt)
 
     def test_hc_before_6am_uses_previous_tempo_day_colour(self) -> None:
-        """HC 00:00–06:00 belongs to the Tempo day that started at 06:00 yesterday.
+        """HC 00:00-06:00 belongs to the Tempo day that started at 06:00 yesterday.
 
         The colour provider receives the tick shifted back 6 h, so a tick at 02:00
         on a RED calendar day (which has RED colour since yesterday's 06:00) must
@@ -86,7 +86,7 @@ class TestTempoTariff:
         tick = _dt(2)  # 02:00 UTC on 2026-05-04
         tariff.current_import_price(tick)
 
-        # The provider must have been called with 2026-05-03 20:00 (tick − 6 h)
+        # The provider must have been called with 2026-05-03 20:00 (tick - 6 h)
         assert len(received) == 1
         assert received[0].hour == 20
         assert received[0].day == 3  # previous calendar day
@@ -94,10 +94,10 @@ class TestTempoTariff:
     @pytest.mark.parametrize(
         ("hour", "expected_colour_lookup_hour"),
         [
-            (0, 18),   # 00:00 → look up 18:00 the day before
-            (3, 21),   # 03:00 → look up 21:00 the day before
-            (5, 23),   # 05:00 → look up 23:00 the day before
-            (6, 6),    # 06:00 → same-day lookup (starts HP)
+            (0, 18),  # 00:00 → look up 18:00 the day before
+            (3, 21),  # 03:00 → look up 21:00 the day before
+            (5, 23),  # 05:00 → look up 23:00 the day before
+            (6, 6),  # 06:00 → same-day lookup (starts HP)
             (12, 12),  # noon → same-day lookup
         ],
     )

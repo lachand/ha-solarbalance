@@ -5,10 +5,10 @@ and high C-rates. The comfort window is narrowed versus the user's absolute
 bounds, differentiated by chemistry — see SPECIFICATIONS §6.1.
 
 Default longevity windows:
-- LiFePO4 : 20 % – 90 %  (most tolerant chemistry)
-- NMC      : 20 % – 85 %
-- Lead-acid: 30 % – 80 %
-- Other    : 20 % – 85 %  (conservative)
+- LiFePO4 : 20 % - 90 %  (most tolerant chemistry)
+- NMC      : 20 % - 85 %
+- Lead-acid: 30 % - 80 %
+- Other    : 20 % - 85 %  (conservative)
 """
 
 from ..models import BatteryTarget, Chemistry, Decision, Snapshot, StrategyKind

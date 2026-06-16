@@ -194,7 +194,7 @@ class TestSnapshot:
     def test_baseline_consumption_formula(self) -> None:
         snap = Snapshot(
             timestamp=datetime(2026, 5, 4, 12, 0, tzinfo=UTC),
-            grid_power_w=200.0,    # importing 200 W
+            grid_power_w=200.0,  # importing 200 W
             batteries=(BatteryState(device_name="a", soc_pct=50.0, power_w=-300.0),),
             mppts=(MpptState(device_name="a", power_w=500.0),),
             inverters=(),
@@ -207,8 +207,9 @@ class TestSnapshot:
 
 def test_estimate_soh_pct() -> None:
     from custom_components.solarbalance.core.models import Chemistry, estimate_soh_pct
+
     assert estimate_soh_pct(None, Chemistry.LIFEPO4) is None
     assert estimate_soh_pct(0, Chemistry.LIFEPO4) == 100.0
-    assert estimate_soh_pct(3000, Chemistry.LIFEPO4) == 90.0   # 3000/6000*20 = 10 off
-    assert estimate_soh_pct(6000, Chemistry.LIFEPO4) == 80.0   # rated EoL
-    assert estimate_soh_pct(1500, Chemistry.NMC) == 90.0       # 1500/3000*20 = 10 off
+    assert estimate_soh_pct(3000, Chemistry.LIFEPO4) == 90.0  # 3000/6000*20 = 10 off
+    assert estimate_soh_pct(6000, Chemistry.LIFEPO4) == 80.0  # rated EoL
+    assert estimate_soh_pct(1500, Chemistry.NMC) == 90.0  # 1500/3000*20 = 10 off

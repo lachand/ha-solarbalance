@@ -37,26 +37,41 @@ def test_slew_limit_clamps_change() -> None:
 
 def test_predictive_cheap_only_adds_charge() -> None:
     # Plan wants to charge more than the solar base, cheap window → grid-charge.
-    assert predictive_steering_w(
-        base_target_w=200.0, planner_w=2000.0, is_cheap=True, is_expensive=False
-    ) == 1800.0
+    assert (
+        predictive_steering_w(
+            base_target_w=200.0, planner_w=2000.0, is_cheap=True, is_expensive=False
+        )
+        == 1800.0
+    )
     # Plan wants less charge than base in cheap window → no negative bias.
-    assert predictive_steering_w(
-        base_target_w=2000.0, planner_w=200.0, is_cheap=True, is_expensive=False
-    ) == 0.0
+    assert (
+        predictive_steering_w(
+            base_target_w=2000.0, planner_w=200.0, is_cheap=True, is_expensive=False
+        )
+        == 0.0
+    )
 
 
 def test_predictive_expensive_only_adds_discharge() -> None:
-    assert predictive_steering_w(
-        base_target_w=0.0, planner_w=-1500.0, is_cheap=False, is_expensive=True
-    ) == -1500.0
-    assert predictive_steering_w(
-        base_target_w=-1500.0, planner_w=0.0, is_cheap=False, is_expensive=True
-    ) == 0.0
+    assert (
+        predictive_steering_w(
+            base_target_w=0.0, planner_w=-1500.0, is_cheap=False, is_expensive=True
+        )
+        == -1500.0
+    )
+    assert (
+        predictive_steering_w(
+            base_target_w=-1500.0, planner_w=0.0, is_cheap=False, is_expensive=True
+        )
+        == 0.0
+    )
 
 
 def test_predictive_inert_with_flat_tariff() -> None:
     # Neither cheap nor expensive (flat tariff) → no steering, ZI stays in control.
-    assert predictive_steering_w(
-        base_target_w=100.0, planner_w=3000.0, is_cheap=False, is_expensive=False
-    ) == 0.0
+    assert (
+        predictive_steering_w(
+            base_target_w=100.0, planner_w=3000.0, is_cheap=False, is_expensive=False
+        )
+        == 0.0
+    )

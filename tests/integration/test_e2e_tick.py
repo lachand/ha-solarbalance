@@ -105,16 +105,12 @@ async def test_full_tick_charges_battery_and_runs_load_on_export(hass: HomeAssis
 
     # The battery charge setpoint was written (> 0 W) to its number entity.
     charge_writes = [
-        c.data["value"]
-        for c in number_calls
-        if c.data.get("entity_id") == "number.batt_charge"
+        c.data["value"] for c in number_calls if c.data.get("entity_id") == "number.batt_charge"
     ]
     assert charge_writes and charge_writes[-1] > 0
 
     # The remaining surplus turned the load on.
-    assert any(
-        "switch.water_heater" in (c.data.get("entity_id") or "") for c in turn_on_calls
-    )
+    assert any("switch.water_heater" in (c.data.get("entity_id") or "") for c in turn_on_calls)
 
 
 @pytest.mark.asyncio
@@ -212,9 +208,7 @@ async def test_full_tick_off_peak_load_not_turned_on(hass: HomeAssistant) -> Non
     await hass.async_block_till_done()
 
     # Despite the surplus, the off-peak guard keeps the load off.
-    assert not any(
-        "switch.water_heater" in (c.data.get("entity_id") or "") for c in turn_on_calls
-    )
+    assert not any("switch.water_heater" in (c.data.get("entity_id") or "") for c in turn_on_calls)
     assert coordinator.load_status("wh") == "off_peak_wait"
 
 
@@ -244,9 +238,7 @@ async def test_full_tick_force_charge_turns_switch_on(hass: HomeAssistant) -> No
     await coordinator.async_refresh()
     await hass.async_block_till_done()
 
-    assert any(
-        "switch.water_heater" in (c.data.get("entity_id") or "") for c in turn_on_calls
-    )
+    assert any("switch.water_heater" in (c.data.get("entity_id") or "") for c in turn_on_calls)
     assert coordinator.load_status("wh") == "force_charge"
 
 

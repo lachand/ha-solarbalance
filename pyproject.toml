@@ -76,10 +76,15 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["D"]
+"scripts/**" = ["D"]
 "custom_components/solarbalance/__init__.py" = ["D"]
-# HA entity protocol overrides (native_value, etc.) and coordinator properties
-# do not need individual docstrings; the class docstring covers them.
+# HA entity protocol overrides (native_value, async_turn_on, etc.) and coordinator
+# properties do not need individual docstrings; the class docstring covers them.
 "custom_components/solarbalance/sensor.py" = ["D102"]
+"custom_components/solarbalance/binary_sensor.py" = ["D102"]
+"custom_components/solarbalance/switch.py" = ["D102"]
+"custom_components/solarbalance/number.py" = ["D102"]
+"custom_components/solarbalance/select.py" = ["D102"]
 "custom_components/solarbalance/coordinator.py" = ["D102"]
 # Intra-package relative imports are intentional across all core and adapter modules.
 "custom_components/solarbalance/core/**" = ["TID252"]

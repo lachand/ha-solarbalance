@@ -21,6 +21,7 @@ class SelfConsumptionStrategy(Strategy):
     kind = StrategyKind.SELF_CONSUMPTION.value
 
     def compute(self, snapshot: Snapshot) -> Decision:
+        """Return the self-consumption decision for the current snapshot."""
         battery_targets: dict[str, BatteryTarget] = {}
 
         net_grid = snapshot.grid_power_w

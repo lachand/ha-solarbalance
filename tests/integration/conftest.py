@@ -12,7 +12,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def auto_enable_custom_integrations(
-    enable_custom_integrations: None,  # noqa: ARG001 — pytest-homeassistant-custom-component fixture
+    enable_custom_integrations: None,
 ) -> Generator[None]:
     """Enable loading of the custom integration in HA test environments."""
     yield

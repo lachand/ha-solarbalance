@@ -86,7 +86,7 @@ async def _register_panel(hass: HomeAssistant) -> None:
             sidebar_icon="mdi:solar-power-variant",
             require_admin=False,
         )
-    except Exception as exc:  # noqa: BLE001 — never block setup on the panel
+    except Exception as exc:
         _LOGGER.warning("SolarBalance: could not register custom panel: %s", exc)
         return
     hass.data.setdefault(DOMAIN, {})[_PANEL_REGISTERED_KEY] = True
@@ -370,7 +370,9 @@ def _build_from_subentries(
         except (vol.Invalid, ValueError, KeyError) as exc:
             _LOGGER.error(
                 "SolarBalance: invalid %s subentry %r — skipped: %s",
-                sub.subentry_type, sub.title, exc,
+                sub.subentry_type,
+                sub.title,
+                exc,
             )
     return devices, meters, loads
 
