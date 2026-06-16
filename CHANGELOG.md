@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.2] — 2026-06-16
+
+### Fixed
+
+- **Garde-fou « batterie non-pilotable » : plafonnage sur le réseau *naturel***
+  (correctif de la 2.0.1). Le garde-fou était plafonné par l'import réseau *brut*
+  ; or en régime établi, la ZI décharge déjà le parc pour couvrir la batterie
+  cloud → le compteur lit ~0 → le garde-fou voyait « pas d'import » et n'agissait
+  jamais (stabilité marginale). Il utilise désormais le réseau **sans la
+  contribution du parc** (`grid − puissance du parc`), invariant à ce que fait le
+  parc : le vrai import (ex. 4 − (−1461) = 1465 W) est révélé et la décharge du
+  parc pour nourrir la batterie cloud est bien neutralisée.
+
 ## [2.0.1] — 2026-06-16
 
 ### Added
@@ -482,6 +495,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.2]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.13...v2.0.0
 [2.0.0-beta.13]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.12...v2.0.0-beta.13

@@ -61,7 +61,7 @@ def apply_equaliser_offer(target_w: float, offer_w: float) -> float:
 
 
 def noncontrollable_charge_offset_w(
-    charge_w: float, grid_w: float, force_offset_w: float = 0.0
+    charge_w: float, natural_grid_w: float, force_offset_w: float = 0.0
 ) -> float:
     """Zero-injection setpoint offset that spares the fleet a cloud battery's charge.
 
@@ -71,14 +71,18 @@ def noncontrollable_charge_offset_w(
     night with no PV). Raising the ZI setpoint by ``charge_w`` makes the loop
     tolerate that import instead, so the cloud battery draws from the grid.
 
-    ``charge_w`` is the cloud battery's charge power (>= 0). The offer is capped at
-    the remaining grid *import* (``grid_w - force_offset_w``, after the
-    force-charge feed-forward) so it never makes the fleet charge from the grid
-    during a PV surplus (when the grid is exporting, the cap is 0).
+    ``charge_w`` is the cloud battery's charge power (>= 0). ``natural_grid_w`` is
+    the grid power *without* the controllable fleet's contribution
+    (``grid_filtered - current_fleet``): the raw grid cannot be used because once
+    the fleet already discharges to cover the cloud charge, the raw grid reads ~0
+    and the offset would collapse to 0 (the loop would keep draining the fleet).
+    The offset is capped at that natural import (after the force-charge
+    feed-forward) so it never makes the fleet charge from the grid during a PV
+    surplus (when the natural grid is exporting, the cap is 0).
     """
     if charge_w <= 0.0:
         return 0.0
-    return min(charge_w, max(0.0, grid_w - force_offset_w))
+    return min(charge_w, max(0.0, natural_grid_w - force_offset_w))
 
 
 def predictive_steering_w(

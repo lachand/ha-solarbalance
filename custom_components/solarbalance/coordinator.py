@@ -1479,6 +1479,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # VACATION (self-consume from solar, never grid-charge), but not while
         # pre-charging from the grid for a red day (storm / override / red-prep
         # drive batteries with explicit intent).
+        # Controllable fleet power (filtered), computed before the ZI step so the
+        # setpoint guards can reason about the grid *without* the fleet's own
+        # action (grid_filtered - current_fleet), which is invariant to what the
+        # fleet is currently doing.
+        current_fleet_w = self._fleet_filter.update(
+            sum(
+                b.power_w
+                for b in snapshot.batteries
+                if b.available and b.device_name in self._controllable_battery_names
+            )
+        )
         zi_correction_w = 0.0
         eq_bias_w = 0.0
         zi_regulating = (
@@ -1513,7 +1524,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             effective_setpoint_w = (
                 self._zi_setpoint_w
                 + force_offset_w
-                + self._noncontrollable_charge_offset_w(snapshot, grid_filtered_w, force_offset_w)
+                + self._noncontrollable_charge_offset_w(
+                    snapshot, grid_filtered_w - current_fleet_w, force_offset_w
+                )
             )
             if (
                 self._per_phase_zi
@@ -1576,13 +1589,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # owns the grid loop (target = current fleet power + PI delta); otherwise
         # the strategies' absolute target drives the fleet. Summing both is what
         # caused the tick-frequency limit cycle. See core/controllers/regulation.
-        current_fleet_w = self._fleet_filter.update(
-            sum(
-                b.power_w
-                for b in snapshot.batteries
-                if b.available and b.device_name in self._controllable_battery_names
-            )
-        )
         absolute_target_w = sum(
             t.preferred_power_w or 0.0 for t in result.decision.battery_targets.values()
         )
@@ -2243,7 +2249,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return total
 
     def _noncontrollable_charge_offset_w(
-        self, snapshot: Snapshot, grid_filtered_w: float, force_offset_w: float
+        self, snapshot: Snapshot, natural_grid_w: float, force_offset_w: float
     ) -> float:
         """Don't drain the controllable fleet to feed a self-charging cloud battery.
 
@@ -2255,8 +2261,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         loop tolerate it instead, so the cloud battery draws from the grid (single
         conversion) rather than draining the fleet.
 
-        Capped at the remaining grid *import* (after the force-charge feed-forward)
-        so it never makes the fleet charge from the grid during a PV surplus.
+        ``natural_grid_w`` is the grid power *without* the controllable fleet's
+        contribution (``grid_filtered - current_fleet``) -- the import the fleet
+        would face if it did nothing. It must be used (not the raw grid) because in
+        steady state the fleet already discharges to cover the cloud charge, so the
+        raw grid reads ~0 and the guard would never engage (marginal stability).
+        Capped at that natural import (after the force-charge feed-forward) so it
+        never makes the fleet charge from the grid during a PV surplus.
         """
         if not self._exclude_noncontrollable_charge:
             return 0.0
@@ -2265,7 +2276,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             for b in snapshot.batteries
             if b.available and b.device_name not in self._controllable_battery_names
         )
-        return noncontrollable_charge_offset_w(charge, grid_filtered_w, force_offset_w)
+        return noncontrollable_charge_offset_w(charge, natural_grid_w, force_offset_w)
 
     def _load_floor_w(self, load: Load) -> tuple[float, bool]:
         """Return (floor_w, reducible) for overload relief — how low a load may run."""

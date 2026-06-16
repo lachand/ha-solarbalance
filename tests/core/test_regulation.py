@@ -30,15 +30,19 @@ def test_apply_equaliser_offer(target: float, offer: float, expected: float) -> 
 
 
 @pytest.mark.parametrize(
-    ("charge", "grid", "force_offset", "expected"),
+    ("charge", "natural_grid", "force_offset", "expected"),
     [
-        # Night: cloud battery charges 400 from AC -> grid imports 400. Spare the
-        # whole 400 so the fleet does not discharge to feed it.
+        # Night: cloud battery charges 400 from AC -> natural grid imports 400.
+        # Spare the whole 400 so the fleet does not discharge to feed it.
         (400.0, 400.0, 0.0, 400.0),
-        # Grid imports less than the cloud charge -> only spare what's on the grid
+        # Real steady-state case (raw grid ~0, fleet already discharging 1461):
+        # natural grid = grid - fleet = 4 - (-1461) = 1465; cloud charges 1519 ->
+        # spare 1465 (capped by the natural import), so the fleet stops draining.
+        (1519.0, 1465.0, 0.0, 1465.0),
+        # Natural import less than the cloud charge -> only spare what's on the grid
         # (the rest is already covered by PV/fleet, not a battery-to-battery drain).
         (400.0, 250.0, 0.0, 250.0),
-        # PV surplus (grid exporting) -> no offset, never charge the fleet from grid.
+        # PV surplus (natural grid exporting) -> no offset, never charge from grid.
         (400.0, -1100.0, 0.0, 0.0),
         # Force-charge feed-forward already consumes part of the import.
         (400.0, 700.0, 300.0, 400.0),
@@ -48,9 +52,11 @@ def test_apply_equaliser_offer(target: float, offer: float, expected: float) -> 
     ],
 )
 def test_noncontrollable_charge_offset(
-    charge: float, grid: float, force_offset: float, expected: float
+    charge: float, natural_grid: float, force_offset: float, expected: float
 ) -> None:
-    assert noncontrollable_charge_offset_w(charge, grid, force_offset) == pytest.approx(expected)
+    assert noncontrollable_charge_offset_w(charge, natural_grid, force_offset) == pytest.approx(
+        expected
+    )
 
 
 def test_resolve_zi_owns_loop() -> None:
