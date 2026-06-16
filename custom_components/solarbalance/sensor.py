@@ -64,6 +64,7 @@ async def async_setup_entry(
         SolarBalanceBatteryPowerSensor(coordinator, entry),
         SolarBalanceBaselineConsumptionSensor(coordinator, entry),
         SolarBalanceBatterySocAvgSensor(coordinator, entry),
+        SolarBalanceBatteryEnergyAvailableSensor(coordinator, entry),
         SolarBalancePvEnergyTodaySensor(coordinator, entry),
         SolarBalanceGridImportTodaySensor(coordinator, entry),
         SolarBalanceGridExportTodaySensor(coordinator, entry),
@@ -112,9 +113,7 @@ async def async_setup_entry(
     # so they group under that device (instead of "no sub-entry"). Falls back to
     # the main device when the equipment came from YAML (no subentry).
     sub_by_name = {
-        sub.data["name"]: sub_id
-        for sub_id, sub in entry.subentries.items()
-        if sub.data.get("name")
+        sub.data["name"]: sub_id for sub_id, sub in entry.subentries.items() if sub.data.get("name")
     }
     for device in coordinator._devices:
         if device.battery is None:
@@ -349,13 +348,27 @@ class SolarBalanceBatterySocAvgSensor(_SolarBalanceSensor):
 
     @property
     def native_value(self) -> float | None:
-        snap: Snapshot | None = self.coordinator.data
-        if snap is None:
-            return None
-        available = [b.soc_pct for b in snap.batteries if b.available]
-        if not available:
-            return None
-        return round(sum(available) / len(available), 1)
+        # Capacity-weighted (energy-true): a small full pack and a large empty one
+        # must not average to a misleading 50 %. See coordinator.
+        weighted = self.coordinator.weighted_battery_soc_pct()
+        return round(weighted, 1) if weighted is not None else None
+
+
+class SolarBalanceBatteryEnergyAvailableSensor(_SolarBalanceSensor):
+    """Total stored usable energy across all available batteries (kWh)."""
+
+    _attr_translation_key = "battery_energy_available"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY_STORAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:battery-charging-high"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "battery_energy_available")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.available_battery_energy_kwh()
 
 
 class SolarBalancePvEnergyTodaySensor(_SolarBalanceSensor):
@@ -565,7 +578,12 @@ class SolarBalanceLoadStatusSensor(_SolarBalanceSensor):
     _attr_translation_key = "load_status"
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options: ClassVar[list[str]] = [
-        "active", "inactive", "shed", "off_peak_wait", "force_charge", "unknown",
+        "active",
+        "inactive",
+        "shed",
+        "off_peak_wait",
+        "force_charge",
+        "unknown",
     ]
     _attr_icon = "mdi:power-plug"
 

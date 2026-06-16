@@ -90,7 +90,9 @@
           "soc_equaliser_max_w": "Équaliseur SoC : offre max (W)",
           "soc_equaliser_kp_w_per_pct": "Équaliseur SoC : gain (W/%)",
           "soc_equaliser_deadband_pct": "Équaliseur SoC : bande morte (%)",
-          "soc_equaliser_probe_step_w": "Équaliseur SoC : pas de sonde (W)",
+          "soc_equaliser_probe_step_w": "Équaliseur SoC : pas par mouvement (W)",
+          "soc_equaliser_cadence_ticks": "Équaliseur SoC : cadence (ticks entre mouvements)",
+          "soc_equaliser_adaptive_cadence": "Équaliseur SoC : cadence adaptative (suit le retard mesuré)",
           "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)",
           "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)"
         }
@@ -533,6 +535,9 @@
       },
       "battery_soc_avg": {
         "name": "SoC moyen batteries"
+      },
+      "battery_energy_available": {
+        "name": "Énergie batteries disponible"
       },
       "pv_energy_today": {
         "name": "Énergie PV aujourd'hui"

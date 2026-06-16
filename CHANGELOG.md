@@ -37,6 +37,52 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.0-beta.1] — 2026-06-16
+
+> Vague 4 (étape 1, **pré-release**) — stabilisation de l'équaliseur SoC +
+> fiabilisation des moyennes de SoC. À valider par replay avant pilotage.
+> (Restent : prévision de conso, throttle SoH, détection chute PV.)
+
+### Added
+
+- **Capteur `sensor.solarbalance_battery_energy_available`** — énergie utilisable
+  **stockée** dans le parc (kWh, `device_class: energy_storage`) = Σ (SoC × capacité
+  utilisable) sur les batteries disponibles.
+- **Réglages équaliseur dans l'UI** — `soc_equaliser_cadence_ticks` (cadence,
+  plancher de ticks entre mouvements) et `soc_equaliser_adaptive_cadence` (cadence
+  dérivée du retard mesuré) exposés dans *Configurer → Régulation*.
+
+### Fixed
+
+- **SoC moyen pondéré par capacité** — `sensor.solarbalance_battery_soc_avg` faisait
+  une moyenne **arithmétique** des pourcentages : une batterie 2 kWh à 75 % + une
+  3,96 kWh à 25 % donnaient 50 % au lieu du SoC énergie-vrai (~42 %). Désormais
+  pondéré par capacité utilisable, tout comme le SoC agrégé fourni au **planner
+  prédictif** (qui modélise le parc comme une batterie unique). Le déficit du
+  délestage de fin de journée était déjà correct (calcul par batterie en kWh).
+
+### Changed
+
+- **Équaliseur SoC indirect réécrit (anti-pompage)** — sur batterie automatique
+  *cloud* (ex. Jackery), l'ancien équaliseur partait en **cycle limite** : l'offre
+  (intégrateur) montait en rampe jusqu'à son plafond puis s'effondrait, fouettant
+  le parc pilotable entre charge et décharge pleines et projetant des pics réseau
+  de ±1,3 à 2,7 kW (injection visible) toutes les ~5 min, pour un SoC qui ne
+  convergeait pas. La nouvelle version :
+  - **offre proportionnelle à l'écart de SoC** (plus d'intégrateur → plus de
+    windup) ;
+  - **cadence lente** : l'offre ne bouge que toutes les *N* ticks, *N* étant
+    **dérivé du retard de réponse mesuré** de la batterie cloud
+    (`soc_equaliser_adaptive_cadence`, défaut on ; plancher
+    `soc_equaliser_cadence_ticks`, défaut 6) ;
+  - **anti-windup conscient du temps mort** : un export/import n'est rétracté que
+    s'il **persiste** *et* que la puissance mesurée de la batterie auto **ne
+    progresse pas** (on distingue « fuite réseau » de « la ZI exécute l'offre
+    pendant le délai cloud ») ;
+  - **pente symétrique** (resets inclus, fini les sauts à 0) et **hystérésis
+    d'arrêt** (reprise seulement au-delà de la bande morte + marge).
+  La ZI elle-même (P-seul) était saine et n'est pas modifiée.
+
 ## [1.11.1] — 2026-06-15
 
 ### Fixed
@@ -246,6 +292,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.0-beta.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.11.1...v2.0.0-beta.1
 [1.11.1]: https://github.com/solarbalance/ha-solarbalance/compare/v1.11.0...v1.11.1
 [1.11.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/solarbalance/ha-solarbalance/compare/v1.9.0...v1.10.0

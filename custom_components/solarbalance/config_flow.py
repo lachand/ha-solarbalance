@@ -39,6 +39,8 @@ from .const import (
     CONF_PRIORITIES,
     CONF_PV_FORECAST_ENTITY,
     CONF_PV_FORECAST_TOMORROW_ENTITY,
+    CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
+    CONF_SOC_EQUALISER_CADENCE_TICKS,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
     CONF_SOC_EQUALISER_KP_W_PER_PCT,
@@ -77,6 +79,8 @@ from .const import (
     DEFAULT_MAX_RAMP_W,
     DEFAULT_OVERLOAD_PROTECTION_ENABLED,
     DEFAULT_PHASES,
+    DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
+    DEFAULT_SOC_EQUALISER_CADENCE_TICKS,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
@@ -132,9 +136,9 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             CONF_ZERO_INJECTION_HYSTERESIS_W,
             default=d.get(CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W),
         ): vol.All(int, vol.Range(min=0)),
-        vol.Optional(
-            CONF_MAX_RAMP_W, default=d.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W)
-        ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+        vol.Optional(CONF_MAX_RAMP_W, default=d.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W)): vol.All(
+            vol.Coerce(int), vol.Range(min=0)
+        ),
         vol.Optional(
             CONF_GRID_FILTER_SAMPLES,
             default=d.get(CONF_GRID_FILTER_SAMPLES, DEFAULT_GRID_FILTER_SAMPLES),
@@ -222,15 +226,25 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             CONF_SOC_EQUALISER_PROBE_STEP_W,
             default=d.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W),
         ): vol.All(vol.Coerce(float), vol.Range(min=1)),
+        vol.Optional(
+            CONF_SOC_EQUALISER_CADENCE_TICKS,
+            default=d.get(CONF_SOC_EQUALISER_CADENCE_TICKS, DEFAULT_SOC_EQUALISER_CADENCE_TICKS),
+        ): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Optional(
+            CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
+            default=d.get(
+                CONF_SOC_EQUALISER_ADAPTIVE_CADENCE, DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE
+            ),
+        ): bool,
     }
 
 
 def _forecast_fields(d: dict[str, Any]) -> dict[Any, Any]:
     """Prévision PV (entités Solcast / Forecast.Solar + marge de sécurité)."""
     return {
-        vol.Optional(
-            CONF_PV_FORECAST_ENTITY, default=d.get(CONF_PV_FORECAST_ENTITY, "")
-        ): _entity("sensor"),
+        vol.Optional(CONF_PV_FORECAST_ENTITY, default=d.get(CONF_PV_FORECAST_ENTITY, "")): _entity(
+            "sensor"
+        ),
         vol.Optional(
             CONF_PV_FORECAST_TOMORROW_ENTITY, default=d.get(CONF_PV_FORECAST_TOMORROW_ENTITY, "")
         ): _entity("sensor"),
@@ -261,15 +275,15 @@ def _tariff_fields(d: dict[str, Any]) -> dict[Any, Any]:
         vol.Optional(CONF_HP_PRICE, default=d.get(CONF_HP_PRICE, DEFAULT_HP_PRICE)): vol.All(
             vol.Coerce(float), vol.Range(min=0)
         ),
-        vol.Optional(
-            CONF_TEMPO_COLOR_ENTITY, default=d.get(CONF_TEMPO_COLOR_ENTITY, "")
-        ): _entity("sensor"),
+        vol.Optional(CONF_TEMPO_COLOR_ENTITY, default=d.get(CONF_TEMPO_COLOR_ENTITY, "")): _entity(
+            "sensor"
+        ),
         vol.Optional(
             CONF_TEMPO_COLOR_TOMORROW_ENTITY, default=d.get(CONF_TEMPO_COLOR_TOMORROW_ENTITY, "")
         ): _entity("sensor"),
-        vol.Optional(
-            CONF_SPOT_PRICE_ENTITY, default=d.get(CONF_SPOT_PRICE_ENTITY, "")
-        ): _entity("sensor"),
+        vol.Optional(CONF_SPOT_PRICE_ENTITY, default=d.get(CONF_SPOT_PRICE_ENTITY, "")): _entity(
+            "sensor"
+        ),
         vol.Optional(
             CONF_SPOT_MARKUP, default=d.get(CONF_SPOT_MARKUP, DEFAULT_SPOT_MARKUP)
         ): vol.All(vol.Coerce(float), vol.Range(min=0)),
@@ -311,6 +325,7 @@ class SolarBalanceConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: Any) -> OptionsFlow:
+        """Return the options flow handler for this entry."""
         return SolarBalanceOptionsFlow(config_entry)
 
     @classmethod
@@ -334,26 +349,24 @@ class SolarBalanceOptionsFlow(OptionsFlow):
     def __init__(self, config_entry: Any) -> None:
         self._entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
-        return self.async_show_menu(
-            step_id="init", menu_options=["general", "forecast", "tariff"]
-        )
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Show the options menu (sections)."""
+        return self.async_show_menu(step_id="init", menu_options=["general", "forecast", "tariff"])
 
     async def async_step_general(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Edit the regulation & behaviour section."""
         return await self._section("general", _general_fields, user_input)
 
     async def async_step_forecast(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        """Edit the PV-forecast section."""
         return await self._section("forecast", _forecast_fields, user_input)
 
-    async def async_step_tariff(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_tariff(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Edit the tariff & prices section."""
         return await self._section("tariff", _tariff_fields, user_input)
 
     async def _section(
@@ -370,9 +383,7 @@ class SolarBalanceOptionsFlow(OptionsFlow):
                 if merged.get(key) == "":
                     merged[key] = None
             return self.async_create_entry(title="", data=merged)
-        return self.async_show_form(
-            step_id=step_id, data_schema=vol.Schema(fields_fn(current))
-        )
+        return self.async_show_form(step_id=step_id, data_schema=vol.Schema(fields_fn(current)))
 
 
 # ---------------------------------------------------------------------------
@@ -441,20 +452,20 @@ def _battery_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Required("max_charge_power_w", default=d.get("max_charge_power_w")): _num(
                 0, step=50, unit="W"
             ),
-            vol.Required(
-                "max_discharge_power_w", default=d.get("max_discharge_power_w")
-            ): _num(0, step=50, unit="W"),
+            vol.Required("max_discharge_power_w", default=d.get("max_discharge_power_w")): _num(
+                0, step=50, unit="W"
+            ),
             vol.Required("soc_entity", default=d.get("soc_entity")): _entity("sensor"),
             vol.Optional("power_entity", default=d.get("power_entity", "")): _entity("sensor"),
-            vol.Optional(
-                "temperature_entity", default=d.get("temperature_entity", "")
-            ): _entity("sensor"),
+            vol.Optional("temperature_entity", default=d.get("temperature_entity", "")): _entity(
+                "sensor"
+            ),
             vol.Optional("cycles_entity", default=d.get("cycles_entity", "")): _entity("sensor"),
             vol.Optional("soc_min_pct", default=d.get("soc_min_pct", 10)): _num(0, 100, 1, "%"),
             vol.Optional("soc_max_pct", default=d.get("soc_max_pct", 95)): _num(0, 100, 1, "%"),
-            vol.Optional(
-                "usable_capacity_kwh", default=d.get("usable_capacity_kwh", "")
-            ): _num(0, step=0.1, unit="kWh"),
+            vol.Optional("usable_capacity_kwh", default=d.get("usable_capacity_kwh", "")): _num(
+                0, step=0.1, unit="kWh"
+            ),
             vol.Optional(
                 "chemistry", default=d.get("chemistry", Chemistry.LIFEPO4.value)
             ): selector.SelectSelector(
@@ -492,20 +503,34 @@ def _battery_subentry_schema(d: dict[str, Any]) -> vol.Schema:
                 "reserve_soc_setpoint_entity",
                 default=d.get("reserve_soc_setpoint_entity", ""),
             ): _entity("number", "input_number"),
-            vol.Optional(
-                "ac_charge_limit_w", default=d.get("ac_charge_limit_w", "")
-            ): _num(0, step=50, unit="W"),
+            vol.Optional("ac_charge_limit_w", default=d.get("ac_charge_limit_w", "")): _num(
+                0, step=50, unit="W"
+            ),
         }
     )
 
 
 # Keys that hold a battery-role value (the rest, like name, are device-level).
 _BATTERY_ROLE_KEYS = (
-    "capacity_kwh", "max_charge_power_w", "max_discharge_power_w", "soc_entity",
-    "power_entity", "temperature_entity", "cycles_entity", "soc_min_pct", "soc_max_pct",
-    "usable_capacity_kwh", "chemistry", "power_sign_convention", "controllable",
-    "active_control_enabled", "charge_power_setpoint_entity", "discharge_power_setpoint_entity",
-    "mode_setpoint_entity", "reserve_soc_setpoint_entity", "ac_charge_limit_w",
+    "capacity_kwh",
+    "max_charge_power_w",
+    "max_discharge_power_w",
+    "soc_entity",
+    "power_entity",
+    "temperature_entity",
+    "cycles_entity",
+    "soc_min_pct",
+    "soc_max_pct",
+    "usable_capacity_kwh",
+    "chemistry",
+    "power_sign_convention",
+    "controllable",
+    "active_control_enabled",
+    "charge_power_setpoint_entity",
+    "discharge_power_setpoint_entity",
+    "mode_setpoint_entity",
+    "reserve_soc_setpoint_entity",
+    "ac_charge_limit_w",
 )
 
 
@@ -551,9 +576,7 @@ class _EquipmentSubentryFlow(ConfigSubentryFlow):
     def _prefill(self, data: dict[str, Any]) -> dict[str, Any]:
         return dict(data)
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> SubentryFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         return await self._show("user", user_input)
 
     async def async_step_reconfigure(
@@ -561,9 +584,7 @@ class _EquipmentSubentryFlow(ConfigSubentryFlow):
     ) -> SubentryFlowResult:
         return await self._show("reconfigure", user_input)
 
-    async def _show(
-        self, step_id: str, user_input: dict[str, Any] | None
-    ) -> SubentryFlowResult:
+    async def _show(self, step_id: str, user_input: dict[str, Any] | None) -> SubentryFlowResult:
         errors: dict[str, str] = {}
         defaults: dict[str, Any] = user_input or {}
         if user_input is not None:
@@ -629,19 +650,34 @@ def _parse_steps(text: str) -> list[dict[str, int]]:
 
 
 _LOAD_FLAT_KEYS = (
-    "name", "control_type", "priority", "interruptible", "switch_entity",
-    "actual_power_entity", "nominal_power_w", "level_entity", "power_set_entity",
-    "min_power_w", "max_power_w", "fast_charge", "min_charge_w", "assist_floor_soc_pct",
-    "pause_when_inefficient", "min_on_duration_s", "min_off_duration_s",
+    "name",
+    "control_type",
+    "priority",
+    "interruptible",
+    "switch_entity",
+    "actual_power_entity",
+    "nominal_power_w",
+    "level_entity",
+    "power_set_entity",
+    "min_power_w",
+    "max_power_w",
+    "fast_charge",
+    "min_charge_w",
+    "assist_floor_soc_pct",
+    "pause_when_inefficient",
+    "min_on_duration_s",
+    "min_off_duration_s",
 )
 
 
 def _load_subentry_schema(d: dict[str, Any]) -> vol.Schema:
     from .core.models import LoadControlType
 
-    steps_default = ", ".join(
-        f"{s['level']}:{s['power_w']}" for s in d.get("steps", [])
-    ) if d.get("steps") else d.get("steps_text", "")
+    steps_default = (
+        ", ".join(f"{s['level']}:{s['power_w']}" for s in d.get("steps", []))
+        if d.get("steps")
+        else d.get("steps_text", "")
+    )
     dl = d.get("deadline_constraint") or {}
     tw = d.get("time_window") or {}
     return vol.Schema(
@@ -658,22 +694,22 @@ def _load_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Optional(
                 "interruptible", default=d.get("interruptible", True)
             ): selector.BooleanSelector(),
-            vol.Optional(
-                "switch_entity", default=d.get("switch_entity", "")
-            ): _entity("switch", "input_boolean"),
-            vol.Optional(
-                "actual_power_entity", default=d.get("actual_power_entity", "")
-            ): _entity("sensor"),
-            vol.Optional(
-                "nominal_power_w", default=d.get("nominal_power_w", "")
-            ): _num(0, step=50, unit="W"),
-            vol.Optional(
-                "level_entity", default=d.get("level_entity", "")
-            ): _entity("number", "input_number", "select", "input_select"),
+            vol.Optional("switch_entity", default=d.get("switch_entity", "")): _entity(
+                "switch", "input_boolean"
+            ),
+            vol.Optional("actual_power_entity", default=d.get("actual_power_entity", "")): _entity(
+                "sensor"
+            ),
+            vol.Optional("nominal_power_w", default=d.get("nominal_power_w", "")): _num(
+                0, step=50, unit="W"
+            ),
+            vol.Optional("level_entity", default=d.get("level_entity", "")): _entity(
+                "number", "input_number", "select", "input_select"
+            ),
             vol.Optional("steps", default=steps_default): selector.TextSelector(),
-            vol.Optional(
-                "power_set_entity", default=d.get("power_set_entity", "")
-            ): _entity("number", "input_number"),
+            vol.Optional("power_set_entity", default=d.get("power_set_entity", "")): _entity(
+                "number", "input_number"
+            ),
             vol.Optional("min_power_w", default=d.get("min_power_w", "")): _num(
                 0, step=50, unit="W"
             ),
@@ -692,9 +728,9 @@ def _load_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Optional("min_charge_w", default=d.get("min_charge_w", "")): _num(
                 0, step=50, unit="W"
             ),
-            vol.Optional(
-                "assist_floor_soc_pct", default=d.get("assist_floor_soc_pct", "")
-            ): _num(0, 100, 1, "%"),
+            vol.Optional("assist_floor_soc_pct", default=d.get("assist_floor_soc_pct", "")): _num(
+                0, 100, 1, "%"
+            ),
             vol.Optional(
                 "pause_when_inefficient", default=d.get("pause_when_inefficient", True)
             ): selector.BooleanSelector(),
@@ -704,12 +740,8 @@ def _load_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Optional(
                 "deadline_before", default=dl.get("before_time", "")
             ): selector.TextSelector(),
-            vol.Optional(
-                "window_start", default=tw.get("start", "")
-            ): selector.TextSelector(),
-            vol.Optional(
-                "window_end", default=tw.get("end", "")
-            ): selector.TextSelector(),
+            vol.Optional("window_start", default=tw.get("start", "")): selector.TextSelector(),
+            vol.Optional("window_end", default=tw.get("end", "")): selector.TextSelector(),
         }
     )
 
@@ -759,13 +791,11 @@ def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
     return vol.Schema(
         {
             vol.Required("name", default=d.get("name", "")): selector.TextSelector(),
-            vol.Required("peak_power_w", default=m.get("peak_power_w")): _num(
-                0, step=50, unit="W"
-            ),
+            vol.Required("peak_power_w", default=m.get("peak_power_w")): _num(0, step=50, unit="W"),
             vol.Required("power_entity", default=m.get("power_entity")): _entity("sensor"),
-            vol.Optional(
-                "daily_energy_entity", default=m.get("daily_energy_entity", "")
-            ): _entity("sensor"),
+            vol.Optional("daily_energy_entity", default=m.get("daily_energy_entity", "")): _entity(
+                "sensor"
+            ),
             vol.Optional(
                 "active_control_enabled", default=m.get("active_control_enabled", False)
             ): selector.BooleanSelector(),
@@ -777,8 +807,11 @@ def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
 
 
 _MPPT_ROLE_KEYS = (
-    "peak_power_w", "power_entity", "daily_energy_entity",
-    "active_control_enabled", "power_limit_setpoint_entity",
+    "peak_power_w",
+    "power_entity",
+    "daily_energy_entity",
+    "active_control_enabled",
+    "power_limit_setpoint_entity",
 )
 
 
@@ -822,15 +855,15 @@ def _meter_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Optional(
                 "per_phase_zi", default=d.get("per_phase_zi", False)
             ): selector.BooleanSelector(),
-            vol.Optional(
-                "power_l1_entity", default=d.get("power_l1_entity", "")
-            ): _entity("sensor"),
-            vol.Optional(
-                "power_l2_entity", default=d.get("power_l2_entity", "")
-            ): _entity("sensor"),
-            vol.Optional(
-                "power_l3_entity", default=d.get("power_l3_entity", "")
-            ): _entity("sensor"),
+            vol.Optional("power_l1_entity", default=d.get("power_l1_entity", "")): _entity(
+                "sensor"
+            ),
+            vol.Optional("power_l2_entity", default=d.get("power_l2_entity", "")): _entity(
+                "sensor"
+            ),
+            vol.Optional("power_l3_entity", default=d.get("power_l3_entity", "")): _entity(
+                "sensor"
+            ),
             vol.Optional(
                 "daily_import_energy_entity", default=d.get("daily_import_energy_entity", "")
             ): _entity("sensor"),
@@ -842,8 +875,15 @@ def _meter_subentry_schema(d: dict[str, Any]) -> vol.Schema:
 
 
 _METER_KEYS = (
-    "name", "kind", "power_entity", "per_phase_zi", "power_l1_entity", "power_l2_entity",
-    "power_l3_entity", "daily_import_energy_entity", "daily_export_energy_entity",
+    "name",
+    "kind",
+    "power_entity",
+    "per_phase_zi",
+    "power_l1_entity",
+    "power_l2_entity",
+    "power_l3_entity",
+    "daily_import_energy_entity",
+    "daily_export_energy_entity",
 )
 
 

@@ -20,6 +20,8 @@ CONF_SOC_EQUALISER_MAX_W: Final = "soc_equaliser_max_w"
 CONF_SOC_EQUALISER_KP_W_PER_PCT: Final = "soc_equaliser_kp_w_per_pct"
 CONF_SOC_EQUALISER_DEADBAND_PCT: Final = "soc_equaliser_deadband_pct"
 CONF_SOC_EQUALISER_PROBE_STEP_W: Final = "soc_equaliser_probe_step_w"
+CONF_SOC_EQUALISER_CADENCE_TICKS: Final = "soc_equaliser_cadence_ticks"
+CONF_SOC_EQUALISER_ADAPTIVE_CADENCE: Final = "soc_equaliser_adaptive_cadence"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"
 CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
@@ -57,16 +59,21 @@ DEFAULT_ZERO_INJECTION_HYSTERESIS_W: Final = 50
 # Proportional gain of the zero-injection loop. The integral is disabled (ki=0):
 # the fleet-power recursion (target = measured fleet + correction) already
 # integrates, so a second integrator would double-count and oscillate. Lower kp
-# (0.3–0.4) for slow/cloud batteries with actuation lag. See SPECIFICATIONS §6.3.
+# (0.3-0.4) for slow/cloud batteries with actuation lag. See SPECIFICATIONS §6.3.
 DEFAULT_ZERO_INJECTION_KP: Final = 0.6
 DEFAULT_PHASES: Final = 1
 DEFAULT_BALANCING_ALPHA: Final = 0.6
 DEFAULT_SOC_EQUALISER_MAX_W: Final = 1500
 DEFAULT_SOC_EQUALISER_KP_W_PER_PCT: Final = 80.0
 DEFAULT_SOC_EQUALISER_DEADBAND_PCT: Final = 2.0
-# Initial steering step (W); grows geometrically per tick while the automatic
-# battery follows, capped by its AC absorption capacity. See SPECIFICATIONS §6.6.
+# Max change of the steering offer per move (W), symmetric (incl. resets). The
+# offer is proportional to the SoC error (not integrating). See SPECIFICATIONS §6.6.
 DEFAULT_SOC_EQUALISER_PROBE_STEP_W: Final = 150.0
+# Min ticks between offer moves (slow outer loop). With adaptive cadence on, the
+# effective value tracks the automatic battery's measured response lag.
+DEFAULT_SOC_EQUALISER_CADENCE_TICKS: Final = 6
+# Derive the cadence from the measured cloud-battery response lag (vs the floor).
+DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE: Final = True
 # Max change of the aggregate battery target per tick (W). Caps regulation
 # swings; 0 disables the limit. See docs/SPECIFICATIONS.md §6.3.
 DEFAULT_MAX_RAMP_W: Final = 800
@@ -119,7 +126,7 @@ DEFAULT_VACATION_SOC_MAX_PCT: Final = 60.0
 
 # Strategy defaults — see SPECIFICATIONS §6.1 and docs/technical.md
 DEFAULT_BACKUP_RESERVE_SOC_PCT: Final = 20.0
-DEFAULT_COST_MIN_CHEAP_THRESHOLD: Final = 0.15   # €/kWh
+DEFAULT_COST_MIN_CHEAP_THRESHOLD: Final = 0.15  # €/kWh
 DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD: Final = 0.25  # €/kWh
 
 # Persistent store

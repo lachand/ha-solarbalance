@@ -5,7 +5,7 @@ runtime state (Snapshot), and the output of strategies (Decision). They
 are pure value objects — no IO, no side effects, no Home Assistant.
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
@@ -147,9 +147,7 @@ class BatteryRole:
             )
         if self.active_control_enabled:
             if not self.controllable:
-                raise ValueError(
-                    "active_control_enabled requires controllable=true"
-                )
+                raise ValueError("active_control_enabled requires controllable=true")
             if (
                 self.discharge_power_setpoint_entity is None
                 and self.charge_power_setpoint_entity is None
@@ -188,9 +186,7 @@ class MpptRole:
 
     def __post_init__(self) -> None:
         if self.active_control_enabled and self.power_limit_setpoint_entity is None:
-            raise ValueError(
-                "MpptRole active_control_enabled requires power_limit_setpoint_entity"
-            )
+            raise ValueError("MpptRole active_control_enabled requires power_limit_setpoint_entity")
 
 
 @dataclass(slots=True, frozen=True)
@@ -331,6 +327,33 @@ class BatteryState:
     temperature_c: float | None = None
     cycles: float | None = None
     available: bool = True
+
+
+def capacity_weighted_soc_pct(entries: Iterable[tuple[float, float]]) -> float | None:
+    """Capacity-weighted mean SoC (%) from ``(soc_pct, usable_kwh)`` pairs.
+
+    Weighting by usable capacity gives the energy-true figure: a 2 kWh pack at
+    75 % and a 4 kWh pack at 25 % average to ~42 %, not 50 %. Entries with a
+    non-positive capacity are ignored. Returns ``None`` when no usable capacity
+    is present.
+    """
+    stored_kwh = 0.0
+    usable_kwh = 0.0
+    for soc_pct, usable in entries:
+        if usable <= 0.0:
+            continue
+        stored_kwh += soc_pct / 100.0 * usable
+        usable_kwh += usable
+    return stored_kwh / usable_kwh * 100.0 if usable_kwh > 0.0 else None
+
+
+def stored_energy_kwh(entries: Iterable[tuple[float, float]]) -> float:
+    """Total stored usable energy (kWh) from ``(soc_pct, usable_kwh)`` pairs.
+
+    The energy currently held across the fleet: ``Σ soc_pct/100 * usable_kwh``.
+    Entries with a non-positive capacity are ignored.
+    """
+    return sum(soc_pct / 100.0 * usable for soc_pct, usable in entries if usable > 0.0)
 
 
 # Rated full-cycle count to ~80% End-of-Life capacity, per chemistry. Used to

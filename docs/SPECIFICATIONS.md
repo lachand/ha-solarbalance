@@ -398,7 +398,9 @@ solarbalance:
 - `soc_equaliser_max_w` (int, défaut 1500) — biais de puissance maximal appliqué au parc pilotable
 - `soc_equaliser_kp_w_per_pct` (float, défaut 80.0) — gain proportionnel (W par % d'écart de SoC)
 - `soc_equaliser_deadband_pct` (float, défaut 2.0) — demi-largeur de la bande morte de SoC
-- `soc_equaliser_probe_step_w` (float, défaut 150.0) — variation max de l'offre de surplus par tick (rampe/repli ; voir §6.6). Requiert `zero_injection_enabled`.
+- `soc_equaliser_probe_step_w` (float, défaut 150.0) — variation max de l'offre **par mouvement**, symétrique (rampe, repli et resets ; voir §6.6).
+- `soc_equaliser_cadence_ticks` (int, défaut 6) — plancher de ticks entre deux mouvements de l'offre (boucle externe lente).
+- `soc_equaliser_adaptive_cadence` (bool, défaut true) — dérive la cadence du retard de réponse **mesuré** de la batterie auto (sinon plancher fixe). Requiert `zero_injection_enabled`.
 - `tariff_config` (sous-section, voir §7.3)
 
 > Les constantes `storm_mode_target_soc_pct` (défaut 95 %) et `storm_mode_lead_time_h` (défaut 6 h) sont
@@ -576,12 +578,13 @@ Certaines batteries remontent leur état (SoC, puissance) mais n'offrent **aucun
 - biais < 0 → le parc pilotable décharge davantage → surplus AC → la batterie automatique charge ;
 - biais > 0 → le parc pilotable charge davantage → déficit AC → la batterie automatique décharge.
 
-**Architecture en cascade** (corrige un bug de la v1 où un biais de *puissance* ajouté à la puissance courante du parc s'intégrait → rampe jusqu'à saturation → débordement réseau → cycle limite). L'équaliseur est désormais une **boucle externe lente** qui ne pilote pas directement le parc :
+**Boucle externe lente, proportionnelle** (corrige deux bugs successifs de la v1 : d'abord un biais de *puissance* qui s'intégrait → rampe → débordement ; puis une offre **intégratrice** qui, derrière le temps mort d'une batterie *cloud*, partait en **cycle limite** — l'offre montait en rampe jusqu'à son plafond puis s'effondrait, fouettant le parc charge↔décharge et projetant des pics réseau ±kW). L'équaliseur est désormais **proportionnel et lent**, et ne pilote pas directement le parc :
 
-1. Il déduit une **puissance cible** pour la batterie auto à partir de l'écart de SoC : `fa_cible = clamp(kp × (soc_cible − soc_auto), [−max_discharge, +ac_charge_limit])` (bande morte `soc_equaliser_deadband_pct`, garde sur les bornes SoC propres de la batterie auto). `ac_charge_limit_w` défaut = `max_charge_power_w`.
-2. Il maintient une **offre de surplus bornée** `offer` (sa propre intégrale, pas ≤ `soc_equaliser_probe_step_w` par tick, clamp `±soc_equaliser_max_w`) qu'il ajuste pour amener la **puissance mesurée** de la batterie auto (`power_entity`) vers `fa_cible`.
-3. La **zéro-injection** (boucle interne unique) régule le réseau vers `consigne − offer`. Une seule intégrale agit sur le parc → plus de runaway. `offer > 0` = surplus offert (la batterie auto charge) ; `offer < 0` = déficit (elle décharge).
-4. **Anti-windup / sûreté** : si l'offre se retrouve sur le **réseau** au lieu de la batterie auto (réseau en export/import au-delà de ~100 W alors que la batterie n'absorbe pas), l'offre est **réduite** au lieu d'être augmentée — elle ne force jamais d'échange réseau.
+1. Il déduit une **offre cible** bornée à partir de l'écart de SoC : `offer_cible = clamp(Σ clamp(kp × (soc_cible − soc_auto), [−max_discharge, +ac_charge_limit]), ±soc_equaliser_max_w)` (bande morte `soc_equaliser_deadband_pct`, garde sur les bornes SoC propres de la batterie auto). `ac_charge_limit_w` défaut = `max_charge_power_w`. **Proportionnel, pas d'intégrateur → pas de windup.**
+2. L'offre publiée `offer` rejoint `offer_cible` par **pente symétrique** (≤ `soc_equaliser_probe_step_w` par mouvement, resets inclus), mais **seulement toutes les *N* ticks**. *N* (`soc_equaliser_cadence_ticks`, plancher) est **dérivé du retard de réponse mesuré** de la batterie auto quand `soc_equaliser_adaptive_cadence` est actif (la cadence reste ≫ au temps mort du plant cloud).
+3. La **zéro-injection** (boucle interne unique, P-seul) régule le réseau vers `consigne − offer`. Une seule boucle agit sur le parc. `offer > 0` = surplus offert (la batterie auto charge) ; `offer < 0` = déficit (elle décharge).
+4. **Anti-windup conscient du temps mort / sûreté** : un export/import au-delà de ~100 W ne **réduit** l'offre que s'il **persiste** *et* que la puissance mesurée de la batterie auto **ne progresse pas** vers sa cible — on distingue ainsi une vraie *fuite réseau* de la *ZI en train d'exécuter l'offre* pendant le délai de réponse cloud. L'offre ne force jamais d'échange réseau.
+5. **Hystérésis d'arrêt** : le steering s'arrête dans la bande morte de SoC et ne reprend qu'au-delà de `bande morte + marge`, supprimant le pompage en bord de bande.
 
 **Requiert `zero_injection_enabled`** (l'équaliseur agit en biaisant son setpoint). Off par défaut. Ce transfert paie deux conversions supplémentaires : compromis rendement ↔ homogénéité des SoC.
 

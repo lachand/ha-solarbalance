@@ -90,7 +90,9 @@
           "soc_equaliser_max_w": "SoC equaliser: max offer (W)",
           "soc_equaliser_kp_w_per_pct": "SoC equaliser: gain (W/%)",
           "soc_equaliser_deadband_pct": "SoC equaliser: deadband (%)",
-          "soc_equaliser_probe_step_w": "SoC equaliser: probe step (W)",
+          "soc_equaliser_probe_step_w": "SoC equaliser: step per move (W)",
+          "soc_equaliser_cadence_ticks": "SoC equaliser: cadence (ticks between moves)",
+          "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)",
           "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
           "dry_run": "Dry-run (compute everything, never write to hardware)"
         }
@@ -533,6 +535,9 @@
       },
       "battery_soc_avg": {
         "name": "Battery SoC Average"
+      },
+      "battery_energy_available": {
+        "name": "Battery Energy Available"
       },
       "pv_energy_today": {
         "name": "PV Energy Today"

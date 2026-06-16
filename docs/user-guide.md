@@ -84,7 +84,9 @@ Le Config Flow HA configure les **paramètres globaux**. Les équipements (batte
 | **Équaliseur — puissance max** (`soc_equaliser_max_w`) | 1500 W | Biais de steering agrégé maximal appliqué au parc pilotable. |
 | **Équaliseur — gain** (`soc_equaliser_kp_w_per_pct`) | 80 | Gain proportionnel en W par % d'écart de SoC. |
 | **Équaliseur — bande morte** (`soc_equaliser_deadband_pct`) | 2,0 | Demi-largeur de la zone morte de SoC (%) ; en deçà, pas de steering. |
-| **Équaliseur — pas** (`soc_equaliser_probe_step_w`) | 150 W | Variation max de l'offre de surplus par tick (vitesse de rampe et de repli). Voir §6.6 des SPECIFICATIONS. |
+| **Équaliseur — pas** (`soc_equaliser_probe_step_w`) | 150 W | Variation max de l'offre **par mouvement**, symétrique (rampe, repli et resets). Voir §6.6 des SPECIFICATIONS. |
+| **Équaliseur — cadence** (`soc_equaliser_cadence_ticks`) | 6 | Plancher de ticks entre deux mouvements de l'offre (boucle externe lente). |
+| **Équaliseur — cadence adaptative** (`soc_equaliser_adaptive_cadence`) | Activé | Dérive la cadence du retard de réponse **mesuré** de la batterie auto (cloud) au lieu d'un plancher fixe. |
 | **Stratégies / priorités** | self_consumption en premier | Ordre des stratégies actives, de la plus prioritaire à la moins prioritaire. |
 
 ### Modifier les paramètres après installation
@@ -494,7 +496,8 @@ SolarBalance crée automatiquement les entités suivantes après ajout de l'int�
 | `sensor.solarbalance_pv_power` | W | Puissance PV totale |
 | `sensor.solarbalance_battery_power` | W | Puissance batterie agrégée (positif = charge) |
 | `sensor.solarbalance_baseline_consumption` | W | Consommation non pilotable déduite |
-| `sensor.solarbalance_battery_soc_avg` | % | SoC moyen de toutes les batteries |
+| `sensor.solarbalance_battery_soc_avg` | % | SoC moyen **pondéré par capacité utilisable** de toutes les batteries |
+| `sensor.solarbalance_battery_energy_available` | kWh | Énergie utilisable **stockée** dans le parc (Σ SoC × capacité utilisable) |
 | `sensor.solarbalance_pv_energy_today` | kWh | Énergie PV produite aujourd'hui |
 | `sensor.solarbalance_grid_import_today` | kWh | Énergie importée aujourd'hui |
 
@@ -731,23 +734,23 @@ Filtres dans **Paramètres → Journaux** :
 
 ## 13. FAQ
 
-**Q : La convention de signe réseau est confuse. Qu'est-ce qui est positif ?**  
+**Q : La convention de signe réseau est confuse. Qu'est-ce qui est positif ?**
 R : Le compteur PDL doit être **positif quand vous achetez de l'électricité** (soutirage, import) et **négatif quand vous en revendez** (injection, export). C'est la convention Linky et Shelly 3EM native.
 
-**Q : Pourquoi ma batterie ne se charge pas pendant les heures creuses ?**  
+**Q : Pourquoi ma batterie ne se charge pas pendant les heures creuses ?**
 R : La stratégie `cost_min` doit être activée avec un `cheap_threshold` adapté à votre contrat. Vérifiez aussi que `current_import_price` est bien renseigné dans le Snapshot (configurer une entité de tarif ou un tarif HA Energy).
 
-**Q : Puis-je utiliser SolarBalance sans batterie ?**  
+**Q : Puis-je utiliser SolarBalance sans batterie ?**
 R : Oui, en mode lecture seule pour l'observabilité (sensors de puissance réseau/PV). Les stratégies de dispatch de charges fonctionnent aussi sans batterie si vous avez des charges pilotables.
 
-**Q : La différence entre Config Flow et YAML ?**  
+**Q : La différence entre Config Flow et YAML ?**
 R : Le Config Flow (interface graphique) gère les **paramètres globaux** (tick, ZI, phases, stratégies). Le YAML déclare les **équipements** (batteries, MPPT, onduleurs, compteurs, charges). Cette séparation évite une interface graphique surchargée pour les configurations multi-équipements complexes.
 
-**Q : SolarBalance est-il compatible avec mon équipement ?**  
+**Q : SolarBalance est-il compatible avec mon équipement ?**
 R : Tout équipement exposant ses mesures comme entités HA est compatible. Il faut au minimum une entité SoC (%) et une entité puissance (W) pour la batterie. Les marques Ecoflow, Jackery, Victron, Huawei, Enphase, Fronius, et tout système avec intégration HACS/custom sont compatibles.
 
-**Q : Mon abonnement est Tempo, comment configurer les prix ?**  
+**Q : Mon abonnement est Tempo, comment configurer les prix ?**
 R : SolarBalance inclut un modèle `TempoTariff` (couleurs Bleu/Blanc/Rouge avec prix HC/HP par couleur). La liaison avec l'entité couleur du jour RTE est à configurer via le YAML `tariff:`. La documentation complète des tarifs sera disponible dans une prochaine version.
 
-**Q : Le planificateur 24h est-il actif en v1 ?**  
+**Q : Le planificateur 24h est-il actif en v1 ?**
 R : Le `PredictiveScheduler` calcule un planning optimal mais son résultat est publié uniquement comme sensor d'observabilité en v1. L'injection effective dans la prise de décision est prévue pour v2.

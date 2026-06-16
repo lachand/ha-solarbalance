@@ -42,6 +42,8 @@ from .const import (
     CONF_PREDICTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
     CONF_PV_FORECAST_TOMORROW_ENTITY,
+    CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
+    CONF_SOC_EQUALISER_CADENCE_TICKS,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
     CONF_SOC_EQUALISER_KP_W_PER_PCT,
@@ -81,6 +83,8 @@ from .const import (
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_OVERLOAD_PROTECTION_ENABLED,
+    DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
+    DEFAULT_SOC_EQUALISER_CADENCE_TICKS,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
@@ -149,6 +153,8 @@ from .core.models import (
     MeterKind,
     Snapshot,
     StrategyKind,
+    capacity_weighted_soc_pct,
+    stored_energy_kwh,
 )
 from .core.planner import BatteryConstraints, PlanningResult, PredictiveScheduler
 from .core.strategies.backup import BackupStrategy
@@ -422,9 +428,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._tempo_red_prep_soc_pct = float(
             cfg.get(CONF_TEMPO_RED_PREP_SOC_PCT, DEFAULT_TEMPO_RED_PREP_SOC_PCT)
         )
-        self._tempo_color_tomorrow_entity: str | None = (
-            (spec or {}).get("color_tomorrow_entity") or None
-        )
+        self._tempo_color_tomorrow_entity: str | None = (spec or {}).get(
+            "color_tomorrow_entity"
+        ) or None
         self._vacation_soc_max_pct = float(
             cfg.get(CONF_VACATION_SOC_MAX_PCT, DEFAULT_VACATION_SOC_MAX_PCT)
         )
@@ -443,6 +449,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._controllable_battery_names = frozenset(
             d.name for d in devices if d.battery is not None and d.battery.controllable
         )
+        # Usable capacity (kWh) per battery device, for capacity-weighted SoC means
+        # (a 2 kWh @ 75 % and a 4 kWh @ 25 % pack do not average to 50 %).
+        self._usable_capacity_by_device = {
+            d.name: float(d.battery.usable_capacity_kwh or d.battery.capacity_kwh)
+            for d in devices
+            if d.battery is not None
+        }
         uncontrollable = [
             (d.name, d.battery)
             for d in devices
@@ -461,6 +474,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 ),
                 step_w=float(
                     cfg.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W)
+                ),
+                cadence_ticks=int(
+                    cfg.get(CONF_SOC_EQUALISER_CADENCE_TICKS, DEFAULT_SOC_EQUALISER_CADENCE_TICKS)
+                ),
+                adaptive_cadence=bool(
+                    cfg.get(
+                        CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
+                        DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
+                    )
                 ),
             )
 
@@ -592,9 +614,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             _LOGGER.info("SolarBalance mode: %s → %s", self._mode.value, value.value)
             old = self._mode
             self._mode = value
-            self.hass.bus.async_fire(
-                EVENT_MODE_CHANGED, {"old": old.value, "new": value.value}
-            )
+            self.hass.bus.async_fire(EVENT_MODE_CHANGED, {"old": old.value, "new": value.value})
 
     @property
     def publisher(self) -> DecisionPublisher:
@@ -640,9 +660,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if le and le.get("day"):
             with contextlib.suppress(ValueError, TypeError):
                 self._load_energy_day = date.fromisoformat(le["day"])
-                self._load_energy_kwh = {
-                    str(k): float(v) for k, v in (le.get("kwh") or {}).items()
-                }
+                self._load_energy_kwh = {str(k): float(v) for k, v in (le.get("kwh") or {}).items()}
         energy = (data or {}).get("energy")
         if not energy:
             return
@@ -1013,7 +1031,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         prefix = ""
         if code.startswith("vacation_"):
             prefix = texts["vacation_prefix"]
-            code = code[len("vacation_"):]
+            code = code[len("vacation_") :]
         return prefix + texts.get(code, texts["idle"])
 
     def _static_config_issues(self) -> list[str]:
@@ -1110,9 +1128,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if load_name not in {ld.name for ld in self._loads}:
             _LOGGER.warning("force_charge_load: unknown load %r", load_name)
             return
-        until = (
-            dt_util.utcnow() + timedelta(hours=hours) if hours and hours > 0 else None
-        )
+        until = dt_util.utcnow() + timedelta(hours=hours) if hours and hours > 0 else None
         self._force_charge_req[load_name] = ForceChargeRequest(
             start_kwh=self._load_energy_kwh.get(load_name, 0.0),
             target_kwh=kwh if kwh and kwh > 0 else None,
@@ -1393,9 +1409,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         zi_correction_w = 0.0
         eq_bias_w = 0.0
         zi_regulating = (
-            self._zi_enabled
-            and self._mode in (HemsMode.NORMAL, HemsMode.VACATION)
-            and not red_prep
+            self._zi_enabled and self._mode in (HemsMode.NORMAL, HemsMode.VACATION) and not red_prep
         )
         # Anti-yoyo: while a settle window is active (a big load was just dropped),
         # keep ZI "regulating" (so the target tracks the measured fleet) but freeze
@@ -1644,12 +1658,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._plan_tick += 1
         if self._plan is not None and self._plan_tick % _PLAN_EVERY_TICKS != 0:
             return
-        controllable_soc = [
-            b.soc_pct
-            for b in snapshot.batteries
-            if b.available and b.device_name in self._controllable_battery_names
-        ]
-        if not controllable_soc:
+        # The planner models the controllable fleet as one aggregate battery, so
+        # its starting SoC must be capacity-weighted (energy-true), not a plain
+        # mean of percentages.
+        avg_soc = self._controllable_avg_soc(snapshot)
+        if avg_soc is None:
             return
         slots = build_forecast_slots(
             start=dt_util.as_local(snapshot.timestamp),
@@ -1658,7 +1671,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             baseline_w=max(0.0, self._baseline_ema_w),
             tariff=self._tariff,
         )
-        self._plan = self._scheduler.plan(slots, sum(controllable_soc) / len(controllable_soc))
+        self._plan = self._scheduler.plan(slots, avg_soc)
 
     def _forecast_pv_by_hour(self, snapshot: Snapshot) -> list[float]:
         """Per-hour PV power (W) for the planner, from the configured forecast.
@@ -1681,9 +1694,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             return entity_profile
         return [snapshot.pv_forecast_now_w] if snapshot.pv_forecast_now_w is not None else []
 
-    def _make_tempo_color_provider(
-        self, entity_id: str
-    ) -> Callable[[datetime], TempoColor]:
+    def _make_tempo_color_provider(self, entity_id: str) -> Callable[[datetime], TempoColor]:
         """Build a Tempo colour provider reading the configured HA entity live."""
 
         def _provider(_dt: datetime) -> TempoColor:
@@ -1692,9 +1703,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         return _provider
 
-    def _make_spot_price_provider(
-        self, entity_id: str
-    ) -> Callable[[datetime], float | None]:
+    def _make_spot_price_provider(self, entity_id: str) -> Callable[[datetime], float | None]:
         """Build a spot-price provider reading the configured price sensor (€/kWh).
 
         Prefers the hourly ``raw_today`` / ``raw_tomorrow`` attributes (Nordpool /
@@ -1880,14 +1889,48 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             )
         return needs
 
+    def _weighted_soc(self, snapshot: Snapshot, *, controllable_only: bool) -> float | None:
+        """Capacity-weighted mean SoC (%) of available batteries, or None.
+
+        Weighted by usable capacity so a small full pack and a large empty one do
+        not average to a misleading 50 % (the energy-true figure). When
+        ``controllable_only`` is set, the non-controllable fleet is excluded.
+        """
+        entries: list[tuple[float, float]] = []
+        for b in snapshot.batteries:
+            if not b.available:
+                continue
+            if controllable_only and b.device_name not in self._controllable_battery_names:
+                continue
+            cap = self._usable_capacity_by_device.get(b.device_name)
+            if cap is not None:
+                entries.append((b.soc_pct, cap))
+        return capacity_weighted_soc_pct(entries)
+
+    def weighted_battery_soc_pct(self) -> float | None:
+        """Capacity-weighted SoC (%) across all available batteries, for the sensor."""
+        snapshot = self.data
+        if snapshot is None:
+            return None
+        return self._weighted_soc(snapshot, controllable_only=False)
+
+    def available_battery_energy_kwh(self) -> float | None:
+        """Total stored usable energy (kWh) across available batteries, for the sensor."""
+        snapshot = self.data
+        if snapshot is None:
+            return None
+        entries: list[tuple[float, float]] = []
+        for b in snapshot.batteries:
+            if not b.available:
+                continue
+            cap = self._usable_capacity_by_device.get(b.device_name)
+            if cap is not None:
+                entries.append((b.soc_pct, cap))
+        return round(stored_energy_kwh(entries), 2) if entries else None
+
     def _controllable_avg_soc(self, snapshot: Snapshot) -> float | None:
-        """Mean SoC of the available controllable battery fleet, or None."""
-        soc = [
-            b.soc_pct
-            for b in snapshot.batteries
-            if b.available and b.device_name in self._controllable_battery_names
-        ]
-        return sum(soc) / len(soc) if soc else None
+        """Capacity-weighted SoC of the available controllable battery fleet, or None."""
+        return self._weighted_soc(snapshot, controllable_only=True)
 
     def _command_load_powers(self, commands: tuple[LoadCommand, ...]) -> dict[str, float]:
         """Power (W) each load command applies — 0 when off, else commanded/nominal."""
@@ -1947,9 +1990,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Loads the user exempted from shedding also bypass the fast-charge
         # inefficiency pause: charge them at the dispatched rate instead.
         ev_loads = [
-            load
-            for load in self._loads
-            if load.fast_charge and load.name not in self._shed_exempt
+            load for load in self._loads if load.fast_charge and load.name not in self._shed_exempt
         ]
         if not ev_loads:
             self._fast_charge = {}
@@ -1998,8 +2039,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             )
         if load.control_type is LoadControlType.STEPPED and load.steps:
             fitting = [s for s in load.steps if s.power_w <= target_w]
-            step = max(fitting, key=lambda s: s.power_w) if fitting else min(
-                load.steps, key=lambda s: s.power_w
+            step = (
+                max(fitting, key=lambda s: s.power_w)
+                if fitting
+                else min(load.steps, key=lambda s: s.power_w)
             )
             return LoadCommand(
                 load_name=load.name,
@@ -2121,7 +2164,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             return commands
         _LOGGER.warning(
             "Overload protection: grid %.0fW > %.0fW limit — reducing %s (%.0fW uncovered)",
-            grid_filtered_w, safe_limit, ", ".join(targets), uncovered,
+            grid_filtered_w,
+            safe_limit,
+            ", ".join(targets),
+            uncovered,
         )
         by_name = {c.load_name: c for c in commands}
         for name, target_w in targets.items():
@@ -2205,9 +2251,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         if not result.in_deadband:
             _LOGGER.debug(
-                "SoC equaliser offer %.0fW (fleet target=%.1f%%)",
+                "SoC equaliser offer %.0fW (fleet target=%.1f%%, cadence=%d ticks, lag=%s)",
                 result.grid_setpoint_bias_w,
                 result.target_soc_pct,
+                result.cadence_ticks,
+                f"{result.lag_ticks:.1f} ticks" if result.lag_ticks is not None else "unmeasured",
             )
         return result.grid_setpoint_bias_w
 
