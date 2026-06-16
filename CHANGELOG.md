@@ -37,6 +37,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+### Added
+
+- **Couple de capteurs charge/décharge dans l'UI** — le formulaire *Batterie* (et
+  *Batterie + onduleur*) expose désormais `charge_power_entity` /
+  `discharge_power_entity` en alternative au `power_entity` signé, pour les
+  batteries à deux capteurs de puissance distincts. (Déjà géré en YAML ; manquait
+  dans le Config Flow.)
+
 ## [2.0.0-beta.1] — 2026-06-16
 
 > Vague 4 (étape 1, **pré-release**) — stabilisation de l'équaliseur SoC +
