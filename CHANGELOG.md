@@ -37,18 +37,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.0-beta.6] — 2026-06-16
-
-### Added
-
-- **Filtre des vigilances Météo-France par phénomène** — deux options
-  *Régulation* : `weather_phenomena` (multi-sélection : quels phénomènes
-  déclenchent le mode Tempête — ex. exclure *Canicule*) et `weather_min_level`
-  (`jaune`/`orange`/`rouge`, défaut orange). Lit les **attributs** de l'entité
-  Météo-France (`sensor.<dept>_weather_alert`, un par phénomène), avec un
-  appariement tolérant (casse/accents/séparateurs). Repli inchangé sur un
-  `binary_sensor` simple. Module pur `core/weather.py` + tests.
-
 ## [2.0.0-beta.5] — 2026-06-16
 
 ### Fixed
@@ -359,7 +347,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
-[2.0.0-beta.6]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.5...v2.0.0-beta.6
 [2.0.0-beta.5]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.4...v2.0.0-beta.5
 [2.0.0-beta.4]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.3...v2.0.0-beta.4
 [2.0.0-beta.3]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.2...v2.0.0-beta.3

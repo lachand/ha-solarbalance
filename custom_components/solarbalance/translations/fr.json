@@ -74,8 +74,6 @@
           "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
           "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
           "weather_warning_entity": "Entité vigilance Météo-France (optionnel)",
-          "weather_phenomena": "Météo : phénomènes qui déclenchent le mode tempête",
-          "weather_min_level": "Météo : niveau d'alerte minimum",
           "load_control_enabled": "Activer le contrôle des consommateurs (switches)",
           "evening_shed_enabled": "Délestage fin de journée (priorité charge batterie)",
           "predictive_control_enabled": "Contrôle prédictif actif (pilotage batteries selon tarifs)",
@@ -485,26 +483,6 @@
     }
   },
   "selector": {
-    "weather_phenomena": {
-      "options": {
-        "canicule": "Canicule",
-        "grandfroid": "Grand froid",
-        "ventviolent": "Vent violent",
-        "orages": "Orages",
-        "neigeverglas": "Neige-verglas",
-        "inondation": "Inondation",
-        "pluieinondation": "Pluie-inondation",
-        "vaguessubmersion": "Vagues-submersion",
-        "avalanches": "Avalanches"
-      }
-    },
-    "weather_min_level": {
-      "options": {
-        "jaune": "Jaune",
-        "orange": "Orange",
-        "rouge": "Rouge"
-      }
-    },
     "meter_kind": {
       "options": {
         "pdl": "PDL (réseau)",

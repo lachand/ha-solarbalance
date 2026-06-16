@@ -56,8 +56,6 @@ from .const import (
     CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
     CONF_VACATION_SOC_MAX_PCT,
-    CONF_WEATHER_MIN_LEVEL,
-    CONF_WEATHER_PHENOMENA,
     CONF_WEATHER_WARNING_ENTITY,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
@@ -92,7 +90,6 @@ from .const import (
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_VACATION_SOC_MAX_PCT,
-    DEFAULT_WEATHER_MIN_LEVEL,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
     DEFAULT_ZI_SETTLE_MIN_DROP_W,
@@ -100,7 +97,6 @@ from .const import (
     DOMAIN,
 )
 from .core.models import StrategyKind
-from .core.weather import PHENOMENA
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -176,24 +172,6 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
         vol.Optional(
             CONF_WEATHER_WARNING_ENTITY, default=d.get(CONF_WEATHER_WARNING_ENTITY, "")
         ): _entity("binary_sensor", "sensor"),
-        vol.Optional(
-            CONF_WEATHER_PHENOMENA, default=d.get(CONF_WEATHER_PHENOMENA, list(PHENOMENA))
-        ): selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=list(PHENOMENA),
-                multiple=True,
-                translation_key="weather_phenomena",
-            )
-        ),
-        vol.Optional(
-            CONF_WEATHER_MIN_LEVEL,
-            default=d.get(CONF_WEATHER_MIN_LEVEL, DEFAULT_WEATHER_MIN_LEVEL),
-        ): selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=["jaune", "orange", "rouge"],
-                translation_key="weather_min_level",
-            )
-        ),
         vol.Optional(
             CONF_ACTIVE_CONTROL_ENABLED, default=d.get(CONF_ACTIVE_CONTROL_ENABLED, False)
         ): bool,
