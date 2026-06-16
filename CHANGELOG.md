@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.0-beta.12] — 2026-06-16
+
+### Changed
+
+- **Équaliseur SoC : l'offre devient un plancher de décharge direct** (au lieu d'un
+  biais du setpoint zéro-injection). En **surplus**, l'ancien mécanisme laissait la
+  cible parc positive (le parc charge depuis son PV) → consigne de décharge à 0 →
+  l'énergie PV du parc pilotable n'était jamais poussée vers la batterie auto vide.
+  Désormais l'offre force **au moins `offer` de décharge** du parc pilotable
+  (`apply_equaliser_offer`), ce qui transfère réellement le PV vers la batterie auto.
+  Plancher **absolu** (pas d'intégration/runaway) ; borné par l'offre proportionnelle
+  et l'anti-fuite. **Requiert le pilotage actif** avec une entité de consigne de
+  décharge sur le parc pilotable pour être effectif.
+
 ## [2.0.0-beta.11] — 2026-06-16
 
 ### Added
@@ -415,6 +429,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.0-beta.12]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.11...v2.0.0-beta.12
 [2.0.0-beta.11]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.10...v2.0.0-beta.11
 [2.0.0-beta.10]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.9...v2.0.0-beta.10
 [2.0.0-beta.9]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.8...v2.0.0-beta.9

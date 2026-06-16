@@ -131,6 +131,7 @@ from .core.controllers.load_dispatch import LoadCommand, LoadDispatchController
 from .core.controllers.load_settle import SettleState, advance_settle, arm_settle
 from .core.controllers.overload import SheddableLoad, relieve_overload
 from .core.controllers.regulation import (
+    apply_equaliser_offer,
     apply_slew_limit,
     predictive_steering_w,
     resolve_fleet_target_w,
@@ -1488,9 +1489,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 self._soc_equaliser.set_max_step_w(self._eq_tuner.step(eq_bias_w))
             # Grid-only force-charge: raise the ZI target by the forced loads'
             # power so the battery doesn't discharge to feed them (the grid does).
-            effective_setpoint_w = (
-                self._zi_setpoint_w - eq_bias_w + self._force_charge_grid_offset_w(snapshot)
-            )
+            # The equaliser offer is NOT biased into the ZI setpoint anymore (it
+            # could not force a discharge against local PV charging); it is applied
+            # as a direct floor on the fleet target below (apply_equaliser_offer).
+            effective_setpoint_w = self._zi_setpoint_w + self._force_charge_grid_offset_w(snapshot)
             if (
                 self._per_phase_zi
                 and isinstance(self._zi_controller, PerPhaseZeroInjectionController)
@@ -1589,6 +1591,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             absolute_target_w=absolute_target_w,
             steering_w=steering_w,
         )
+        # SoC equaliser: force at least `offer` of fleet discharge (or charge) so it
+        # can push the controllable fleet's PV into a below-target automatic battery
+        # even while the fleet is charging. Only when ZI regulates (else the offer
+        # is 0). The balancing controller and SoC floors bound the actual write.
+        if zi_regulating:
+            total_power_w = apply_equaliser_offer(total_power_w, eq_bias_w)
 
         # Apply grid constraints: clamp the aggregate battery target so the
         # projected grid exchange honours max_import_w and max_export_w. Only the

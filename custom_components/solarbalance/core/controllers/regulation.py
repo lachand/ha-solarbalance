@@ -39,6 +39,27 @@ def resolve_fleet_target_w(
     return base + steering_w
 
 
+def apply_equaliser_offer(target_w: float, offer_w: float) -> float:
+    """Force the fleet at least ``offer_w`` toward charging the automatic battery.
+
+    The SoC equaliser offer is applied as a **direct floor** on the fleet target,
+    not as a zero-injection setpoint bias: a positive offer (charge the automatic
+    battery) forces **at least that much fleet discharge** (``target <= -offer``),
+    a negative offer forces at least that much charge. This lets the offer push a
+    discharge even while the controllable fleet is charging from its own PV (where
+    the net-grid ZI loop alone keeps the target positive).
+
+    It is **absolute** (clamps, does not add to the measured fleet power), so it
+    does not integrate/run away; the offer is itself proportional and bounded, and
+    the equaliser backs it off if the surplus reaches the grid.
+    """
+    if offer_w > 0.0:
+        return min(target_w, -offer_w)
+    if offer_w < 0.0:
+        return max(target_w, -offer_w)
+    return target_w
+
+
 def predictive_steering_w(
     *,
     base_target_w: float,

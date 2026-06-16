@@ -1,10 +1,31 @@
 """Tests for fleet-target resolution helpers."""
 
+import pytest
+
 from custom_components.solarbalance.core.controllers.regulation import (
+    apply_equaliser_offer,
     apply_slew_limit,
     predictive_steering_w,
     resolve_fleet_target_w,
 )
+
+
+@pytest.mark.parametrize(
+    ("target", "offer", "expected"),
+    [
+        # Fleet charging from PV (+625); a +1200 offer forces a 1200 discharge.
+        (625.0, 1200.0, -1200.0),
+        # Already discharging more than the offer -> unchanged.
+        (-1500.0, 1200.0, -1500.0),
+        # Negative offer forces charge.
+        (-100.0, -800.0, 800.0),
+        (900.0, -800.0, 900.0),
+        # No offer -> passthrough.
+        (300.0, 0.0, 300.0),
+    ],
+)
+def test_apply_equaliser_offer(target: float, offer: float, expected: float) -> None:
+    assert apply_equaliser_offer(target, offer) == pytest.approx(expected)
 
 
 def test_resolve_zi_owns_loop() -> None:

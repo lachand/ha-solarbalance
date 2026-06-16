@@ -3,13 +3,15 @@
 Some batteries report their state (SoC, power) but cannot be commanded
 charge/discharge over Home Assistant -- the user can only leave them in their own
 "automatic" mode (typically a cloud-polled station). This controller steers such
-a battery *indirectly* by shifting the AC-bus balance through the zero-injection
-regulator.
+a battery *indirectly* by shifting the AC-bus balance: the coordinator applies
+this offer as a **direct floor** on the controllable fleet's power target (see
+``regulation.apply_equaliser_offer``) -- so it can force a discharge even while
+the fleet is charging from its own PV -- and zero-injection regulates the rest.
 
-- ``grid_setpoint_bias_w > 0`` -> offer surplus (ZI targets a slight export) ->
-  controllable fleet discharges -> automatic battery charges.
-- ``grid_setpoint_bias_w < 0`` -> offer deficit -> fleet charges -> automatic
-  battery discharges.
+- ``grid_setpoint_bias_w > 0`` -> offer surplus -> fleet forced to discharge at
+  least this much -> automatic battery charges.
+- ``grid_setpoint_bias_w < 0`` -> offer deficit -> fleet forced to charge ->
+  automatic battery discharges.
 
 **Design (why it is shaped this way).** An earlier version made the offer an
 *integrator* that servoed the automatic battery's measured power. Combined with
