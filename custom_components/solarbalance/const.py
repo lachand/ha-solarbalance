@@ -24,6 +24,7 @@ CONF_SOC_EQUALISER_DEADBAND_PCT: Final = "soc_equaliser_deadband_pct"
 CONF_SOC_EQUALISER_PROBE_STEP_W: Final = "soc_equaliser_probe_step_w"
 CONF_SOC_EQUALISER_CADENCE_TICKS: Final = "soc_equaliser_cadence_ticks"
 CONF_SOC_EQUALISER_ADAPTIVE_CADENCE: Final = "soc_equaliser_adaptive_cadence"
+CONF_AUTOTUNE_ENABLED: Final = "autotune_enabled"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"
 CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
@@ -79,6 +80,12 @@ DEFAULT_SOC_EQUALISER_PROBE_STEP_W: Final = 600.0
 DEFAULT_SOC_EQUALISER_CADENCE_TICKS: Final = 6
 # Derive the cadence from the measured cloud-battery response lag (vs the floor).
 DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE: Final = True
+# Supervisory auto-tuner: damps the ZI kp and the equaliser step cap when they
+# oscillate, restores them toward the configured values when calm. Never more
+# aggressive than configured, hence safe on by default. Floors below.
+DEFAULT_AUTOTUNE_ENABLED: Final = True
+AUTOTUNE_ZI_KP_MIN: Final = 0.2
+AUTOTUNE_EQ_STEP_MIN_W: Final = 100.0
 # Max change of the aggregate battery target per tick (W). Caps regulation
 # swings; 0 disables the limit. See docs/SPECIFICATIONS.md §6.3.
 DEFAULT_MAX_RAMP_W: Final = 800

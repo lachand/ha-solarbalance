@@ -149,6 +149,10 @@ class SocEqualiserController:
         self._lag_watch_base_fa = 0.0
         self._lag_watch_dir = 1.0
 
+    def set_max_step_w(self, step_w: float) -> None:
+        """Override the per-move step cap (used by the supervisory auto-tuner)."""
+        self._step_w = step_w
+
     def step(
         self,
         *,

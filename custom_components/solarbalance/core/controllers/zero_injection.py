@@ -78,11 +78,11 @@ class ZeroInjectionController:
 
     Gain calibration notes:
     - `kp=0.6` and `ki=0.05` are tuned for a reference tick interval of 10 s with
-      a typical home battery of 1–3 kW. The integral accumulates as ``I += e * dt_s``
+      a typical home battery of 1-3 kW. The integral accumulates as ``I += e * dt_s``
       (units: W·s), so Ki has units of 1/s and is tick-rate independent.
     - `integral_clamp_w_s`: anti-windup clamp on the integral accumulator. The
       default 30 000 W·s limits the integral-only contribution to
-      ``30_000 × 0.05 = 1 500 W`` — roughly the full discharge power of a 1.5 kW
+      ``30_000 x 0.05 = 1 500 W`` -- roughly the full discharge power of a 1.5 kW
       battery. Raise this proportionally for larger installations.
     """
 
@@ -102,6 +102,10 @@ class ZeroInjectionController:
         self._ki = ki
         self._hysteresis_w = hysteresis_w
         self._integral_clamp = integral_clamp_w_s
+
+    def set_kp(self, kp: float) -> None:
+        """Override the proportional gain (used by the supervisory auto-tuner)."""
+        self._kp = kp
 
     def step(
         self,
@@ -177,6 +181,10 @@ class PerPhaseZeroInjectionController:
             hysteresis_w=hysteresis_w,
             integral_clamp_w_s=integral_clamp_w_s,
         )
+
+    def set_kp(self, kp: float) -> None:
+        """Override the proportional gain on all phases (auto-tuner)."""
+        self._ctrl.set_kp(kp)
 
     def step(
         self,

@@ -16,6 +16,7 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_AUTOTUNE_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
@@ -65,6 +66,7 @@ from .const import (
     CONF_ZERO_INJECTION_SETPOINT_W,
     CONF_ZI_SETTLE_MIN_DROP_W,
     CONF_ZI_SETTLE_TICKS,
+    DEFAULT_AUTOTUNE_ENABLED,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
@@ -257,6 +259,10 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             default=d.get(
                 CONF_SOC_EQUALISER_ADAPTIVE_CADENCE, DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE
             ),
+        ): bool,
+        vol.Optional(
+            CONF_AUTOTUNE_ENABLED,
+            default=d.get(CONF_AUTOTUNE_ENABLED, DEFAULT_AUTOTUNE_ENABLED),
         ): bool,
     }
 

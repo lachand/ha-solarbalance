@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.0-beta.9] — 2026-06-16
+
+### Added
+
+- **Auto-réglage supervisé des boucles** (`autotune_enabled`, **on par défaut**) —
+  un superviseur surveille les **inversions de sens** de la correction zéro-injection
+  et de l'offre de l'équaliseur sur une fenêtre glissante. En cas d'**oscillation**
+  (pompage), il **amortit** le gain (`kp` ZI ×0,8 plancher 0,2 ; plafond de pas
+  équaliseur ×0,8 plancher 100 W) ; au **calme**, il le **restaure** lentement vers
+  la valeur configurée. Borné aux valeurs configurées → ne peut que rendre une
+  boucle **plus douce**, jamais plus agressive (sûr par défaut). Module pur
+  `core/autotuner.py` + tests ; capteurs/log d'observabilité.
+
 ## [2.0.0-beta.8] — 2026-06-16
 
 ### Added
@@ -376,6 +389,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.0-beta.9]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.8...v2.0.0-beta.9
 [2.0.0-beta.8]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.7...v2.0.0-beta.8
 [2.0.0-beta.7]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.5...v2.0.0-beta.7
 [2.0.0-beta.5]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.4...v2.0.0-beta.5

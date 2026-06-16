@@ -95,6 +95,7 @@
           "soc_equaliser_probe_step_w": "SoC equaliser: step per move (W)",
           "soc_equaliser_cadence_ticks": "SoC equaliser: cadence (ticks between moves)",
           "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)",
+          "autotune_enabled": "Auto-tune: damp ZI/equaliser gains when they oscillate",
           "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
           "dry_run": "Dry-run (compute everything, never write to hardware)"
         }
@@ -641,6 +642,12 @@
       },
       "grid_filtered": {
         "name": "Grid power (filtered)"
+      },
+      "autotune_zi_kp": {
+        "name": "Auto-tune: ZI gain (kp)"
+      },
+      "autotune_equaliser_step": {
+        "name": "Auto-tune: equaliser step cap"
       },
       "pv_output_limit": {
         "name": "PV output limit"

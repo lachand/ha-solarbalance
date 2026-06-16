@@ -498,6 +498,8 @@ Cette correction de puissance globale est ensuite répartie selon §6.2.
 
 **Limite de pente (anti cycle-limite)** : la cible agrégée ne peut varier de plus de `max_ramp_w` (défaut 800 W) par tick. Garde-fou matériel contre les emballements quels que soient les gains ; `0` désactive la limite.
 
+**Auto-réglage supervisé** (`autotune_enabled`, défaut on) : un superviseur compte les **inversions de sens** de la correction ZI sur une fenêtre glissante ; si ça **oscille** (pompage), il **baisse `kp`** (×0,8, plancher 0,2) ; au **calme**, il le **restaure** lentement vers la valeur configurée. Borné à `[min, kp_config]` → ne peut que rendre la boucle **plus douce**, jamais plus agressive (d'où sûr par défaut). Le même mécanisme amortit le **plafond de pas de l'équaliseur** (§6.6). Module pur `core/autotuner.py`.
+
 **Hystérésis** : zone morte autour de `consigne_zi ± hysteresis_w`. Pas d'action si la mesure y reste.
 
 **Tuning par défaut** :

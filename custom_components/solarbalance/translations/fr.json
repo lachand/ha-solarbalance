@@ -95,6 +95,7 @@
           "soc_equaliser_probe_step_w": "Équaliseur SoC : pas par mouvement (W)",
           "soc_equaliser_cadence_ticks": "Équaliseur SoC : cadence (ticks entre mouvements)",
           "soc_equaliser_adaptive_cadence": "Équaliseur SoC : cadence adaptative (suit le retard mesuré)",
+          "autotune_enabled": "Auto-réglage : amortit les gains ZI/équaliseur en cas d'oscillation",
           "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)",
           "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)"
         }
@@ -641,6 +642,12 @@
       },
       "grid_filtered": {
         "name": "Puissance réseau (filtrée)"
+      },
+      "autotune_zi_kp": {
+        "name": "Auto-réglage : gain ZI (kp)"
+      },
+      "autotune_equaliser_step": {
+        "name": "Auto-réglage : plafond de pas équaliseur"
       },
       "pv_output_limit": {
         "name": "Limite de sortie PV"

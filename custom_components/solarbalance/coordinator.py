@@ -20,7 +20,10 @@ from .adapters.entity_reader import EntityReader
 from .adapters.load_publisher import LoadPublisher
 from .adapters.watchdog import EntityWatchdog
 from .const import (
+    AUTOTUNE_EQ_STEP_MIN_W,
+    AUTOTUNE_ZI_KP_MIN,
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_AUTOTUNE_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
@@ -67,6 +70,7 @@ from .const import (
     CONF_ZERO_INJECTION_SETPOINT_W,
     CONF_ZI_SETTLE_MIN_DROP_W,
     CONF_ZI_SETTLE_TICKS,
+    DEFAULT_AUTOTUNE_ENABLED,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BALANCING_ALPHA,
     DEFAULT_BASELINE_WINDOW_END_H,
@@ -112,6 +116,7 @@ from .const import (
     STORE_VERSION,
 )
 from .core.arbitrer import Arbiter, ArbitrationResult
+from .core.autotuner import RegulationAutoTuner
 from .core.baseline import NightBaselineEstimator
 from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
@@ -264,6 +269,8 @@ class RegulationDiagnostics:
     fleet_target_w: float = 0.0
     regulating: bool = False
     pv_limit_w: float = 0.0
+    autotune_zi_kp: float = 0.0
+    autotune_equaliser_step_w: float = 0.0
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -540,6 +547,23 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             self._zi_controller = ZeroInjectionController(kp=zi_kp, ki=0.0, hysteresis_w=hysteresis)
         self._zi_setpoint_w = float(cfg.get(CONF_ZERO_INJECTION_SETPOINT_W, 0))
         self._tick_s = tick
+
+        # Supervisory auto-tuner (on by default): damps the ZI kp and the equaliser
+        # step cap when they oscillate, restores them when calm. Bounded to the
+        # configured values, so it can only make a loop gentler, never harsher.
+        self._autotune = bool(cfg.get(CONF_AUTOTUNE_ENABLED, DEFAULT_AUTOTUNE_ENABLED))
+        self._zi_tuner: RegulationAutoTuner | None = None
+        self._eq_tuner: RegulationAutoTuner | None = None
+        if self._autotune and zi_kp > AUTOTUNE_ZI_KP_MIN:
+            self._zi_tuner = RegulationAutoTuner(default=zi_kp, min_value=AUTOTUNE_ZI_KP_MIN)
+        if self._autotune and self._soc_equaliser is not None:
+            eq_step = float(
+                cfg.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W)
+            )
+            if eq_step > AUTOTUNE_EQ_STEP_MIN_W:
+                self._eq_tuner = RegulationAutoTuner(
+                    default=eq_step, min_value=AUTOTUNE_EQ_STEP_MIN_W
+                )
 
         # Anti-yoyo: after a big load is dropped, freeze the ZI loop for a few
         # ticks and feed-forward the lost power onto the fleet target so the loop
@@ -1439,6 +1463,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # the ZI setpoint, so the single ZI loop produces the extra fleet
             # discharge/charge. 0 when the equaliser is off. Requires ZI.
             eq_bias_w = self._equaliser_bias(snapshot, grid_filtered_w)
+            if self._eq_tuner is not None and self._soc_equaliser is not None:
+                # Damp the equaliser step cap if the offer is oscillating.
+                self._soc_equaliser.set_max_step_w(self._eq_tuner.step(eq_bias_w))
             # Grid-only force-charge: raise the ZI target by the forced loads'
             # power so the battery doesn't discharge to feed them (the grid does).
             effective_setpoint_w = (
@@ -1497,6 +1524,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         grid_filtered_w,
                         effective_setpoint_w,
                     )
+            if self._zi_tuner is not None:
+                # Damp the ZI gain when the correction oscillates (pumping).
+                self._zi_controller.set_kp(self._zi_tuner.step(zi_correction_w))
 
         # Resolve a single aggregate target. When zero-injection regulates, it
         # owns the grid loop (target = current fleet power + PI delta); otherwise
@@ -1591,6 +1621,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             fleet_target_w=total_power_w,
             regulating=zi_regulating,
             pv_limit_w=pv_limit_total,
+            autotune_zi_kp=self._zi_tuner.value if self._zi_tuner else 0.0,
+            autotune_equaliser_step_w=self._eq_tuner.value if self._eq_tuner else 0.0,
         )
 
         # Surplus available to pilotable loads: the export we would still have
