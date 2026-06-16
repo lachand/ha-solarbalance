@@ -155,6 +155,7 @@ from .core.models import (
     StrategyKind,
     capacity_weighted_soc_pct,
     stored_energy_kwh,
+    usable_window_kwh,
 )
 from .core.planner import BatteryConstraints, PlanningResult, PredictiveScheduler
 from .core.strategies.backup import BackupStrategy
@@ -450,9 +451,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             d.name for d in devices if d.battery is not None and d.battery.controllable
         )
         # Usable capacity (kWh) per battery device, for capacity-weighted SoC means
-        # (a 2 kWh @ 75 % and a 4 kWh @ 25 % pack do not average to 50 %).
+        # and energy sensors. Chemistry-adjusted effective usable capacity (a 2 kWh
+        # @ 75 % and a 4 kWh @ 25 % pack do not average to 50 %).
         self._usable_capacity_by_device = {
-            d.name: float(d.battery.usable_capacity_kwh or d.battery.capacity_kwh)
+            d.name: d.battery.effective_usable_capacity_kwh
             for d in devices
             if d.battery is not None
         }
@@ -1914,8 +1916,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             return None
         return self._weighted_soc(snapshot, controllable_only=False)
 
-    def available_battery_energy_kwh(self) -> float | None:
-        """Total stored usable energy (kWh) across available batteries, for the sensor."""
+    def remaining_battery_energy_kwh(self) -> float | None:
+        """Stored usable energy (kWh) across available batteries, for the sensor.
+
+        Energy currently held: sum(soc/100 * effective usable capacity).
+        """
         snapshot = self.data
         if snapshot is None:
             return None
@@ -1927,6 +1932,30 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if cap is not None:
                 entries.append((b.soc_pct, cap))
         return round(stored_energy_kwh(entries), 2) if entries else None
+
+    def usable_battery_window_kwh(self) -> float | None:
+        """Exploitable energy window (kWh) across available batteries, for the sensor.
+
+        sum((soc_max - soc_min)/100 * effective usable capacity) -- the span the
+        HEMS may move between the configured floor and ceiling.
+        """
+        snapshot = self.data
+        if snapshot is None:
+            return None
+        available = {b.device_name for b in snapshot.batteries if b.available}
+        entries: list[tuple[float, float, float]] = []
+        for device in self._devices:
+            battery = device.battery
+            if battery is None or device.name not in available:
+                continue
+            entries.append(
+                (
+                    float(battery.soc_min_pct),
+                    float(battery.soc_max_pct),
+                    battery.effective_usable_capacity_kwh,
+                )
+            )
+        return round(usable_window_kwh(entries), 2) if entries else None
 
     def _controllable_avg_soc(self, snapshot: Snapshot) -> float | None:
         """Capacity-weighted SoC of the available controllable battery fleet, or None."""

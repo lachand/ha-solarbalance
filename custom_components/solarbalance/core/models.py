@@ -356,6 +356,20 @@ def stored_energy_kwh(entries: Iterable[tuple[float, float]]) -> float:
     return sum(soc_pct / 100.0 * usable for soc_pct, usable in entries if usable > 0.0)
 
 
+def usable_window_kwh(entries: Iterable[tuple[float, float, float]]) -> float:
+    """Exploitable energy window (kWh) from ``(soc_min_pct, soc_max_pct, usable_kwh)``.
+
+    The energy span the HEMS may actually move between the configured floor and
+    ceiling: ``Σ max(0, soc_max - soc_min)/100 * usable_kwh``. Entries with a
+    non-positive capacity are ignored.
+    """
+    return sum(
+        max(0.0, soc_max - soc_min) / 100.0 * usable
+        for soc_min, soc_max, usable in entries
+        if usable > 0.0
+    )
+
+
 # Rated full-cycle count to ~80% End-of-Life capacity, per chemistry. Used to
 # estimate State of Health from the reported cycle count.
 _RATED_CYCLES: dict[Chemistry, int] = {

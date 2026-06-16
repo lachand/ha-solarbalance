@@ -5,6 +5,7 @@ import pytest
 from custom_components.solarbalance.core.models import (
     capacity_weighted_soc_pct,
     stored_energy_kwh,
+    usable_window_kwh,
 )
 
 
@@ -41,3 +42,17 @@ def test_stored_energy_empty_is_zero() -> None:
 
 def test_stored_energy_ignores_non_positive_capacity() -> None:
     assert stored_energy_kwh([(80.0, 0.0), (50.0, 4.0)]) == pytest.approx(2.0)
+
+
+def test_usable_window_is_span_between_floor_and_ceiling() -> None:
+    # (95-10)/100*2 + (90-20)/100*4 = 1.7 + 2.8 = 4.5 kWh.
+    assert usable_window_kwh([(10.0, 95.0, 2.0), (20.0, 90.0, 4.0)]) == pytest.approx(4.5)
+
+
+def test_usable_window_empty_is_zero() -> None:
+    assert usable_window_kwh([]) == pytest.approx(0.0)
+
+
+def test_usable_window_clamps_inverted_bounds_and_ignores_zero_capacity() -> None:
+    assert usable_window_kwh([(90.0, 10.0, 5.0)]) == pytest.approx(0.0)
+    assert usable_window_kwh([(10.0, 90.0, 0.0)]) == pytest.approx(0.0)

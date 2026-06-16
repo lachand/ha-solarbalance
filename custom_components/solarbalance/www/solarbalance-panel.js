@@ -54,6 +54,8 @@ const STR_EN = {
   "Plan prédictif (advisory)": "Predictive plan (advisory)",
   "Puissance recommandée": "Recommended power",
   "Coût attendu (24 h)": "Expected cost (24 h)",
+  Restant: "Remaining",
+  Exploitable: "Usable",
   "Par appareil": "Per device",
   Consommateurs: "Loads",
   "Stratégie : ": "Strategy: ",
@@ -221,6 +223,8 @@ class SolarBalancePanel extends HTMLElement {
       battery: id("battery_power", "sensor.solarbalance_battery_power"),
       home: id("baseline_consumption", "sensor.solarbalance_baseline_consumption"),
       soc: id("battery_soc_avg", "sensor.solarbalance_battery_soc_avg"),
+      batteryRemaining: id("battery_remaining", "sensor.solarbalance_battery_remaining"),
+      batteryUsable: id("battery_usable", "sensor.solarbalance_battery_usable"),
       pvToday: id("pv_energy_today", "sensor.solarbalance_pv_energy_today"),
       gridImportToday: id("grid_import_today", "sensor.solarbalance_grid_import_today"),
       gridExportToday: id("grid_export_today", "sensor.solarbalance_grid_export_today"),
@@ -799,134 +803,6 @@ class SolarBalancePanel extends HTMLElement {
       </section>`;
   }
 
-  // ---- Daily history (last N days) ---------------------------------------
-
-  _history() {
-    const h = this._attr(this._E.dailySavings, "history");
-    if (!Array.isArray(h) || h.length < 2) return "";
-    const days = h.slice(-30);
-    const W = 720;
-    const H = 180;
-    const padL = 30;
-    const padR = 12;
-    const padT = 10;
-    const padB = 26;
-    const n = days.length;
-    const bw = (W - padL - padR) / n;
-    let eMax = 1;
-    for (const d of days) eMax = Math.max(eMax, d.pv || 0, d.consumption || 0);
-    const y = (v) => padT + (1 - v / eMax) * (H - padT - padB);
-    const base = H - padB;
-    let bars = "";
-    days.forEach((d, i) => {
-      const x = padL + i * bw;
-      const pvH = base - y(d.pv || 0);
-      const coH = base - y(d.consumption || 0);
-      const w2 = (bw - 3) / 2;
-      bars +=
-        `<rect x="${(x + 1).toFixed(1)}" y="${y(d.pv || 0).toFixed(1)}" width="${w2.toFixed(
-          1
-        )}" height="${pvH.toFixed(1)}" class="h-pv"/>` +
-        `<rect x="${(x + 1 + w2).toFixed(1)}" y="${y(d.consumption || 0).toFixed(
-          1
-        )}" width="${w2.toFixed(1)}" height="${coH.toFixed(1)}" class="h-co"/>`;
-    });
-    const lbl = (iso) => {
-      const d = new Date(iso);
-      return `${d.getDate()}/${d.getMonth() + 1}`;
-    };
-    const step = Math.ceil(n / 8);
-    const xlbls = days
-      .map((d, i) =>
-        i % step === 0
-          ? `<text x="${(padL + i * bw + bw / 2).toFixed(1)}" y="${H - 8}" class="xlbl" text-anchor="middle">${lbl(
-              d.day
-            )}</text>`
-          : ""
-      )
-      .join("");
-
-    const rows = days
-      .slice(-7)
-      .reverse()
-      .map(
-        (d) =>
-          `<tr><td>${lbl(d.day)}</td><td>${(d.pv || 0).toFixed(1)} kWh</td><td>${(
-            d.consumption || 0
-          ).toFixed(1)} kWh</td><td>${Math.round(d.autonomy || 0)} %</td><td>${(d.cost || 0).toFixed(
-            2
-          )} €</td><td>${(d.savings || 0).toFixed(2)} €</td></tr>`
-      )
-      .join("");
-
-    // Euro chart: net grid cost vs estimated savings per day (cost may be < 0).
-    const H2 = 150;
-    let vMax = 0.5;
-    let vMin = 0;
-    for (const d of days) {
-      vMax = Math.max(vMax, d.cost || 0, d.savings || 0);
-      vMin = Math.min(vMin, d.cost || 0);
-    }
-    const yE = (v) => padT + ((vMax - v) / (vMax - vMin)) * (H2 - padT - padB);
-    const zeroY = yE(0);
-    let ebars = "";
-    days.forEach((d, i) => {
-      const x = padL + i * bw;
-      const w2 = (bw - 3) / 2;
-      const c = d.cost || 0;
-      const s = d.savings || 0;
-      const cy = yE(Math.max(c, 0));
-      const ch = c >= 0 ? zeroY - yE(c) : yE(c) - zeroY;
-      const cTop = c >= 0 ? yE(c) : zeroY;
-      ebars +=
-        `<rect x="${(x + 1).toFixed(1)}" y="${cTop.toFixed(1)}" width="${w2.toFixed(
-          1
-        )}" height="${Math.max(0, ch).toFixed(1)}" class="${c >= 0 ? "h-cost" : "h-cost neg"}"/>` +
-        `<rect x="${(x + 1 + w2).toFixed(1)}" y="${yE(s).toFixed(1)}" width="${w2.toFixed(
-          1
-        )}" height="${Math.max(0, zeroY - yE(s)).toFixed(1)}" class="h-sav"/>`;
-      void cy;
-    });
-    const exlbls = days
-      .map((d, i) =>
-        i % step === 0
-          ? `<text x="${(padL + i * bw + bw / 2).toFixed(1)}" y="${H2 - 8}" class="xlbl" text-anchor="middle">${lbl(
-              d.day
-            )}</text>`
-          : ""
-      )
-      .join("");
-    const totCost = days.reduce((a, d) => a + (d.cost || 0), 0);
-    const totSav = days.reduce((a, d) => a + (d.savings || 0), 0);
-
-    return `
-      <section class="card hist-card">
-        <h3>${this._t("Historique")} — ${n} ${this._t("derniers jours")}</h3>
-        <svg viewBox="0 0 ${W} ${H}" class="pred-chart" preserveAspectRatio="none" role="img">
-          ${bars}${xlbls}
-        </svg>
-        <div class="legend">
-          <span><i class="sw pv"></i>${this._t("Production")}</span>
-          <span><i class="sw co"></i>${this._t("Consommation")}</span>
-        </div>
-        <h3 style="margin-top:14px">${this._t("Coûts & économies (€/jour)")}</h3>
-        <svg viewBox="0 0 ${W} ${H2}" class="pred-chart" preserveAspectRatio="none" role="img">
-          <line x1="${padL}" y1="${zeroY.toFixed(1)}" x2="${W - padR}" y2="${zeroY.toFixed(
-            1
-          )}" class="zero"/>
-          ${ebars}${exlbls}
-        </svg>
-        <div class="legend">
-          <span><i class="sw cost"></i>${this._t("Coût réseau net")} (${totCost.toFixed(2)} €)</span>
-          <span><i class="sw sav"></i>${this._t("Économies")} (${totSav.toFixed(2)} €)</span>
-        </div>
-        <table class="pred-table">
-          <thead><tr><th>${this._t("Jour")}</th><th>${this._t("Prod")}</th><th>${this._t("Conso")}</th><th>${this._t("Autonomie")}</th><th>${this._t("Coût")}</th><th>${this._t("Éco.")}</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </section>`;
-  }
-
   _content() {
     if (!this._hass) return `<div class="wrap"><p>Chargement…</p></div>`;
     const E = this._E;
@@ -1016,8 +892,6 @@ class SolarBalancePanel extends HTMLElement {
 
         ${this._predictions()}
 
-        ${this._history()}
-
         <section class="grid">
           <div class="card">
             <h3>${this._t("Flux instantané")}</h3>
@@ -1029,6 +903,8 @@ class SolarBalancePanel extends HTMLElement {
             </div>
             <div class="tiles">
               ${this._tile("SoC moyen", this._fmt(E.soc, 0, "%"))}
+              ${this._tile("Restant", this._fmt(E.batteryRemaining, 1, "kWh"), "var(--success-color,#27ae60)")}
+              ${this._tile("Exploitable", this._fmt(E.batteryUsable, 1, "kWh"), "var(--secondary-text-color)")}
             </div>
           </div>
 
@@ -1043,12 +919,6 @@ class SolarBalancePanel extends HTMLElement {
             ${this._row("Correction zéro-injection", this._fmt(E.ziCorr, 0, "W"))}
             ${this._row("Offre équaliseur SoC", this._fmt(E.eqOffer, 0, "W"))}
             ${this._row("Limite de sortie PV", this._fmt(E.pvLimit, 0, "W"))}
-          </div>
-
-          <div class="card">
-            <h3>${this._t("Plan prédictif (advisory)")}</h3>
-            ${this._row("Puissance recommandée", this._fmt(E.planPower, 0, "W"))}
-            ${this._row("Coût attendu (24 h)", this._fmt(E.planCost, 2, "€"))}
           </div>
         </section>
 

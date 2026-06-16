@@ -497,7 +497,8 @@ SolarBalance crée automatiquement les entités suivantes après ajout de l'int�
 | `sensor.solarbalance_battery_power` | W | Puissance batterie agrégée (positif = charge) |
 | `sensor.solarbalance_baseline_consumption` | W | Consommation non pilotable déduite |
 | `sensor.solarbalance_battery_soc_avg` | % | SoC moyen **pondéré par capacité utilisable** de toutes les batteries |
-| `sensor.solarbalance_battery_energy_available` | kWh | Énergie utilisable **stockée** dans le parc (Σ SoC × capacité utilisable) |
+| `sensor.solarbalance_battery_remaining` | kWh | Énergie **stockée** dans le parc (Σ SoC × capacité utilisable effective) |
+| `sensor.solarbalance_battery_usable` | kWh | **Fenêtre exploitable** (Σ (SoC_max − SoC_min) × capacité utilisable effective) |
 | `sensor.solarbalance_pv_energy_today` | kWh | Énergie PV produite aujourd'hui |
 | `sensor.solarbalance_grid_import_today` | kWh | Énergie importée aujourd'hui |
 

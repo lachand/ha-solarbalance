@@ -39,11 +39,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ### Added
 
+- **Capteur `sensor.solarbalance_battery_usable`** — fenêtre d'énergie exploitable
+  du parc (kWh) = Σ (SoC_max − SoC_min) × capacité utilisable effective.
 - **Couple de capteurs charge/décharge dans l'UI** — le formulaire *Batterie* (et
   *Batterie + onduleur*) expose désormais `charge_power_entity` /
   `discharge_power_entity` en alternative au `power_entity` signé, pour les
   batteries à deux capteurs de puissance distincts. (Déjà géré en YAML ; manquait
   dans le Config Flow.)
+
+### Changed
+
+- **`sensor.solarbalance_battery_energy_available` renommé en
+  `sensor.solarbalance_battery_remaining`** (même valeur : énergie stockée). Les
+  capteurs d'énergie utilisent désormais la capacité utilisable **effective**
+  (ratio chimie si non explicite) — sans effet sur le SoC moyen (le ratio
+  s'annule), mais plus juste en kWh.
+- **Panneau** : capteurs *Restant* et *Exploitable* ajoutés à la carte « Flux
+  instantané » ; sections *Historique (N derniers jours)*, *Coûts & économies
+  (€/jour)* et *Plan prédictif (advisory)* retirées de la vue.
 
 ## [2.0.0-beta.1] — 2026-06-16
 

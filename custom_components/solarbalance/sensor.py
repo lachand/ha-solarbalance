@@ -64,7 +64,8 @@ async def async_setup_entry(
         SolarBalanceBatteryPowerSensor(coordinator, entry),
         SolarBalanceBaselineConsumptionSensor(coordinator, entry),
         SolarBalanceBatterySocAvgSensor(coordinator, entry),
-        SolarBalanceBatteryEnergyAvailableSensor(coordinator, entry),
+        SolarBalanceBatteryRemainingSensor(coordinator, entry),
+        SolarBalanceBatteryUsableSensor(coordinator, entry),
         SolarBalancePvEnergyTodaySensor(coordinator, entry),
         SolarBalanceGridImportTodaySensor(coordinator, entry),
         SolarBalanceGridExportTodaySensor(coordinator, entry),
@@ -354,21 +355,38 @@ class SolarBalanceBatterySocAvgSensor(_SolarBalanceSensor):
         return round(weighted, 1) if weighted is not None else None
 
 
-class SolarBalanceBatteryEnergyAvailableSensor(_SolarBalanceSensor):
-    """Total stored usable energy across all available batteries (kWh)."""
+class SolarBalanceBatteryRemainingSensor(_SolarBalanceSensor):
+    """Stored usable energy currently held across all available batteries (kWh)."""
 
-    _attr_translation_key = "battery_energy_available"
+    _attr_translation_key = "battery_remaining"
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_device_class = SensorDeviceClass.ENERGY_STORAGE
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_icon = "mdi:battery-charging-high"
 
     def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "battery_energy_available")
+        super().__init__(coordinator, entry, "battery_remaining")
 
     @property
     def native_value(self) -> float | None:
-        return self.coordinator.available_battery_energy_kwh()
+        return self.coordinator.remaining_battery_energy_kwh()
+
+
+class SolarBalanceBatteryUsableSensor(_SolarBalanceSensor):
+    """Exploitable energy window across all available batteries (kWh)."""
+
+    _attr_translation_key = "battery_usable"
+    _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
+    _attr_device_class = SensorDeviceClass.ENERGY_STORAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:battery-heart-variant"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "battery_usable")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.usable_battery_window_kwh()
 
 
 class SolarBalancePvEnergyTodaySensor(_SolarBalanceSensor):

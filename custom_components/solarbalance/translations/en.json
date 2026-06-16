@@ -548,8 +548,11 @@
       "battery_soc_avg": {
         "name": "Battery SoC Average"
       },
-      "battery_energy_available": {
-        "name": "Battery Energy Available"
+      "battery_remaining": {
+        "name": "Battery Energy Remaining"
+      },
+      "battery_usable": {
+        "name": "Battery Usable Window"
       },
       "pv_energy_today": {
         "name": "PV Energy Today"
