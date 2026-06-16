@@ -37,6 +37,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.0-beta.5] — 2026-06-16
+
+### Fixed
+
+- **Création d'une batterie (et compteur/consommateur) via l'UI échouait** —
+  *« expected int … soc_min_pct »*. Le `NumberSelector` de HA renvoie des floats
+  (`10.0`) alors que le loader exigeait un `int` strict. Les champs entiers
+  (`soc_min_pct`, `soc_max_pct`, `phases`, `priority`, `hour`) sont désormais
+  **coercés** (acceptent int YAML et float UI).
+
 ## [2.0.0-beta.4] — 2026-06-16
 
 ### Changed
@@ -337,6 +347,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.0-beta.5]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.4...v2.0.0-beta.5
 [2.0.0-beta.4]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.3...v2.0.0-beta.4
 [2.0.0-beta.3]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.2...v2.0.0-beta.3
 [2.0.0-beta.2]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.1...v2.0.0-beta.2

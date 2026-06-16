@@ -62,8 +62,8 @@ _BATTERY_SCHEMA = vol.Schema(
         vol.Optional("discharge_power_entity"): str,
         vol.Optional("temperature_entity"): str,
         vol.Optional("cycles_entity"): str,
-        vol.Optional("soc_min_pct", default=10): vol.All(int, vol.Range(0, 100)),
-        vol.Optional("soc_max_pct", default=95): vol.All(int, vol.Range(0, 100)),
+        vol.Optional("soc_min_pct", default=10): vol.All(vol.Coerce(int), vol.Range(0, 100)),
+        vol.Optional("soc_max_pct", default=95): vol.All(vol.Coerce(int), vol.Range(0, 100)),
         vol.Optional("chemistry", default=Chemistry.LIFEPO4.value): _CHEMISTRY,
         vol.Optional(
             "power_sign_convention", default=PowerSignConvention.CHARGE_POSITIVE.value
@@ -120,7 +120,7 @@ _METER_SCHEMA = vol.Schema(
         vol.Required("name"): str,
         vol.Required("kind"): _METER_KIND,
         vol.Required("power_entity"): str,
-        vol.Optional("phases", default=1): vol.All(int, vol.In([1, 3])),
+        vol.Optional("phases", default=1): vol.All(vol.Coerce(int), vol.In([1, 3])),
         vol.Optional("per_phase_zi", default=False): bool,
         vol.Optional("power_l1_entity"): str,
         vol.Optional("power_l2_entity"): str,
@@ -155,7 +155,7 @@ _LOAD_SCHEMA = vol.Schema(
     {
         vol.Required("name"): str,
         vol.Required("control_type"): _LOAD_CONTROL,
-        vol.Required("priority"): vol.All(int, vol.Range(min=1)),
+        vol.Required("priority"): vol.All(vol.Coerce(int), vol.Range(min=1)),
         vol.Optional("interruptible", default=True): bool,
         vol.Optional("min_on_duration_s", default=0): vol.Coerce(int),
         vol.Optional("min_off_duration_s", default=0): vol.Coerce(int),
@@ -185,7 +185,7 @@ _LOAD_SCHEMA = vol.Schema(
 
 _FORECAST_HOUR_SCHEMA = vol.Schema(
     {
-        vol.Required("hour"): vol.All(int, vol.Range(min=0)),
+        vol.Required("hour"): vol.All(vol.Coerce(int), vol.Range(min=0)),
         vol.Required("entity"): str,
     }
 )
