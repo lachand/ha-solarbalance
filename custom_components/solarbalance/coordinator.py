@@ -20,10 +20,7 @@ from .adapters.entity_reader import EntityReader
 from .adapters.load_publisher import LoadPublisher
 from .adapters.watchdog import EntityWatchdog
 from .const import (
-    AUTOTUNE_EQ_STEP_MIN_W,
-    AUTOTUNE_ZI_KP_MIN,
     CONF_ACTIVE_CONTROL_ENABLED,
-    CONF_AUTOTUNE_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
@@ -69,11 +66,12 @@ from .const import (
     CONF_WEATHER_PHENOMENA,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
+    CONF_ZERO_INJECTION_KNEE_W,
     CONF_ZERO_INJECTION_KP,
+    CONF_ZERO_INJECTION_KP_MIN,
     CONF_ZERO_INJECTION_SETPOINT_W,
     CONF_ZI_SETTLE_MIN_DROP_W,
     CONF_ZI_SETTLE_TICKS,
-    DEFAULT_AUTOTUNE_ENABLED,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BALANCING_ALPHA,
     DEFAULT_BASELINE_WINDOW_END_H,
@@ -109,7 +107,9 @@ from .const import (
     DEFAULT_VACATION_SOC_MAX_PCT,
     DEFAULT_WEATHER_MIN_LEVEL,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
+    DEFAULT_ZERO_INJECTION_KNEE_W,
     DEFAULT_ZERO_INJECTION_KP,
+    DEFAULT_ZERO_INJECTION_KP_MIN,
     DEFAULT_ZI_SETTLE_MIN_DROP_W,
     DEFAULT_ZI_SETTLE_TICKS,
     DOMAIN,
@@ -122,7 +122,6 @@ from .const import (
     STORE_VERSION,
 )
 from .core.arbitrer import Arbiter, ArbitrationResult
-from .core.autotuner import RegulationAutoTuner
 from .core.baseline import NightBaselineEstimator
 from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
@@ -278,8 +277,6 @@ class RegulationDiagnostics:
     fleet_target_w: float = 0.0
     regulating: bool = False
     pv_limit_w: float = 0.0
-    autotune_zi_kp: float = 0.0
-    autotune_equaliser_step_w: float = 0.0
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -415,7 +412,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._baseline_notification_sent: bool = False
         self._notifications_enabled = bool(cfg.get(CONF_NOTIFICATIONS_ENABLED, True))
         self._alerts_sent: dict[str, bool] = {}
-        self._autotune_suggested: dict[str, float] = {}
         self._event_edges: dict[str, bool] = {}
         self._daily_history: list[dict[str, Any]] = []
         # Cumulative savings, reset on month/year rollover (persisted).
@@ -560,33 +556,26 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # ki=0: the fleet-power recursion (target = measured fleet + correction)
         # already integrates the error. A second integrator would double-count and
         # oscillate — the source of the residual limit cycle.
-        zi_kp = float(cfg.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP))
+        # Progressive (error-scheduled) gain: gentle near the deadband (no pumping
+        # against the EcoFlow dead time), full gain far from it (fast wind-down of
+        # a big deficit/export). kp ramps from kp_min to kp_max (= CONF..._KP)
+        # across (hysteresis, knee).
+        zi_kp_max = float(cfg.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP))
+        zi_kp_min = float(cfg.get(CONF_ZERO_INJECTION_KP_MIN, DEFAULT_ZERO_INJECTION_KP_MIN))
+        zi_knee_w = float(cfg.get(CONF_ZERO_INJECTION_KNEE_W, DEFAULT_ZERO_INJECTION_KNEE_W))
         if self._per_phase_zi:
             self._zi_controller: ZeroInjectionController | PerPhaseZeroInjectionController = (
-                PerPhaseZeroInjectionController(kp=zi_kp, ki=0.0, hysteresis_w=hysteresis)
+                PerPhaseZeroInjectionController(
+                    kp_min=zi_kp_min, kp_max=zi_kp_max, knee_w=zi_knee_w, hysteresis_w=hysteresis
+                )
             )
             self._zi_state = PerPhaseZeroInjectionState()
         else:
-            self._zi_controller = ZeroInjectionController(kp=zi_kp, ki=0.0, hysteresis_w=hysteresis)
+            self._zi_controller = ZeroInjectionController(
+                kp_min=zi_kp_min, kp_max=zi_kp_max, knee_w=zi_knee_w, hysteresis_w=hysteresis
+            )
         self._zi_setpoint_w = float(cfg.get(CONF_ZERO_INJECTION_SETPOINT_W, 0))
         self._tick_s = tick
-
-        # Supervisory auto-tuner (on by default): damps the ZI kp and the equaliser
-        # step cap when they oscillate, restores them when calm. Bounded to the
-        # configured values, so it can only make a loop gentler, never harsher.
-        self._autotune = bool(cfg.get(CONF_AUTOTUNE_ENABLED, DEFAULT_AUTOTUNE_ENABLED))
-        self._zi_tuner: RegulationAutoTuner | None = None
-        self._eq_tuner: RegulationAutoTuner | None = None
-        if self._autotune and zi_kp > AUTOTUNE_ZI_KP_MIN:
-            self._zi_tuner = RegulationAutoTuner(default=zi_kp, min_value=AUTOTUNE_ZI_KP_MIN)
-        if self._autotune and self._soc_equaliser is not None:
-            eq_step = float(
-                cfg.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W)
-            )
-            if eq_step > AUTOTUNE_EQ_STEP_MIN_W:
-                self._eq_tuner = RegulationAutoTuner(
-                    default=eq_step, min_value=AUTOTUNE_EQ_STEP_MIN_W
-                )
 
         # Anti-yoyo: after a big load is dropped, freeze the ZI loop for a few
         # ticks and feed-forward the lost power onto the fleet target so the loop
@@ -1516,9 +1505,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # the ZI setpoint, so the single ZI loop produces the extra fleet
             # discharge/charge. 0 when the equaliser is off. Requires ZI.
             eq_bias_w = self._equaliser_bias(snapshot, grid_filtered_w)
-            if self._eq_tuner is not None and self._soc_equaliser is not None:
-                # Damp the equaliser step cap if the offer is oscillating.
-                self._soc_equaliser.set_max_step_w(self._eq_tuner.step(eq_bias_w))
             # Grid-only force-charge: raise the ZI target by the forced loads'
             # power so the battery doesn't discharge to feed them (the grid does).
             # The equaliser offer is NOT biased into the ZI setpoint anymore (it
@@ -1585,9 +1571,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         grid_filtered_w,
                         effective_setpoint_w,
                     )
-            if self._zi_tuner is not None:
-                # Damp the ZI gain when the correction oscillates (pumping).
-                self._zi_controller.set_kp(self._zi_tuner.step(zi_correction_w))
 
         # Resolve a single aggregate target. When zero-injection regulates, it
         # owns the grid loop (target = current fleet power + PI delta); otherwise
@@ -1691,10 +1674,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             fleet_target_w=total_power_w,
             regulating=zi_regulating,
             pv_limit_w=pv_limit_total,
-            autotune_zi_kp=self._zi_tuner.value if self._zi_tuner else 0.0,
-            autotune_equaliser_step_w=self._eq_tuner.value if self._eq_tuner else 0.0,
         )
-        self._autotune_suggestions()
 
         # Surplus available to pilotable loads: the export we would still have
         # after the controllable fleet takes its allocated charge. Uses the
@@ -2697,45 +2677,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 async_dismiss(self.hass, self._BASELINE_NOTIFICATION_ID)
                 self._baseline_notification_sent = False
             self._negative_baseline_ticks = 0
-
-    def _autotune_suggestions(self) -> None:
-        """Suggest a new configured value when a tuner keeps fighting the default.
-
-        When the auto-tuner has had to adapt a gain repeatedly and settles away
-        from the configured value, propose that operating point as a persistent
-        notification (debounced; dismissed when it no longer suggests anything).
-        """
-        if not self._notifications_enabled:
-            return
-        from homeassistant.components.persistent_notification import async_create, async_dismiss
-
-        for name, tuner, option, suggested_text in (
-            ("zi_kp", self._zi_tuner, "zero_injection_kp", lambda v: f"{v:.2f}"),
-            (
-                "eq_step",
-                self._eq_tuner,
-                "soc_equaliser_probe_step_w",
-                lambda v: f"{v:.0f} W",
-            ),
-        ):
-            notif_id = f"solarbalance_autotune_{name}"
-            suggested = tuner.suggested_value() if tuner is not None else None
-            if suggested is None:
-                if self._autotune_suggested.pop(name, None) is not None:
-                    async_dismiss(self.hass, notif_id)
-                continue
-            last = self._autotune_suggested.get(name)
-            if last is not None and abs(suggested - last) < 0.05 * max(abs(last), 1.0):
-                continue  # already notified ~this value
-            self._autotune_suggested[name] = suggested
-            async_create(
-                self.hass,
-                f"L'auto-réglage ajuste souvent **{option}**. Valeur suggérée : "
-                f"**{suggested_text(suggested)}**. Tu peux la définir dans "
-                f"Configurer → Régulation (l'auto-réglage repartira de cette base).",
-                title="SolarBalance — réglage suggéré",
-                notification_id=notif_id,
-            )
 
     def _fire_alert(self, notif_id: str, active: bool, *, title: str, message: str) -> None:
         """Create a persistent notification on the rising edge, dismiss on the falling edge."""

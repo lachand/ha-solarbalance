@@ -87,7 +87,9 @@
           "active_control_enabled": "Pilotage actif des batteries/onduleurs",
           "grid_filter_samples": "Filtre médian réseau (échantillons)",
           "max_ramp_w": "Variation max de la consigne parc par tick (W)",
-          "zero_injection_kp": "Gain proportionnel zéro injection (Kp)",
+          "zero_injection_kp": "Gain ZI Kp (max, au-delà du coude)",
+          "zero_injection_kp_min": "Gain ZI Kp (min, près de la bande morte)",
+          "zero_injection_knee_w": "Coude du gain ZI (W pour atteindre le Kp max)",
           "soc_equaliser_enabled": "Activer l'équaliseur de SoC",
           "soc_equaliser_max_w": "Équaliseur SoC : offre max (W)",
           "soc_equaliser_kp_w_per_pct": "Équaliseur SoC : gain (W/%)",
@@ -96,7 +98,6 @@
           "soc_equaliser_min_pv_w": "Équaliseur SoC : PV mini pour agir / plafond (W)",
           "soc_equaliser_cadence_ticks": "Équaliseur SoC : cadence (ticks entre mouvements)",
           "soc_equaliser_adaptive_cadence": "Équaliseur SoC : cadence adaptative (suit le retard mesuré)",
-          "autotune_enabled": "Auto-réglage : amortit les gains ZI/équaliseur en cas d'oscillation",
           "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)",
           "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
           "exclude_noncontrollable_charge": "Ne pas décharger le parc pour alimenter une batterie non-pilotable (cloud) qui se recharge seule",
@@ -645,12 +646,6 @@
       },
       "grid_filtered": {
         "name": "Puissance réseau (filtrée)"
-      },
-      "autotune_zi_kp": {
-        "name": "Auto-réglage : gain ZI (kp)"
-      },
-      "autotune_equaliser_step": {
-        "name": "Auto-réglage : plafond de pas équaliseur"
       },
       "pv_output_limit": {
         "name": "Limite de sortie PV"

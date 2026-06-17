@@ -87,7 +87,9 @@
           "active_control_enabled": "Active battery/inverter control",
           "grid_filter_samples": "Grid median filter (samples)",
           "max_ramp_w": "Max fleet-target change per tick (W)",
-          "zero_injection_kp": "Zero-injection proportional gain (Kp)",
+          "zero_injection_kp": "Zero-injection gain Kp (max, at/above the knee)",
+          "zero_injection_kp_min": "Zero-injection gain Kp (min, near the deadband)",
+          "zero_injection_knee_w": "Zero-injection gain knee (W to reach max Kp)",
           "soc_equaliser_enabled": "Enable SoC equaliser",
           "soc_equaliser_max_w": "SoC equaliser: max offer (W)",
           "soc_equaliser_kp_w_per_pct": "SoC equaliser: gain (W/%)",
@@ -96,7 +98,6 @@
           "soc_equaliser_min_pv_w": "SoC equaliser: min PV to run / cap (W)",
           "soc_equaliser_cadence_ticks": "SoC equaliser: cadence (ticks between moves)",
           "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)",
-          "autotune_enabled": "Auto-tune: damp ZI/equaliser gains when they oscillate",
           "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
           "dry_run": "Dry-run (compute everything, never write to hardware)",
           "exclude_noncontrollable_charge": "Don't discharge the fleet to feed a self-charging non-controllable (cloud) battery",
@@ -645,12 +646,6 @@
       },
       "grid_filtered": {
         "name": "Grid power (filtered)"
-      },
-      "autotune_zi_kp": {
-        "name": "Auto-tune: ZI gain (kp)"
-      },
-      "autotune_equaliser_step": {
-        "name": "Auto-tune: equaliser step cap"
       },
       "pv_output_limit": {
         "name": "PV output limit"

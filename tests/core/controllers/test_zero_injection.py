@@ -47,7 +47,7 @@ class TestZeroInjectionController:
 
     def test_over_import_yields_negative_correction(self) -> None:
         # Importing more than wanted: we should reduce charge / increase discharge.
-        controller = ZeroInjectionController(kp=0.6, ki=0.0, hysteresis_w=50.0)
+        controller = ZeroInjectionController(kp_min=0.6, kp_max=0.6, ki=0.0, hysteresis_w=50.0)
         result = controller.step(
             grid_power_w=500.0,
             setpoint_w=0.0,
@@ -59,7 +59,7 @@ class TestZeroInjectionController:
 
     def test_over_export_yields_positive_correction(self) -> None:
         # Exporting (grid_power < 0): we should charge more.
-        controller = ZeroInjectionController(kp=0.6, ki=0.0, hysteresis_w=50.0)
+        controller = ZeroInjectionController(kp_min=0.6, kp_max=0.6, ki=0.0, hysteresis_w=50.0)
         result = controller.step(
             grid_power_w=-500.0,
             setpoint_w=0.0,
@@ -68,8 +68,36 @@ class TestZeroInjectionController:
         )
         assert result.correction_w == pytest.approx(300.0)
 
+    def test_progressive_gain_gentle_near_deadband_full_at_knee(self) -> None:
+        # kp ramps from kp_min (just past hysteresis) to kp_max (at/above knee).
+        ctrl = ZeroInjectionController(
+            kp_min=0.2, kp_max=0.8, knee_w=600.0, ki=0.0, hysteresis_w=50.0
+        )
+
+        def corr(grid: float) -> float:
+            return ctrl.step(
+                grid_power_w=grid, setpoint_w=0.0, dt_s=10.0, state=ZeroInjectionState()
+            ).correction_w
+
+        def expected(err: float) -> float:
+            frac = min(1.0, max(0.0, (abs(err) - 50.0) / (600.0 - 50.0)))
+            return -(0.2 + 0.6 * frac) * err
+
+        # Ramps from kp_min near the deadband to kp_max at/above the knee.
+        for grid in (60.0, 110.0, 325.0, 600.0, 1000.0):
+            assert corr(grid) == pytest.approx(expected(grid))
+        # Endpoints: kp_max (0.8) at and beyond the knee.
+        assert corr(600.0) == pytest.approx(-480.0)
+        assert corr(1000.0) == pytest.approx(-800.0)
+        # Effective gain is gentler near zero than far from it.
+        assert abs(corr(60.0)) / 60.0 < abs(corr(1000.0)) / 1000.0
+
+    def test_knee_must_exceed_hysteresis(self) -> None:
+        with pytest.raises(ValueError, match="knee_w"):
+            ZeroInjectionController(knee_w=40.0, hysteresis_w=50.0)
+
     def test_integral_accumulates_across_steps(self) -> None:
-        controller = ZeroInjectionController(kp=0.0, ki=0.1, hysteresis_w=50.0)
+        controller = ZeroInjectionController(kp_min=0.0, kp_max=0.0, ki=0.1, hysteresis_w=50.0)
         state = ZeroInjectionState()
         for _ in range(3):
             result = controller.step(
@@ -84,7 +112,7 @@ class TestZeroInjectionController:
 
     def test_integral_is_clamped(self) -> None:
         controller = ZeroInjectionController(
-            kp=0.0, ki=1.0, hysteresis_w=10.0, integral_clamp_w_s=100.0
+            kp_min=0.0, kp_max=0.0, ki=1.0, hysteresis_w=10.0, integral_clamp_w_s=100.0
         )
         state = ZeroInjectionState()
         for _ in range(50):
@@ -115,7 +143,7 @@ class TestPerPhaseZeroInjectionController:
         assert result.correction_w == pytest.approx(0.0)
 
     def test_partial_deadband_not_in_deadband(self) -> None:
-        ctrl = PerPhaseZeroInjectionController(kp=0.6, ki=0.0, hysteresis_w=50.0)
+        ctrl = PerPhaseZeroInjectionController(kp_min=0.6, kp_max=0.6, ki=0.0, hysteresis_w=50.0)
         result = ctrl.step(
             grid_l1_w=10.0,
             grid_l2_w=500.0,
@@ -132,7 +160,7 @@ class TestPerPhaseZeroInjectionController:
         assert result.in_deadband_l3
 
     def test_aggregate_correction_is_sum_of_phases(self) -> None:
-        ctrl = PerPhaseZeroInjectionController(kp=0.6, ki=0.0, hysteresis_w=0.0)
+        ctrl = PerPhaseZeroInjectionController(kp_min=0.6, kp_max=0.6, ki=0.0, hysteresis_w=0.0)
         result = ctrl.step(
             grid_l1_w=100.0,
             grid_l2_w=200.0,
@@ -150,7 +178,7 @@ class TestPerPhaseZeroInjectionController:
         assert result.correction_w == pytest.approx(-360.0)
 
     def test_state_updated_per_phase_independently(self) -> None:
-        ctrl = PerPhaseZeroInjectionController(kp=0.0, ki=0.1, hysteresis_w=0.0)
+        ctrl = PerPhaseZeroInjectionController(kp_min=0.0, kp_max=0.0, ki=0.1, hysteresis_w=0.0)
         state = PerPhaseZeroInjectionState()
         result = ctrl.step(
             grid_l1_w=200.0,

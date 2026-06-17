@@ -100,18 +100,6 @@ async def async_setup_entry(
                 coordinator, entry, "pv_limit_w", "pv_output_limit", "mdi:solar-power-variant"
             )
         )
-    if coordinator._zi_tuner is not None:
-        entities.append(SolarBalanceAutotuneKpSensor(coordinator, entry))
-    if coordinator._eq_tuner is not None:
-        entities.append(
-            SolarBalanceRegulationDiagnosticSensor(
-                coordinator,
-                entry,
-                "autotune_equaliser_step_w",
-                "autotune_equaliser_step",
-                "mdi:tune-variant",
-            )
-        )
 
     # Advisory predictive plan (observation only) — when a controllable fleet exists.
     if coordinator._scheduler is not None:
@@ -856,22 +844,6 @@ class SolarBalanceRegulationDiagnosticSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float:
         return round(float(getattr(self.coordinator.diagnostics, self._diag_attr)), 1)
-
-
-class SolarBalanceAutotuneKpSensor(_SolarBalanceSensor):
-    """Auto-tuned zero-injection proportional gain (diagnostic, unitless)."""
-
-    _attr_state_class = SensorStateClass.MEASUREMENT
-    _attr_entity_category = EntityCategory.DIAGNOSTIC
-    _attr_icon = "mdi:tune"
-    _attr_translation_key = "autotune_zi_kp"
-
-    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "autotune_zi_kp")
-
-    @property
-    def native_value(self) -> float:
-        return round(float(self.coordinator.diagnostics.autotune_zi_kp), 3)
 
 
 # ---------------------------------------------------------------------------

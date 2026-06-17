@@ -89,7 +89,9 @@ class ZeroInjectionController:
     def __init__(
         self,
         *,
-        kp: float = 0.6,
+        kp_min: float = 0.2,
+        kp_max: float = 0.6,
+        knee_w: float = 600.0,
         ki: float = 0.05,
         hysteresis_w: float = 50.0,
         integral_clamp_w_s: float = 30_000.0,
@@ -98,14 +100,27 @@ class ZeroInjectionController:
             raise ValueError("hysteresis_w must be non-negative")
         if integral_clamp_w_s <= 0:
             raise ValueError("integral_clamp_w_s must be strictly positive")
-        self._kp = kp
+        if kp_min < 0 or kp_max < 0:
+            raise ValueError("kp_min/kp_max must be non-negative")
+        if knee_w <= hysteresis_w:
+            raise ValueError("knee_w must be greater than hysteresis_w")
+        self._kp_min = kp_min
+        self._kp_max = max(kp_min, kp_max)
+        self._knee_w = knee_w
         self._ki = ki
         self._hysteresis_w = hysteresis_w
         self._integral_clamp = integral_clamp_w_s
 
-    def set_kp(self, kp: float) -> None:
-        """Override the proportional gain (used by the supervisory auto-tuner)."""
-        self._kp = kp
+    def _kp_for(self, error: float) -> float:
+        """Progressive gain: kp_min near the deadband, kp_max from ``knee_w`` on.
+
+        Ramps linearly with |error| across ``(hysteresis_w, knee_w)`` so the loop
+        is gentle near balance (no pumping against actuation lag / meter noise) and
+        aggressive on a large deficit or export (fast wind-down).
+        """
+        span = self._knee_w - self._hysteresis_w
+        frac = min(1.0, max(0.0, (abs(error) - self._hysteresis_w) / span))
+        return self._kp_min + (self._kp_max - self._kp_min) * frac
 
     def step(
         self,
@@ -139,7 +154,7 @@ class ZeroInjectionController:
         )
         # Convention: correction adds to battery *charge* power.
         # error > 0 (over-importing) → we want to discharge more → negative correction.
-        correction = -(self._kp * error + self._ki * new_integral)
+        correction = -(self._kp_for(error) * error + self._ki * new_integral)
 
         return ZeroInjectionResult(
             correction_w=correction,
@@ -161,7 +176,7 @@ class PerPhaseZeroInjectionController:
     can be supplied individually.
 
     Args:
-        kp: Proportional gain (same for all phases).
+        kp_min/kp_max/knee_w: Progressive gain (same schedule for all phases).
         ki: Integral gain (same for all phases).
         hysteresis_w: Deadband half-width **per phase** in watts.
         integral_clamp_w_s: Anti-windup clamp **per phase**.
@@ -170,21 +185,21 @@ class PerPhaseZeroInjectionController:
     def __init__(
         self,
         *,
-        kp: float = 0.6,
+        kp_min: float = 0.2,
+        kp_max: float = 0.6,
+        knee_w: float = 600.0,
         ki: float = 0.05,
         hysteresis_w: float = 50.0,
         integral_clamp_w_s: float = 30_000.0,
     ) -> None:
         self._ctrl = ZeroInjectionController(
-            kp=kp,
+            kp_min=kp_min,
+            kp_max=kp_max,
+            knee_w=knee_w,
             ki=ki,
             hysteresis_w=hysteresis_w,
             integral_clamp_w_s=integral_clamp_w_s,
         )
-
-    def set_kp(self, kp: float) -> None:
-        """Override the proportional gain on all phases (auto-tuner)."""
-        self._ctrl.set_kp(kp)
 
     def step(
         self,

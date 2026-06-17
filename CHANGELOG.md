@@ -37,6 +37,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.4] — 2026-06-17
+
+### Added
+
+- **Gain progressif de la zéro-injection** — `kp` n'est plus constant : il vaut
+  `zero_injection_kp_min` (défaut 0,2) près de la bande morte et monte
+  linéairement jusqu'à `zero_injection_kp` (= kp max, défaut 0,6) atteint à
+  `zero_injection_knee_w` (défaut 600 W). → **doux près de l'équilibre** (plus de
+  pompage contre le temps mort de l'EcoFlow) et **nerveux sur un gros déficit/une
+  grosse injection** (correction rapide, fini les longues minutes pour revenir de
+  −780 W). Deux nouveaux réglages dans *Configurer → Régulation*.
+
+### Removed
+
+- **Auto-réglage supervisé (autotuner) retiré** — il rabaissait *tout* le gain
+  ZI dès qu'il y avait du pompage en zone basse (kp tombé à ~0,23), rendant les
+  gros écarts trop lents. Le gain progressif gère nativement l'anti-pompage, sans
+  brider les grosses corrections. Supprime l'option `autotune_enabled`, les
+  capteurs de diagnostic d'auto-réglage et les notifications de suggestion.
+
 ## [2.0.3] — 2026-06-16
 
 ### Added
@@ -509,6 +529,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.4]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.2...v2.0.3
 [2.0.2]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0...v2.0.1
