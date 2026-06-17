@@ -635,6 +635,12 @@
       "batt_soh": {
         "name": "État de santé (SoH)"
       },
+      "mppt_power": {
+        "name": "Puissance PV"
+      },
+      "mppt_limit": {
+        "name": "Limite de sortie PV"
+      },
       "regulation_target": {
         "name": "Cible de régulation"
       },

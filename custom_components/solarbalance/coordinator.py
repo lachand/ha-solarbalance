@@ -412,6 +412,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._baseline_notification_sent: bool = False
         self._notifications_enabled = bool(cfg.get(CONF_NOTIFICATIONS_ENABLED, True))
         self._alerts_sent: dict[str, bool] = {}
+        self._pv_limits_by_device: dict[str, float] = {}
         self._event_edges: dict[str, bool] = {}
         self._daily_history: list[dict[str, Any]] = []
         # Cumulative savings, reset on month/year rollover (persisted).
@@ -1666,6 +1667,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         pv_limits, pv_limit_total = self._compute_pv_limits(
             snapshot, total_power_w, balancing_result, grid_filtered_w
         )
+        # Expose the per-inverter applied limit for the per-MPPT diagnostic sensor.
+        self._pv_limits_by_device = dict(pv_limits)
 
         self._diagnostics = RegulationDiagnostics(
             grid_filtered_w=grid_filtered_w,

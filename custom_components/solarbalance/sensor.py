@@ -117,23 +117,43 @@ async def async_setup_entry(
         sub.data["name"]: sub_id for sub_id, sub in entry.subentries.items() if sub.data.get("name")
     }
     for device in coordinator._devices:
-        if device.battery is None:
+        if device.battery is None and device.mppt is None:
             continue
-        dev_entities: list[SensorEntity] = [
-            SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "charge"),
-            SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "discharge"),
-            SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "soc"),
-            SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "power"),
-        ]
-        if device.battery.temperature_entity is not None:
-            dev_entities.append(
-                SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "temperature")
-            )
-        if device.battery.cycles_entity is not None:
+        # MPPT sensors group with the battery device on a combined unit, else on a
+        # dedicated per-inverter sub-device (so an MPPT-only device is not empty).
+        dev_info = (
+            _battery_device_info(entry, device.name)
+            if device.battery is not None
+            else _mppt_device_info(entry, device.name)
+        )
+        dev_entities: list[SensorEntity] = []
+        if device.battery is not None:
             dev_entities += [
-                SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "cycles"),
-                SolarBalanceBatterySohSensor(coordinator, entry, device.name),
+                SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "charge"),
+                SolarBalanceBatterySetpointSensor(coordinator, entry, device.name, "discharge"),
+                SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "soc"),
+                SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "power"),
             ]
+            if device.battery.temperature_entity is not None:
+                dev_entities.append(
+                    SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "temperature")
+                )
+            if device.battery.cycles_entity is not None:
+                dev_entities += [
+                    SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "cycles"),
+                    SolarBalanceBatterySohSensor(coordinator, entry, device.name),
+                ]
+        if device.mppt is not None:
+            dev_entities.append(
+                SolarBalanceMpptPowerSensor(coordinator, entry, device.name, dev_info)
+            )
+            # PV output limit is only meaningful for a curtailable inverter.
+            if device.mppt.active_control_enabled and (
+                device.mppt.power_limit_setpoint_entity is not None
+            ):
+                dev_entities.append(
+                    SolarBalanceMpptLimitSensor(coordinator, entry, device.name, dev_info)
+                )
         sub_id = sub_by_name.get(device.name)
         if sub_id is not None:
             async_add_entities(dev_entities, config_subentry_id=sub_id)
@@ -173,6 +193,16 @@ def _battery_device_info(entry: ConfigEntry, device_name: str) -> DeviceInfo:
     """A per-battery sub-device so its sensors group together (language-agnostic)."""
     return DeviceInfo(
         identifiers={(DOMAIN, f"{entry.entry_id}_battery_{device_name}")},
+        name=device_name,
+        manufacturer="SolarBalance",
+        via_device=(DOMAIN, DOMAIN),
+    )
+
+
+def _mppt_device_info(entry: ConfigEntry, device_name: str) -> DeviceInfo:
+    """A per-inverter sub-device for an MPPT-only device (no battery role)."""
+    return DeviceInfo(
+        identifiers={(DOMAIN, f"{entry.entry_id}_mppt_{device_name}")},
         name=device_name,
         manufacturer="SolarBalance",
         via_device=(DOMAIN, DOMAIN),
@@ -813,6 +843,67 @@ class SolarBalanceBatterySohSensor(_SolarBalanceSensor):
         if state is None or not state.available:
             return None
         return estimate_soh_pct(state.cycles, self._chemistry)
+
+
+class SolarBalanceMpptPowerSensor(_SolarBalanceSensor):
+    """Per-inverter PV output power (W)."""
+
+    _attr_translation_key = "mppt_power"
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:solar-power"
+
+    def __init__(
+        self,
+        coordinator: SolarBalanceCoordinator,
+        entry: ConfigEntry,
+        device_name: str,
+        device_info: DeviceInfo,
+    ) -> None:
+        super().__init__(coordinator, entry, f"{device_name}_pv_power", device_info=device_info)
+        self._device_name = device_name
+
+    @property
+    def native_value(self) -> float | None:
+        snap: Snapshot | None = self.coordinator.data
+        if snap is None:
+            return None
+        state = next((m for m in snap.mppts if m.device_name == self._device_name), None)
+        if state is None or not state.available:
+            return None
+        return round(state.power_w, 1)
+
+
+class SolarBalanceMpptLimitSensor(_SolarBalanceSensor):
+    """Per-inverter PV output limit applied by curtailment (W, diagnostic).
+
+    Sits at the inverter peak when unrestricted and drops only when the batteries
+    are saturated and the grid would otherwise export (curtailment is a last
+    resort, after the batteries have stored what they can).
+    """
+
+    _attr_translation_key = "mppt_limit"
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:solar-power-variant"
+
+    def __init__(
+        self,
+        coordinator: SolarBalanceCoordinator,
+        entry: ConfigEntry,
+        device_name: str,
+        device_info: DeviceInfo,
+    ) -> None:
+        super().__init__(coordinator, entry, f"{device_name}_pv_limit", device_info=device_info)
+        self._device_name = device_name
+
+    @property
+    def native_value(self) -> float | None:
+        value = self.coordinator._pv_limits_by_device.get(self._device_name)
+        return round(value, 1) if value is not None else None
 
 
 # ---------------------------------------------------------------------------

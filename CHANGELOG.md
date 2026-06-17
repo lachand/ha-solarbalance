@@ -37,6 +37,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.5] — 2026-06-17
+
+### Added
+
+- **Capteurs par micro-onduleur / MPPT** — un appareil MPPT (onduleur seul)
+  n'avait **aucune entité** associée. Il expose désormais **`PV power`** (sa
+  production) et, s'il est bridable (pilotage actif + entité de limite), **`PV
+  output limit`** (la limite réellement appliquée par l'écrêtage). Pour un
+  appareil combiné batterie+onduleur, ces capteurs se rangent sous le même
+  appareil. Rend l'écrêtage **observable**.
+
+### Notes
+
+- **Pourquoi le micro-onduleur ne se bride pas toujours** : l'écrêtage est le
+  **dernier recours** de la zéro-injection. Il n'agit que si les **batteries sont
+  saturées** (pleines) **et** que le réseau exporterait encore. Tant qu'une
+  batterie a de la place, SolarBalance **stocke le surplus** (sans perte) plutôt
+  que de **brider les panneaux** (perte sèche). Le capteur `PV output limit`
+  reste donc au pic et ne descend que quand les batteries ne peuvent plus absorber.
+
 ## [2.0.4] — 2026-06-17
 
 ### Added
@@ -529,6 +549,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.5]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.4...v2.0.5
 [2.0.4]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.2...v2.0.3
 [2.0.2]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.1...v2.0.2
