@@ -5,6 +5,7 @@ import pytest
 from custom_components.solarbalance.core.controllers.regulation import (
     apply_equaliser_offer,
     apply_slew_limit,
+    clamp_discharge_no_export,
     noncontrollable_charge_offset_w,
     predictive_steering_w,
     resolve_fleet_target_w,
@@ -27,6 +28,29 @@ from custom_components.solarbalance.core.controllers.regulation import (
 )
 def test_apply_equaliser_offer(target: float, offer: float, expected: float) -> None:
     assert apply_equaliser_offer(target, offer) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    ("target", "current_fleet", "grid", "expected"),
+    [
+        # Over-discharge exporting (the real case): discharging 428, exporting 130.
+        # Reduce the discharge to cover the house only (grid -> 0) in one tick.
+        (-384.0, -428.0, -130.0, -298.0),
+        # Discharging while importing -> legitimate, don't reduce it.
+        (-150.0, -100.0, 200.0, -150.0),
+        # Already covering the house exactly (grid 0) -> unchanged.
+        (-300.0, -300.0, 0.0, -300.0),
+        # PV surplus exporting with the battery idle/charging -> stop the discharge
+        # but never force a charge (floor capped at 0); PV keeps exporting.
+        (-50.0, 0.0, -500.0, 0.0),
+        # Charging target -> never touched (PV surplus exports freely).
+        (300.0, 250.0, -500.0, 300.0),
+    ],
+)
+def test_clamp_discharge_no_export(
+    target: float, current_fleet: float, grid: float, expected: float
+) -> None:
+    assert clamp_discharge_no_export(target, current_fleet, grid) == pytest.approx(expected)
 
 
 @pytest.mark.parametrize(

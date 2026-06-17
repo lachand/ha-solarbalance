@@ -160,6 +160,12 @@ DEFAULT_DRY_RUN: Final = False
 CONF_EXCLUDE_NONCONTROLLABLE_CHARGE: Final = "exclude_noncontrollable_charge"
 DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE: Final = True
 
+# Strict self-consumption: never let the controllable fleet discharge into the
+# grid (cap the discharge so the grid never exports). Off by default so injection
+# stays possible (e.g. to force-charge a non-controllable battery from the fleet).
+CONF_NO_BATTERY_EXPORT: Final = "no_battery_export"
+DEFAULT_NO_BATTERY_EXPORT: Final = False
+
 # Active grid-overload protection: shed/reduce loads before the breaker trips.
 CONF_OVERLOAD_PROTECTION_ENABLED: Final = "overload_protection_enabled"
 DEFAULT_OVERLOAD_PROTECTION_ENABLED: Final = False

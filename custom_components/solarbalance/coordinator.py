@@ -41,6 +41,7 @@ from .const import (
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
+    CONF_NO_BATTERY_EXPORT,
     CONF_NOTIFICATIONS_ENABLED,
     CONF_OVERLOAD_PROTECTION_ENABLED,
     CONF_PREDICTIVE_CONTROL_ENABLED,
@@ -91,6 +92,7 @@ from .const import (
     DEFAULT_HP_PRICE,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
+    DEFAULT_NO_BATTERY_EXPORT,
     DEFAULT_OVERLOAD_PROTECTION_ENABLED,
     DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
     DEFAULT_SOC_EQUALISER_CADENCE_TICKS,
@@ -137,6 +139,7 @@ from .core.controllers.overload import SheddableLoad, relieve_overload
 from .core.controllers.regulation import (
     apply_equaliser_offer,
     apply_slew_limit,
+    clamp_discharge_no_export,
     noncontrollable_charge_offset_w,
     predictive_steering_w,
     resolve_fleet_target_w,
@@ -450,6 +453,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
             )
         )
+        self._no_battery_export = bool(cfg.get(CONF_NO_BATTERY_EXPORT, DEFAULT_NO_BATTERY_EXPORT))
         # Integration version, set by async_setup_entry from the manifest; shown as
         # the device sw_version (no manual bump needed).
         self.version: str | None = None
@@ -1625,6 +1629,16 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # is 0). The balancing controller and SoC floors bound the actual write.
         if zi_regulating:
             total_power_w = apply_equaliser_offer(total_power_w, eq_bias_w)
+            # Strict self-consumption (opt-in): never discharge the fleet into the
+            # grid. Caps the discharge so the projected grid does not export,
+            # enforcing grid >= 0 from the battery in a single tick (direct
+            # projection) instead of the slow PI wind-down. Reduces a discharge
+            # only; a PV surplus still exports freely. Off by default so injection
+            # stays possible (e.g. to force-charge a non-controllable battery).
+            if self._no_battery_export:
+                total_power_w = clamp_discharge_no_export(
+                    total_power_w, current_fleet_w, grid_filtered_w
+                )
 
         # Apply grid constraints: clamp the aggregate battery target so the
         # projected grid exchange honours max_import_w and max_export_w. Only the

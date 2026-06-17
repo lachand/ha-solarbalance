@@ -34,6 +34,7 @@ from .const import (
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
+    CONF_NO_BATTERY_EXPORT,
     CONF_NOTIFICATIONS_ENABLED,
     CONF_OVERLOAD_PROTECTION_ENABLED,
     CONF_PHASES,
@@ -84,6 +85,7 @@ from .const import (
     DEFAULT_HP_PRICE,
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
+    DEFAULT_NO_BATTERY_EXPORT,
     DEFAULT_OVERLOAD_PROTECTION_ENABLED,
     DEFAULT_PHASES,
     DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
@@ -213,6 +215,10 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
                 CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
                 DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
             ),
+        ): bool,
+        vol.Optional(
+            CONF_NO_BATTERY_EXPORT,
+            default=d.get(CONF_NO_BATTERY_EXPORT, DEFAULT_NO_BATTERY_EXPORT),
         ): bool,
         vol.Optional(
             CONF_EVENING_SHED_ENABLED, default=d.get(CONF_EVENING_SHED_ENABLED, False)

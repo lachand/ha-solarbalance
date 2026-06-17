@@ -60,6 +60,26 @@ def apply_equaliser_offer(target_w: float, offer_w: float) -> float:
     return target_w
 
 
+def clamp_discharge_no_export(target_w: float, current_fleet_w: float, grid_w: float) -> float:
+    """Cap a discharge so the controllable fleet never pushes the grid into export.
+
+    There is no reason to discharge a battery while already injecting into the
+    grid. Under zero-injection the PI loop targets grid = 0, but because it tracks
+    ``current_fleet + correction`` and the hardware ramps slowly, a large
+    over-discharge can take minutes to wind down -- dumping stored energy to the
+    grid the whole time. This enforces the same goal in a single tick by direct
+    projection: ``projected_grid = grid + (target - current_fleet) >= 0`` gives
+    ``target >= current_fleet - grid``.
+
+    Only ever *reduces a discharge* (``target_w < 0``); the floor is capped at 0 so
+    it never forces a charge, leaving a genuine PV surplus free to export. When the
+    grid is importing it does nothing (the discharge is legitimately covering load).
+    """
+    if target_w >= 0.0:
+        return target_w
+    return max(target_w, min(0.0, current_fleet_w - grid_w))
+
+
 def noncontrollable_charge_offset_w(
     charge_w: float, natural_grid_w: float, force_offset_w: float = 0.0
 ) -> float:

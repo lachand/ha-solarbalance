@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.3] — 2026-06-16
+
+### Added
+
+- **Option « Autoconsommation stricte : ne jamais décharger la batterie vers le
+  réseau »** (désactivée par défaut). Quand elle est active, une **butée par
+  projection directe** plafonne la décharge du parc pour que le réseau **ne passe
+  pas en export** (`grid ≥ 0` côté batterie) **en un seul tick** — utile quand la
+  ZI met trop longtemps à arrêter une sur-décharge (elle suit `puissance mesurée
+  + correction` et l'EcoFlow rampe lentement). Elle ne fait que **réduire une
+  décharge** (jamais forcer une charge) → le **surplus PV continue d'exporter**
+  et, en import, la décharge couvre normalement la maison. **Laissée désactivée**,
+  l'injection reste possible (ex. pour forcer la charge d'une batterie cloud).
+
 ## [2.0.2] — 2026-06-16
 
 ### Fixed
@@ -495,6 +509,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.3]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.2...v2.0.3
 [2.0.2]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.1...v2.0.2
 [2.0.1]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0...v2.0.1
 [2.0.0]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.0-beta.13...v2.0.0

@@ -99,7 +99,8 @@
           "autotune_enabled": "Auto-réglage : amortit les gains ZI/équaliseur en cas d'oscillation",
           "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)",
           "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
-          "exclude_noncontrollable_charge": "Ne pas décharger le parc pour alimenter une batterie non-pilotable (cloud) qui se recharge seule"
+          "exclude_noncontrollable_charge": "Ne pas décharger le parc pour alimenter une batterie non-pilotable (cloud) qui se recharge seule",
+          "no_battery_export": "Autoconsommation stricte : ne jamais décharger la batterie vers le réseau (bloque l'injection)"
         }
       },
       "forecast": {
