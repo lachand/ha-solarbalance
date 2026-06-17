@@ -93,6 +93,10 @@ async def async_setup_entry(
         SolarBalanceRegulationDiagnosticSensor(
             coordinator, entry, "grid_filtered_w", "grid_filtered", "mdi:filter-variant"
         ),
+        SolarBalanceRegulationDiagnosticSensor(
+            coordinator, entry, "natural_grid_w", "natural_grid", "mdi:transmission-tower"
+        ),
+        SolarBalanceZiKpSensor(coordinator, entry),
     ]
     if coordinator._curtailment is not None:
         entities.append(
@@ -935,6 +939,22 @@ class SolarBalanceRegulationDiagnosticSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float:
         return round(float(getattr(self.coordinator.diagnostics, self._diag_attr)), 1)
+
+
+class SolarBalanceZiKpSensor(_SolarBalanceSensor):
+    """Effective zero-injection proportional gain this tick (progressive, unitless)."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:tune"
+    _attr_translation_key = "zi_kp_effective"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "zi_kp_effective")
+
+    @property
+    def native_value(self) -> float:
+        return round(float(self.coordinator.diagnostics.zi_kp_effective), 3)
 
 
 # ---------------------------------------------------------------------------

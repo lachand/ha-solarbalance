@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7] — 2026-06-17
+
+### Added
+
+- **Diagnostics de régulation pour le réglage à vue** (consolidation, pas de
+  nouvelle feature) :
+  - **`Zero-injection effective gain (Kp)`** — le gain **progressif effectif** au
+    tick courant (entre `kp_min` et `kp_max` selon l'erreur). Permet de voir le
+    gain réagir et de régler `kp_min` / `kp_max` / `knee` à vue.
+  - **`Natural grid (without the fleet)`** — le réseau **sans la contribution du
+    parc** (`grid filtré − puissance parc`), grandeur au cœur des garde-fous
+    (anti-export, anti-drain batterie cloud). Aide à comprendre ce que « voit »
+    réellement la régulation.
+
 ## [2.0.6] — 2026-06-17
 
 ### Fixed
@@ -563,6 +577,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.6...v2.0.7
 [2.0.6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.5...v2.0.6
 [2.0.5]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.4...v2.0.5
 [2.0.4]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.3...v2.0.4

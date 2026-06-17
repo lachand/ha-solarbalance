@@ -277,6 +277,8 @@ class RegulationDiagnostics:
     fleet_target_w: float = 0.0
     regulating: bool = False
     pv_limit_w: float = 0.0
+    natural_grid_w: float = 0.0
+    zi_kp_effective: float = 0.0
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -1486,6 +1488,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         zi_correction_w = 0.0
         eq_bias_w = 0.0
+        zi_kp_eff = 0.0
         zi_regulating = (
             self._zi_enabled and self._mode in (HemsMode.NORMAL, HemsMode.VACATION) and not red_prep
         )
@@ -1519,6 +1522,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     snapshot, grid_filtered_w - current_fleet_w, force_offset_w
                 )
             )
+            # Effective progressive gain at this tick's error (diagnostic).
+            zi_kp_eff = self._zi_controller.kp_for(grid_filtered_w - effective_setpoint_w)
             if (
                 self._per_phase_zi
                 and isinstance(self._zi_controller, PerPhaseZeroInjectionController)
@@ -1677,6 +1682,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             fleet_target_w=total_power_w,
             regulating=zi_regulating,
             pv_limit_w=pv_limit_total,
+            natural_grid_w=grid_filtered_w - current_fleet_w,
+            zi_kp_effective=zi_kp_eff,
         )
 
         # Surplus available to pilotable loads: the export we would still have

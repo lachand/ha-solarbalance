@@ -653,6 +653,12 @@
       "grid_filtered": {
         "name": "Puissance réseau (filtrée)"
       },
+      "natural_grid": {
+        "name": "Réseau « naturel » (hors parc)"
+      },
+      "zi_kp_effective": {
+        "name": "Gain effectif zéro-injection (Kp)"
+      },
       "pv_output_limit": {
         "name": "Limite de sortie PV"
       },

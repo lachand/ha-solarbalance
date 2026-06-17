@@ -653,6 +653,12 @@
       "grid_filtered": {
         "name": "Grid power (filtered)"
       },
+      "natural_grid": {
+        "name": "Natural grid (without the fleet)"
+      },
+      "zi_kp_effective": {
+        "name": "Zero-injection effective gain (Kp)"
+      },
       "pv_output_limit": {
         "name": "PV output limit"
       },

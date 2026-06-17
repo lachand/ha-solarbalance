@@ -111,12 +111,13 @@ class ZeroInjectionController:
         self._hysteresis_w = hysteresis_w
         self._integral_clamp = integral_clamp_w_s
 
-    def _kp_for(self, error: float) -> float:
+    def kp_for(self, error: float) -> float:
         """Progressive gain: kp_min near the deadband, kp_max from ``knee_w`` on.
 
         Ramps linearly with |error| across ``(hysteresis_w, knee_w)`` so the loop
         is gentle near balance (no pumping against actuation lag / meter noise) and
-        aggressive on a large deficit or export (fast wind-down).
+        aggressive on a large deficit or export (fast wind-down). Exposed for the
+        effective-gain diagnostic sensor.
         """
         span = self._knee_w - self._hysteresis_w
         frac = min(1.0, max(0.0, (abs(error) - self._hysteresis_w) / span))
@@ -154,7 +155,7 @@ class ZeroInjectionController:
         )
         # Convention: correction adds to battery *charge* power.
         # error > 0 (over-importing) → we want to discharge more → negative correction.
-        correction = -(self._kp_for(error) * error + self._ki * new_integral)
+        correction = -(self.kp_for(error) * error + self._ki * new_integral)
 
         return ZeroInjectionResult(
             correction_w=correction,
@@ -200,6 +201,10 @@ class PerPhaseZeroInjectionController:
             hysteresis_w=hysteresis_w,
             integral_clamp_w_s=integral_clamp_w_s,
         )
+
+    def kp_for(self, error: float) -> float:
+        """Progressive gain for a per-phase error (same schedule on every phase)."""
+        return self._ctrl.kp_for(error)
 
     def step(
         self,
