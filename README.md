@@ -8,7 +8,7 @@
 
 SolarBalance orchestrates photovoltaic production, battery storage, and electrical loads in your home to meet one or several energy goals (self-consumption, cost minimization, autonomy, hardware longevity), while adapting to dynamic context (tariffs, weather, grid alerts).
 
-> **Status**: **v2.0.5 released** (stable). Core engine, all strategies, **active hardware control**, zero-injection (progressive gain), the **SoC equaliser** (PV-gated), watchdog, services and Lovelace examples are functional. Next: the rest of Wave 4 (consumption forecasting, battery-health throttling, real-time PV-drop detection).
+> **Status**: **v2.0.6 released** (stable). Core engine, all strategies, **active hardware control**, zero-injection (progressive gain), the **SoC equaliser** (PV-gated), watchdog, services and Lovelace examples are functional. Next: the rest of Wave 4 (consumption forecasting, battery-health throttling, real-time PV-drop detection).
 
 ## Highlights
 
@@ -26,18 +26,11 @@ SolarBalance orchestrates photovoltaic production, battery storage, and electric
 - **Diagnostics** — `config_health` binary sensor + persistent notifications for config mistakes (zero battery capacity, missing `min_charge_w`…), plus a downloadable HA diagnostics export.
 - **HA services** — `pause`, `resume`, `force_charge`, `force_discharge`, `force_charge_load`, `cancel_force_charge_load`, `set_mode`, `activate_storm_mode` callable from automations or the dashboard.
 
-## Companion frontend
-
-Visualization is provided by:
-
-- **v1**: composition of [`power-flow-card-plus`](https://github.com/flixlix/power-flow-card-plus), [`apexcharts-card`](https://github.com/RomRider/apexcharts-card), and [`mushroom`](https://github.com/piitaya/lovelace-mushroom). Example dashboards in [`examples/lovelace/`](examples/lovelace/).
-- **v1.5+**: dedicated [`solarbalance-card`](https://github.com/<org>/solarbalance-card) (separate repo).
-
 ## Installation
 
 ### HACS (recommended once published)
 
-1. HACS → Integrations → Custom repositories → add `https://github.com/<org>/ha-solarbalance` (Integration).
+1. HACS → Integrations → Custom repositories → add `https://github.com/lachand/ha-solarbalance` (Integration).
 2. Install **SolarBalance**.
 3. Restart Home Assistant.
 4. Settings → Devices & Services → Add Integration → search "SolarBalance".

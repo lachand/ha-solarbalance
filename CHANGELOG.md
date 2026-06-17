@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.6] — 2026-06-17
+
+### Fixed
+
+- **Lien « ? » de la doc** — le manifest pointait vers un dépôt inexistant
+  (`solarbalance/ha-solarbalance`). `documentation`, `issue_tracker` et
+  `codeowners` pointent désormais vers **`lachand/ha-solarbalance`**, donc le « ? »
+  du panneau de configuration ouvre la bonne page.
+
+### Changed
+
+- **README** : suppression de la section *Companion frontend* ; lien HACS corrigé
+  vers `github.com/lachand/ha-solarbalance`.
+
 ## [2.0.5] — 2026-06-17
 
 ### Added
@@ -549,6 +563,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.5...v2.0.6
 [2.0.5]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.4...v2.0.5
 [2.0.4]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.3...v2.0.4
 [2.0.3]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.2...v2.0.3
