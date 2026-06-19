@@ -48,6 +48,7 @@ from .const import (
     CONF_PRIORITIES,
     CONF_PV_FORECAST_TOMORROW_ENTITY,
     CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
+    CONF_SOC_EQUALISER_BIDIRECTIONAL,
     CONF_SOC_EQUALISER_CADENCE_TICKS,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
@@ -95,6 +96,7 @@ from .const import (
     DEFAULT_NO_BATTERY_EXPORT,
     DEFAULT_OVERLOAD_PROTECTION_ENABLED,
     DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
+    DEFAULT_SOC_EQUALISER_BIDIRECTIONAL,
     DEFAULT_SOC_EQUALISER_CADENCE_TICKS,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
@@ -456,6 +458,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             )
         )
         self._no_battery_export = bool(cfg.get(CONF_NO_BATTERY_EXPORT, DEFAULT_NO_BATTERY_EXPORT))
+        self._eq_bidirectional = bool(
+            cfg.get(CONF_SOC_EQUALISER_BIDIRECTIONAL, DEFAULT_SOC_EQUALISER_BIDIRECTIONAL)
+        )
         # Integration version, set by async_setup_entry from the manifest; shown as
         # the device sw_version (no manual bump needed).
         self.version: str | None = None
@@ -1529,13 +1534,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # Indirect SoC equaliser (cascaded): offer a surplus/deficit by biasing
             # the ZI setpoint, so the single ZI loop produces the extra fleet
             # discharge/charge. 0 when the equaliser is off. Requires ZI.
-            eq_bias_w = self._equaliser_bias(snapshot, grid_filtered_w)
-            # Surplus-only: when the grid is actually importing (a deficit), the PV
-            # is already consumed by the house -- there is no surplus to push to the
-            # cloud battery, and forcing the fleet's solar toward it would only
-            # fight the house coverage. Suspend the offer; the ZI covers the import.
-            if grid_filtered_w > self._zi_hysteresis_w:
-                eq_bias_w = 0.0
+            # Deficit = the house needs more than the fleet provides. Detected on
+            # the *natural* grid (grid - fleet), invariant to what the fleet does
+            # (the raw grid sits at ~0 because the batteries cover the house).
+            is_deficit = (grid_filtered_w - current_fleet_w) > self._zi_hysteresis_w
+            eq_bias_w = self._equaliser_bias(snapshot, grid_filtered_w, deficit=is_deficit)
+            # In a deficit the offer steers the discharge share to converge SoC
+            # (higher-SoC battery carries more). Unidirectional (default) only lets
+            # the fleet discharge MORE when it is higher (offer >= 0), sparing the
+            # lower battery without provoking import; bidirectional also lets it
+            # discharge less (offer < 0) so the cloud battery carries more.
+            if is_deficit and not self._eq_bidirectional:
+                eq_bias_w = max(0.0, eq_bias_w)
             if self._eq_tuner is not None and self._soc_equaliser is not None:
                 # Damp the equaliser step cap if the offer is oscillating.
                 self._soc_equaliser.set_max_step_w(self._eq_tuner.step(eq_bias_w))
@@ -2432,11 +2442,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             by_name[name] = self._command_for_power(load, _load_nominal_w(load))
         return tuple(by_name.values())
 
-    def _equaliser_bias(self, snapshot: Snapshot, grid_w: float) -> float:
+    def _equaliser_bias(self, snapshot: Snapshot, grid_w: float, *, deficit: bool = False) -> float:
         """Grid-setpoint offer from the SoC equaliser (0 W when inactive).
 
         Positive offers a surplus (charges the automatic battery); negative offers
         a deficit (discharges it). Subtracted from the ZI setpoint by the caller.
+
+        ``deficit`` (the house needs more than the fleet provides): the offer then
+        steers the **discharge share** to converge SoC -- the higher-SoC battery
+        carries more. The PV gate/cap is lifted because the extra discharge feeds
+        the **house** (not the cloud battery), so it is not a lossy battery-to-
+        battery transfer. In a surplus the PV cap stays (redistribute solar only).
         """
         if self._soc_equaliser is None:
             return 0.0
@@ -2456,11 +2472,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             for m in snapshot.mppts
             if m.available and m.device_name in self._controllable_battery_names
         )
+        # In a deficit, lift the PV gate/cap: the offer steers the discharge share
+        # to feed the house (no lossy battery-to-battery transfer), bounded by the
+        # equaliser's own max-offer. In a surplus, keep the real PV (beta.13).
+        pv_for_offer = 1e9 if deficit else available_pv_w
         result = self._soc_equaliser.step(
             controllable_states=controllable,
             uncontrollable_states=uncontrollable,
             grid_w=grid_w,
-            available_pv_w=available_pv_w,
+            available_pv_w=pv_for_offer,
         )
         if not result.in_deadband:
             _LOGGER.debug(

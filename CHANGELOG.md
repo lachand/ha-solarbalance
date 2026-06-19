@@ -37,6 +37,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta5] — 2026-06-17
+
+### Added
+
+- **Équaliseur : répartition de décharge pour converger les SoC.** En **déficit**
+  (maison > solaire), l'équaliseur steer désormais la **part de décharge** entre
+  le parc pilotable et la batterie cloud, pondérée par l'écart de SoC : la
+  batterie la **plus haute décharge davantage** → les SoC **convergent** (ex.
+  stream 70 % / Jackery 30 % → le stream décharge beaucoup plus, la Jackery est
+  épargnée). En déficit le **plafond PV est levé** (la décharge supplémentaire
+  alimente la **maison**, pas la batterie cloud → pas de transfert lossy) ; en
+  **surplus** le plafond PV reste (on ne redistribue que du solaire, beta.13).
+- **Option `Équaliseur : répartition bidirectionnelle`** (défaut **désactivé**) :
+  - **désactivé (unidirectionnel)** : on ne fait que **décharger plus** le parc
+    quand il est au-dessus de la batterie cloud (épargne la plus basse, **aucun
+    import provoqué**) ;
+  - **activé (bidirectionnel)** : on **réduit aussi** la décharge du parc quand il
+    est en dessous (la batterie cloud porte plus) → convergence complète, **peut
+    importer brièvement** le temps que la batterie cloud réagisse.
+
 ## [2.0.7-beta4] — 2026-06-17
 
 ### Fixed
@@ -640,6 +660,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta5]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta4...v2.0.7-beta5
 [2.0.7-beta4]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta3...v2.0.7-beta4
 [2.0.7-beta3]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta2...v2.0.7-beta3
 [2.0.7-beta2]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta1...v2.0.7-beta2

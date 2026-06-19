@@ -25,6 +25,13 @@ CONF_SOC_EQUALISER_PROBE_STEP_W: Final = "soc_equaliser_probe_step_w"
 CONF_SOC_EQUALISER_CADENCE_TICKS: Final = "soc_equaliser_cadence_ticks"
 CONF_SOC_EQUALISER_ADAPTIVE_CADENCE: Final = "soc_equaliser_adaptive_cadence"
 CONF_SOC_EQUALISER_MIN_PV_W: Final = "soc_equaliser_min_pv_w"
+# Equaliser discharge-share in a deficit: bidirectional also reduces the fleet's
+# discharge when it is LOWER than the cloud battery (shifts the deficit onto the
+# cloud battery, may briefly import); unidirectional (default) only makes the
+# fleet discharge MORE when it is higher (spares the lower battery, no provoked
+# import).
+CONF_SOC_EQUALISER_BIDIRECTIONAL: Final = "soc_equaliser_bidirectional"
+DEFAULT_SOC_EQUALISER_BIDIRECTIONAL: Final = False
 CONF_AUTOTUNE_ENABLED: Final = "autotune_enabled"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"

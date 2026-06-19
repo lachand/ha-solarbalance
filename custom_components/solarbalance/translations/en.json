@@ -96,6 +96,7 @@
           "soc_equaliser_min_pv_w": "SoC equaliser: min PV to run / cap (W)",
           "soc_equaliser_cadence_ticks": "SoC equaliser: cadence (ticks between moves)",
           "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)",
+          "soc_equaliser_bidirectional": "SoC equaliser: bidirectional discharge share (also offload onto the cloud battery; may briefly import)",
           "autotune_enabled": "Auto-tune: damp ZI/equaliser gains when they oscillate",
           "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
           "dry_run": "Dry-run (compute everything, never write to hardware)",
