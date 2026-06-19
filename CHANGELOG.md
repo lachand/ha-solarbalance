@@ -37,6 +37,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta4] — 2026-06-17
+
+### Fixed
+
+- **Plus de transfert « batterie cloud → stream » en déficit.** En déficit (maison
+  > solaire), le stream **chargeait son propre solaire** au lieu de le sortir, et
+  la Jackery (non pilotable) **sur-déchargeait** pour couvrir maison + charge du
+  stream → aller-retour batterie→batterie avec pertes. Nouveau garde-fou
+  d'autoconsommation : le parc pilotable **ne charge pas sans vrai surplus** — sa
+  sortie est plancher-née à sa **propre production solaire** (output ≥ PV, batterie
+  jamais en charge depuis le réseau / une autre batterie). → le stream sort tout
+  son solaire pour la maison, la Jackery ne décharge plus que le **vrai déficit**.
+
+### Notes
+
+- **Exceptions au plancher** (la charge reste permise) : quand le **réseau exporte**
+  (vrai surplus à stocker) **ou** quand l'**équaliseur veut charger** le parc
+  (offre négative : batterie cloud au-dessus de la moyenne → équilibrage SoC). La
+  nuit (PV = 0) le plancher = pas de charge réseau, conforme à l'autoconso.
+
 ## [2.0.7-beta3] — 2026-06-17
 
 ### Fixed
@@ -620,6 +640,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta4]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta3...v2.0.7-beta4
 [2.0.7-beta3]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta2...v2.0.7-beta3
 [2.0.7-beta2]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta1...v2.0.7-beta2
 [2.0.7-beta1]: https://github.com/lachand/ha-solarbalance/compare/v2.0.6...v2.0.7-beta1

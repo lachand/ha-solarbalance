@@ -1659,6 +1659,16 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 total_power_w = clamp_discharge_no_export(
                     total_power_w, current_fleet_w, grid_filtered_w
                 )
+            # Self-consumption: don't charge the controllable battery from the grid
+            # or from a discharging non-controllable battery. Floor the target at
+            # the fleet's own solar (output >= PV, so the battery never charges),
+            # which makes the stream cover the house with its solar instead of
+            # hoarding it while the cloud battery over-discharges to compensate.
+            # Bypassed when the grid is exporting (a real surplus to store) or when
+            # the equaliser intentionally wants to charge the fleet (negative offer:
+            # the cloud battery is above the mean, SoC balancing).
+            if grid_filtered_w >= -self._zi_hysteresis_w and eq_bias_w >= 0.0:
+                total_power_w = min(total_power_w, -controllable_mppt_w)
 
         # Apply grid constraints: clamp the aggregate battery target so the
         # projected grid exchange honours max_import_w and max_export_w. Only the
