@@ -37,6 +37,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta7] — 2026-06-17
+
+### Fixed
+
+- **Le parc ne nourrit plus, *instantanément*, une batterie cloud qui se charge
+  seule.** Le garde-fou existant (2.0.1) passait par le **setpoint ZI** → la rampe
+  PI lente (kp ~0,2) laissait le stream **décharger pour alimenter la charge de la
+  Jackery** pendant un long transitoire (batterie basse → batterie haute, lossy).
+  Ajout d'une **butée directe** (projection 1 tick) : la décharge du parc est
+  plafonnée pour que le réseau reste ≥ l'import toléré de la batterie cloud → la
+  batterie cloud **tire sur le réseau**, plus sur le parc. Effet immédiat au lieu
+  de plusieurs minutes.
+
+### Known limitation
+
+- La batterie cloud (non pilotable) qui décide de charger à SoC élevé tire alors
+  **sur le réseau** (on ne peut pas l'en empêcher) ; SB évite juste qu'elle vide
+  le parc. Le vrai correctif est côté batterie cloud (ne pas charger à 94 %).
+
 ## [2.0.7-beta6] — 2026-06-17
 
 ### Fixed
@@ -679,6 +698,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta6...v2.0.7-beta7
 [2.0.7-beta6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta5...v2.0.7-beta6
 [2.0.7-beta5]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta4...v2.0.7-beta5
 [2.0.7-beta4]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta3...v2.0.7-beta4

@@ -1515,6 +1515,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         current_fleet_w = self._fleet_filter.update(controllable_battery_w - controllable_mppt_w)
         zi_correction_w = 0.0
         eq_bias_w = 0.0
+        nc_charge_offset_w = 0.0
         zi_regulating = (
             self._zi_enabled and self._mode in (HemsMode.NORMAL, HemsMode.VACATION) and not red_prep
         )
@@ -1555,13 +1556,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # could not force a discharge against local PV charging); it is applied
             # as a direct floor on the fleet target below (apply_equaliser_offer).
             force_offset_w = self._force_charge_grid_offset_w(snapshot)
-            effective_setpoint_w = (
-                self._zi_setpoint_w
-                + force_offset_w
-                + self._noncontrollable_charge_offset_w(
-                    snapshot, grid_filtered_w - current_fleet_w, force_offset_w
-                )
+            nc_charge_offset_w = self._noncontrollable_charge_offset_w(
+                snapshot, grid_filtered_w - current_fleet_w, force_offset_w
             )
+            effective_setpoint_w = self._zi_setpoint_w + force_offset_w + nc_charge_offset_w
             if (
                 self._per_phase_zi
                 and isinstance(self._zi_controller, PerPhaseZeroInjectionController)
@@ -1690,6 +1688,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 and not noncontrollable_charging
             ):
                 total_power_w = min(total_power_w, -controllable_mppt_w)
+            # Don't discharge the fleet to feed a self-charging cloud battery.
+            # The setpoint feed-forward already biases the loop, but the slow PI
+            # ramp lets the fleet discharge into the cloud battery's charge for a
+            # while. Cap the discharge directly so the projected grid stays >= the
+            # tolerated cloud-charge import (single tick): the cloud battery draws
+            # from the grid, not from the controllable fleet.
+            if nc_charge_offset_w > 0.0:
+                no_feed_floor = nc_charge_offset_w - grid_filtered_w + current_fleet_w
+                total_power_w = max(total_power_w, no_feed_floor)
 
         # Apply grid constraints: clamp the aggregate battery target so the
         # projected grid exchange honours max_import_w and max_export_w. Only the
