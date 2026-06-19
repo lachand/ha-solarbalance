@@ -37,6 +37,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta8] — 2026-06-17
+
+### Added
+
+- **Option « Stopper une batterie cloud qui se charge »** (défaut **désactivé**,
+  opt-in). Quand une batterie **non-pilotable charge** et que le parc la
+  nourrirait, on **coupe la décharge du parc à 0** : la maison passe sur le
+  **réseau**, la production locale dont se nourrit la batterie cloud disparaît →
+  elle **arrête de charger**. Plus agressif que le garde-fou par défaut (qui se
+  contente de ne pas la nourrir, elle tire alors sur le réseau).
+  - **Ciblé** : ne se déclenche que quand le parc nourrirait réellement la charge
+    cloud (offset garde-fou > 0), pas à chaque fois qu'une cloud charge.
+  - **Inerte pour un parc 100 % pilotable** (aucune batterie non-pilotable → la
+    condition ne se déclenche jamais).
+  - **À assumer** : importe pour la maison tant que c'est actif, et repose sur la
+    réaction de la batterie cloud (elle arrête bien si elle se nourrissait de la
+    sortie locale).
+
 ## [2.0.7-beta7] — 2026-06-17
 
 ### Fixed
@@ -698,6 +716,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta8]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta7...v2.0.7-beta8
 [2.0.7-beta7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta6...v2.0.7-beta7
 [2.0.7-beta6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta5...v2.0.7-beta6
 [2.0.7-beta5]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta4...v2.0.7-beta5

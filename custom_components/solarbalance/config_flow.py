@@ -53,6 +53,7 @@ from .const import (
     CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SPOT_MARKUP,
     CONF_SPOT_PRICE_ENTITY,
+    CONF_STOP_CLOUD_CHARGE,
     CONF_SUBSCRIBED_POWER_KVA,
     CONF_TARIFF_TYPE,
     CONF_TEMPO_COLOR_ENTITY,
@@ -98,6 +99,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_MIN_PV_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_SPOT_MARKUP,
+    DEFAULT_STOP_CLOUD_CHARGE,
     DEFAULT_TARIFF_TYPE,
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
@@ -221,6 +223,10 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
         vol.Optional(
             CONF_NO_BATTERY_EXPORT,
             default=d.get(CONF_NO_BATTERY_EXPORT, DEFAULT_NO_BATTERY_EXPORT),
+        ): bool,
+        vol.Optional(
+            CONF_STOP_CLOUD_CHARGE,
+            default=d.get(CONF_STOP_CLOUD_CHARGE, DEFAULT_STOP_CLOUD_CHARGE),
         ): bool,
         vol.Optional(
             CONF_EVENING_SHED_ENABLED, default=d.get(CONF_EVENING_SHED_ENABLED, False)

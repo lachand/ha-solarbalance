@@ -58,6 +58,7 @@ from .const import (
     CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SPOT_MARKUP,
     CONF_SPOT_PRICE_ENTITY,
+    CONF_STOP_CLOUD_CHARGE,
     CONF_SUBSCRIBED_POWER_KVA,
     CONF_TARIFF_TYPE,
     CONF_TEMPO_COLOR_ENTITY,
@@ -104,6 +105,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_MIN_PV_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_SPOT_MARKUP,
+    DEFAULT_STOP_CLOUD_CHARGE,
     DEFAULT_STORM_TARGET_SOC_PCT,
     DEFAULT_TARIFF_TYPE,
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
@@ -458,6 +460,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             )
         )
         self._no_battery_export = bool(cfg.get(CONF_NO_BATTERY_EXPORT, DEFAULT_NO_BATTERY_EXPORT))
+        self._stop_cloud_charge = bool(cfg.get(CONF_STOP_CLOUD_CHARGE, DEFAULT_STOP_CLOUD_CHARGE))
         self._eq_bidirectional = bool(
             cfg.get(CONF_SOC_EQUALISER_BIDIRECTIONAL, DEFAULT_SOC_EQUALISER_BIDIRECTIONAL)
         )
@@ -1697,6 +1700,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if nc_charge_offset_w > 0.0:
                 no_feed_floor = nc_charge_offset_w - grid_filtered_w + current_fleet_w
                 total_power_w = max(total_power_w, no_feed_floor)
+                # Opt-in: starve the cloud battery's charge. Instead of just not
+                # feeding it (the cloud then draws from the grid), force the fleet
+                # to stop discharging entirely (target >= 0): the house draws from
+                # the grid, the local output the cloud battery feeds on disappears,
+                # so it stops charging. Imports for the house while active.
+                if self._stop_cloud_charge:
+                    total_power_w = max(total_power_w, 0.0)
 
         # Apply grid constraints: clamp the aggregate battery target so the
         # projected grid exchange honours max_import_w and max_export_w. Only the

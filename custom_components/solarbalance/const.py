@@ -173,6 +173,14 @@ DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE: Final = True
 CONF_NO_BATTERY_EXPORT: Final = "no_battery_export"
 DEFAULT_NO_BATTERY_EXPORT: Final = False
 
+# Stop a self-charging cloud battery by starving it: when a non-controllable
+# battery charges and the fleet would otherwise feed it, force the fleet discharge
+# to 0 (the house draws from the grid instead), removing the local output the cloud
+# battery feeds on so it stops charging. Off by default (imports for the house
+# while active; relies on the cloud battery reacting). Inert without a cloud battery.
+CONF_STOP_CLOUD_CHARGE: Final = "stop_cloud_charge"
+DEFAULT_STOP_CLOUD_CHARGE: Final = False
+
 # Active grid-overload protection: shed/reduce loads before the breaker trips.
 CONF_OVERLOAD_PROTECTION_ENABLED: Final = "overload_protection_enabled"
 DEFAULT_OVERLOAD_PROTECTION_ENABLED: Final = False

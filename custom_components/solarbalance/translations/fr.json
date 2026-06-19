@@ -101,7 +101,8 @@
           "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)",
           "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
           "exclude_noncontrollable_charge": "Ne pas décharger le parc pour alimenter une batterie non-pilotable (cloud) qui se recharge seule",
-          "no_battery_export": "Autoconsommation stricte : ne jamais décharger la batterie vers le réseau (bloque l'injection)"
+          "no_battery_export": "Autoconsommation stricte : ne jamais décharger la batterie vers le réseau (bloque l'injection)",
+          "stop_cloud_charge": "Stopper une batterie cloud qui se charge : couper la décharge du parc à 0 (importe pour la maison) pour qu'elle arrête de charger"
         }
       },
       "forecast": {
