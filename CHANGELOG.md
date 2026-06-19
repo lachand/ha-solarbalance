@@ -37,6 +37,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta6] — 2026-06-17
+
+### Fixed
+
+- **Surplus masqué : le parc peut enfin charger son solaire au lieu de le donner
+  à la batterie cloud déjà pleine.** Le plancher anti-charge (beta4) jugeait le
+  surplus sur le **réseau brut** ; or une batterie non-pilotable (Jackery) qui
+  **charge** absorbe le surplus et le **masque** au compteur (~0) → le plancher
+  forçait le stream (SoC bas) à **sortir son solaire** au lieu de **charger**, et
+  le surplus partait dans la Jackery (SoC haut). Le plancher est désormais **levé
+  quand une batterie non-pilotable est en charge** (= surplus réel absorbé) → le
+  stream charge son **propre solaire**.
+
+### Known limitation
+
+- La **charge du stream n'étant pas pilotable**, il ne peut charger que **son
+  propre solaire** ; le surplus déjà présent sur le bus AC reste happé par la
+  batterie cloud (non pilotable). Amélioration partielle, bornée par le matériel.
+
 ## [2.0.7-beta5] — 2026-06-17
 
 ### Added
@@ -660,6 +679,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta5...v2.0.7-beta6
 [2.0.7-beta5]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta4...v2.0.7-beta5
 [2.0.7-beta4]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta3...v2.0.7-beta4
 [2.0.7-beta3]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta2...v2.0.7-beta3

@@ -1674,10 +1674,21 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # the fleet's own solar (output >= PV, so the battery never charges),
             # which makes the stream cover the house with its solar instead of
             # hoarding it while the cloud battery over-discharges to compensate.
-            # Bypassed when the grid is exporting (a real surplus to store) or when
-            # the equaliser intentionally wants to charge the fleet (negative offer:
-            # the cloud battery is above the mean, SoC balancing).
-            if grid_filtered_w >= -self._zi_hysteresis_w and eq_bias_w >= 0.0:
+            # Bypassed when there is a real surplus to store -- grid exporting OR a
+            # non-controllable battery is charging (it absorbs surplus, which masks
+            # it on the meter, so the fleet should charge its own solar instead of
+            # feeding the already-higher cloud battery) -- or when the equaliser
+            # intentionally wants to charge the fleet (negative offer).
+            noncontrollable_charging = any(
+                b.power_w > self._zi_hysteresis_w
+                for b in snapshot.batteries
+                if b.available and b.device_name not in self._controllable_battery_names
+            )
+            if (
+                grid_filtered_w >= -self._zi_hysteresis_w
+                and eq_bias_w >= 0.0
+                and not noncontrollable_charging
+            ):
                 total_power_w = min(total_power_w, -controllable_mppt_w)
 
         # Apply grid constraints: clamp the aggregate battery target so the
