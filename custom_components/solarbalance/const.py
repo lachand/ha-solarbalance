@@ -181,6 +181,13 @@ DEFAULT_NO_BATTERY_EXPORT: Final = False
 CONF_STOP_CLOUD_CHARGE: Final = "stop_cloud_charge"
 DEFAULT_STOP_CLOUD_CHARGE: Final = False
 
+# Local AC-load entities behind the controllable fleet (e.g. EcoFlow STREAM AC
+# output sockets): served by the fleet but invisible to the grid meter. Declaring
+# them lets SB exclude them from the fleet's grid-facing contribution so their
+# on/off cycling does not disturb the zero-injection loop (and de-biases the
+# derived home consumption).
+CONF_LOCAL_AC_LOAD_ENTITIES: Final = "local_ac_load_entities"
+
 # Active grid-overload protection: shed/reduce loads before the breaker trips.
 CONF_OVERLOAD_PROTECTION_ENABLED: Final = "overload_protection_enabled"
 DEFAULT_OVERLOAD_PROTECTION_ENABLED: Final = False

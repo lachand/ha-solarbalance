@@ -48,12 +48,14 @@ class EntityReader:
         weather_min_rank: int = 2,
         current_import_price: float | None = None,
         current_export_price: float | None = None,
+        local_ac_load_entities: Sequence[str] = (),
         state_getter: Callable[[str], State | None] | None = None,
     ) -> None:
         self._hass = hass
         self._devices = tuple(devices)
         self._meters = tuple(meters)
         self._loads = tuple(loads or [])
+        self._local_ac_load_entities = tuple(local_ac_load_entities)
         self._pv_forecast_entity = pv_forecast_entity
         self._weather_warning_entity = weather_warning_entity
         self._weather_phenomena = tuple(weather_phenomena)
@@ -76,7 +78,15 @@ class EntityReader:
             weather_warning_active=self._read_weather_warning(),
             current_import_price=self._current_import_price,
             current_export_price=self._current_export_price,
+            local_ac_load_w=self._read_local_ac_load(),
             **self._read_grid_power_per_phase(),
+        )
+
+    def _read_local_ac_load(self) -> float:
+        """Sum the declared local AC-load entities (behind the fleet, off-meter)."""
+        return sum(
+            max(0.0, self._read_float(eid, default=0.0) or 0.0)
+            for eid in self._local_ac_load_entities
         )
 
     def _read_grid_power(self) -> float:

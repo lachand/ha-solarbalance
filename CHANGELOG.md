@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta9] — 2026-06-17
+
+### Added
+
+- **Compensation prise AC locale** — le **yoyo résiduel du réseau correspondait
+  exactement aux cycles de la prise AC du stream.** Cause : une charge sur la
+  sortie AC du parc est **servie par lui mais invisible au compteur** ; quand elle
+  s'allume/s'éteint, la sortie du parc change brusquement → la ZI croit que le
+  parc a bougé et **corrige (petit yoyo)**. Nouveau réglage *« Capteurs de conso
+  prise AC locale »* (multi-entités, ex. `Consommation AC stream`) : SB
+  **retranche** cette charge de la **contribution réseau du parc**
+  (`current_fleet = (batterie − MPPT) + conso_prise_AC`) → ses cycles **ne
+  perturbent plus** la boucle de régulation. Vide par défaut (sans effet).
+
 ## [2.0.7-beta8] — 2026-06-17
 
 ### Added
@@ -716,6 +730,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta9]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta8...v2.0.7-beta9
 [2.0.7-beta8]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta7...v2.0.7-beta8
 [2.0.7-beta7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta6...v2.0.7-beta7
 [2.0.7-beta6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta5...v2.0.7-beta6

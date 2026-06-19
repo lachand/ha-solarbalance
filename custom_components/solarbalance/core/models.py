@@ -445,6 +445,11 @@ class Snapshot:
     grid_power_l1_w: float | None = None
     grid_power_l2_w: float | None = None
     grid_power_l3_w: float | None = None
+    # Local AC load behind the controllable fleet (e.g. an EcoFlow STREAM AC
+    # output socket): served by the fleet but invisible to the grid meter. Used to
+    # exclude it from the fleet's grid-facing contribution so its on/off cycling
+    # does not disturb the zero-injection loop.
+    local_ac_load_w: float = 0.0
 
     @property
     def pv_total_w(self) -> float:

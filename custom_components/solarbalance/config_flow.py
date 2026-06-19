@@ -33,6 +33,7 @@ from .const import (
     CONF_HP_PRICE,
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
+    CONF_LOCAL_AC_LOAD_ENTITIES,
     CONF_MAX_RAMP_W,
     CONF_NO_BATTERY_EXPORT,
     CONF_NOTIFICATIONS_ENABLED,
@@ -228,6 +229,10 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             CONF_STOP_CLOUD_CHARGE,
             default=d.get(CONF_STOP_CLOUD_CHARGE, DEFAULT_STOP_CLOUD_CHARGE),
         ): bool,
+        vol.Optional(
+            CONF_LOCAL_AC_LOAD_ENTITIES,
+            default=d.get(CONF_LOCAL_AC_LOAD_ENTITIES, []),
+        ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", multiple=True)),
         vol.Optional(
             CONF_EVENING_SHED_ENABLED, default=d.get(CONF_EVENING_SHED_ENABLED, False)
         ): bool,

@@ -40,6 +40,7 @@ from .const import (
     CONF_HP_PRICE,
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
+    CONF_LOCAL_AC_LOAD_ENTITIES,
     CONF_MAX_RAMP_W,
     CONF_NO_BATTERY_EXPORT,
     CONF_NOTIFICATIONS_ENABLED,
@@ -444,6 +445,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 str(cfg.get(CONF_WEATHER_MIN_LEVEL, DEFAULT_WEATHER_MIN_LEVEL))
             )
             or 2,
+            local_ac_load_entities=cfg.get(CONF_LOCAL_AC_LOAD_ENTITIES, ()) or (),
         )
         self._publisher = DecisionPublisher()
         self._balancing = BalancingController(devices, alpha=DEFAULT_BALANCING_ALPHA)
@@ -1515,7 +1517,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             for m in snapshot.mppts
             if m.available and m.device_name in self._controllable_battery_names
         )
-        current_fleet_w = self._fleet_filter.update(controllable_battery_w - controllable_mppt_w)
+        # Exclude any declared local AC load (served by the fleet but off-meter, e.g.
+        # the STREAM's AC socket): output = mppt - battery, of which local_ac_load is
+        # consumed locally, so the *grid-facing* output = output - local_ac_load and
+        # current_fleet (= -grid-facing) = (battery - mppt) + local_ac_load. This
+        # stops the socket's on/off cycling from disturbing the ZI loop.
+        current_fleet_w = self._fleet_filter.update(
+            controllable_battery_w - controllable_mppt_w + snapshot.local_ac_load_w
+        )
         zi_correction_w = 0.0
         eq_bias_w = 0.0
         nc_charge_offset_w = 0.0
