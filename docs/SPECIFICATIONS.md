@@ -498,7 +498,7 @@ Cette correction de puissance globale est ensuite répartie selon §6.2.
 
 **Limite de pente (anti cycle-limite)** : la cible agrégée ne peut varier de plus de `max_ramp_w` (défaut 800 W) par tick. Garde-fou matériel contre les emballements quels que soient les gains ; `0` désactive la limite.
 
-**Gain progressif (gain scheduling)** : le gain proportionnel `kp` n'est pas constant mais **augmente avec l'amplitude de l'erreur**. Il vaut `zero_injection_kp_min` (défaut 0,2) juste après la bande morte et monte linéairement jusqu'à `zero_injection_kp` (= kp max, défaut 0,6) atteint à `zero_injection_knee_w` (défaut 600 W), puis reste à kp max. Effet : **doux près de l'équilibre** (pas de pompage contre le temps mort / le bruit du compteur), **nerveux sur un gros déficit ou une grosse injection** (réduction rapide). Remplace l'ancien auto-réglage global, qui rabaissait *tout* le gain dès qu'il y avait du pompage en zone basse et rendait du coup les gros écarts trop lents.
+**Auto-réglage supervisé** (`autotune_enabled`, défaut on) : un superviseur compte les **inversions de sens** de la correction ZI sur une fenêtre glissante ; si ça **oscille** (pompage), il **baisse `kp`** (×0,8, plancher 0,2) ; au **calme**, il le **restaure** lentement vers la valeur configurée. Borné à `[min, kp_config]` → ne peut que rendre la boucle **plus douce**, jamais plus agressive (d'où sûr par défaut). Le même mécanisme amortit le **plafond de pas de l'équaliseur** (§6.6). Module pur `core/autotuner.py`.
 
 **Hystérésis** : zone morte autour de `consigne_zi ± hysteresis_w`. Pas d'action si la mesure y reste.
 

@@ -96,12 +96,23 @@ async def async_setup_entry(
         SolarBalanceRegulationDiagnosticSensor(
             coordinator, entry, "natural_grid_w", "natural_grid", "mdi:transmission-tower"
         ),
-        SolarBalanceZiKpSensor(coordinator, entry),
     ]
     if coordinator._curtailment is not None:
         entities.append(
             SolarBalanceRegulationDiagnosticSensor(
                 coordinator, entry, "pv_limit_w", "pv_output_limit", "mdi:solar-power-variant"
+            )
+        )
+    if coordinator._zi_tuner is not None:
+        entities.append(SolarBalanceAutotuneKpSensor(coordinator, entry))
+    if coordinator._eq_tuner is not None:
+        entities.append(
+            SolarBalanceRegulationDiagnosticSensor(
+                coordinator,
+                entry,
+                "autotune_equaliser_step_w",
+                "autotune_equaliser_step",
+                "mdi:tune-variant",
             )
         )
 
@@ -941,20 +952,20 @@ class SolarBalanceRegulationDiagnosticSensor(_SolarBalanceSensor):
         return round(float(getattr(self.coordinator.diagnostics, self._diag_attr)), 1)
 
 
-class SolarBalanceZiKpSensor(_SolarBalanceSensor):
-    """Effective zero-injection proportional gain this tick (progressive, unitless)."""
+class SolarBalanceAutotuneKpSensor(_SolarBalanceSensor):
+    """Auto-tuned zero-injection proportional gain (diagnostic, unitless)."""
 
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_entity_category = EntityCategory.DIAGNOSTIC
     _attr_icon = "mdi:tune"
-    _attr_translation_key = "zi_kp_effective"
+    _attr_translation_key = "autotune_zi_kp"
 
     def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "zi_kp_effective")
+        super().__init__(coordinator, entry, "autotune_zi_kp")
 
     @property
     def native_value(self) -> float:
-        return round(float(self.coordinator.diagnostics.zi_kp_effective), 3)
+        return round(float(self.coordinator.diagnostics.autotune_zi_kp), 3)
 
 
 # ---------------------------------------------------------------------------

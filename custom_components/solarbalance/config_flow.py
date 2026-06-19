@@ -16,6 +16,7 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_AUTOTUNE_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
@@ -64,12 +65,11 @@ from .const import (
     CONF_WEATHER_WARNING_ENTITY,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_HYSTERESIS_W,
-    CONF_ZERO_INJECTION_KNEE_W,
     CONF_ZERO_INJECTION_KP,
-    CONF_ZERO_INJECTION_KP_MIN,
     CONF_ZERO_INJECTION_SETPOINT_W,
     CONF_ZI_SETTLE_MIN_DROP_W,
     CONF_ZI_SETTLE_TICKS,
+    DEFAULT_AUTOTUNE_ENABLED,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
@@ -102,9 +102,7 @@ from .const import (
     DEFAULT_VACATION_SOC_MAX_PCT,
     DEFAULT_WEATHER_MIN_LEVEL,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
-    DEFAULT_ZERO_INJECTION_KNEE_W,
     DEFAULT_ZERO_INJECTION_KP,
-    DEFAULT_ZERO_INJECTION_KP_MIN,
     DEFAULT_ZI_SETTLE_MIN_DROP_W,
     DEFAULT_ZI_SETTLE_TICKS,
     DOMAIN,
@@ -167,14 +165,6 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
         vol.Optional(
             CONF_ZERO_INJECTION_KP, default=d.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP)
         ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
-        vol.Optional(
-            CONF_ZERO_INJECTION_KP_MIN,
-            default=d.get(CONF_ZERO_INJECTION_KP_MIN, DEFAULT_ZERO_INJECTION_KP_MIN),
-        ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
-        vol.Optional(
-            CONF_ZERO_INJECTION_KNEE_W,
-            default=d.get(CONF_ZERO_INJECTION_KNEE_W, DEFAULT_ZERO_INJECTION_KNEE_W),
-        ): vol.All(vol.Coerce(float), vol.Range(min=1.0)),
         vol.Optional(CONF_PHASES, default=d.get(CONF_PHASES, DEFAULT_PHASES)): vol.In([1, 3]),
         vol.Optional(
             CONF_SUBSCRIBED_POWER_KVA, default=d.get(CONF_SUBSCRIBED_POWER_KVA, 6)
@@ -291,6 +281,10 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             default=d.get(
                 CONF_SOC_EQUALISER_ADAPTIVE_CADENCE, DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE
             ),
+        ): bool,
+        vol.Optional(
+            CONF_AUTOTUNE_ENABLED,
+            default=d.get(CONF_AUTOTUNE_ENABLED, DEFAULT_AUTOTUNE_ENABLED),
         ): bool,
     }
 

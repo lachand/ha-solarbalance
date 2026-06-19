@@ -11,8 +11,6 @@ CONF_ZERO_INJECTION_ENABLED: Final = "zero_injection_enabled"
 CONF_ZERO_INJECTION_SETPOINT_W: Final = "zero_injection_setpoint_w"
 CONF_ZERO_INJECTION_HYSTERESIS_W: Final = "zero_injection_hysteresis_w"
 CONF_ZERO_INJECTION_KP: Final = "zero_injection_kp"
-CONF_ZERO_INJECTION_KP_MIN: Final = "zero_injection_kp_min"
-CONF_ZERO_INJECTION_KNEE_W: Final = "zero_injection_knee_w"
 CONF_PHASES: Final = "phases"
 CONF_SUBSCRIBED_POWER_KVA: Final = "subscribed_power_kva"
 CONF_PV_FORECAST_ENTITY: Final = "pv_forecast_entity"
@@ -27,6 +25,7 @@ CONF_SOC_EQUALISER_PROBE_STEP_W: Final = "soc_equaliser_probe_step_w"
 CONF_SOC_EQUALISER_CADENCE_TICKS: Final = "soc_equaliser_cadence_ticks"
 CONF_SOC_EQUALISER_ADAPTIVE_CADENCE: Final = "soc_equaliser_adaptive_cadence"
 CONF_SOC_EQUALISER_MIN_PV_W: Final = "soc_equaliser_min_pv_w"
+CONF_AUTOTUNE_ENABLED: Final = "autotune_enabled"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"
 CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
@@ -66,10 +65,6 @@ DEFAULT_ZERO_INJECTION_HYSTERESIS_W: Final = 50
 # integrates, so a second integrator would double-count and oscillate. Lower kp
 # (0.3-0.4) for slow/cloud batteries with actuation lag. See SPECIFICATIONS §6.3.
 DEFAULT_ZERO_INJECTION_KP: Final = 0.6
-# Progressive gain: kp ramps from kp_min (gentle, near the deadband -> no pumping
-# against actuation lag) up to kp (= kp_max, fast) as |error| grows toward knee_w.
-DEFAULT_ZERO_INJECTION_KP_MIN: Final = 0.2
-DEFAULT_ZERO_INJECTION_KNEE_W: Final = 600.0
 DEFAULT_PHASES: Final = 1
 # Minimum Météo-France colour that triggers storm mode (jaune | orange | rouge).
 DEFAULT_WEATHER_MIN_LEVEL: Final = "orange"
@@ -90,6 +85,12 @@ DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE: Final = True
 # redistributes solar, never drains a battery into another (round-trip loss). Also
 # caps the offer to this PV power.
 DEFAULT_SOC_EQUALISER_MIN_PV_W: Final = 200.0
+# Supervisory auto-tuner: damps the ZI kp and the equaliser step cap when they
+# oscillate, restores them toward the configured values when calm. Never more
+# aggressive than configured, hence safe on by default. Floors below.
+DEFAULT_AUTOTUNE_ENABLED: Final = True
+AUTOTUNE_ZI_KP_MIN: Final = 0.2
+AUTOTUNE_EQ_STEP_MIN_W: Final = 100.0
 # Max change of the aggregate battery target per tick (W). Caps regulation
 # swings; 0 disables the limit. See docs/SPECIFICATIONS.md §6.3.
 DEFAULT_MAX_RAMP_W: Final = 800

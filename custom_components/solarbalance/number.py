@@ -101,21 +101,17 @@ class ZeroInjectionHysteresisNumber(_SBNumber):
         self._value = value
         ctrl = self.coordinator._zi_controller
         if isinstance(ctrl, PerPhaseZeroInjectionController):
-            # Per-phase controller: gains/clamp are on the inner _ctrl instance.
+            # Per-phase controller: kp/ki/clamp are on the inner _ctrl instance.
             inner = ctrl._ctrl
             self.coordinator._zi_controller = PerPhaseZeroInjectionController(
-                kp_min=inner._kp_min,
-                kp_max=inner._kp_max,
-                knee_w=inner._knee_w,
+                kp=inner._kp,
                 ki=inner._ki,
                 hysteresis_w=value,
                 integral_clamp_w_s=inner._integral_clamp,
             )
         else:
             self.coordinator._zi_controller = ZeroInjectionController(
-                kp_min=ctrl._kp_min,
-                kp_max=ctrl._kp_max,
-                knee_w=ctrl._knee_w,
+                kp=ctrl._kp,
                 ki=ctrl._ki,
                 hysteresis_w=value,
                 integral_clamp_w_s=ctrl._integral_clamp,

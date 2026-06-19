@@ -37,6 +37,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta2] — 2026-06-17
+
+### Fixed
+
+- **Régression du yoyo nocturne corrigée — l'autotuner est restauré.** En 2.0.4,
+  retirer l'auto-réglage supervisé avait **supprimé l'anti-pompage** : c'était lui
+  qui amortissait l'oscillation due au **temps mort de l'EcoFlow** (il détecte les
+  inversions de sens et baisse le gain de façon réactive). Le gain progressif qui
+  l'avait remplacé ne détecte rien — pire, il **monte** le gain quand l'erreur est
+  grande, ce qui **entretenait** le cycle. Retour à l'état connu-stable :
+  **autotuner + kp fixe** (`zero_injection_kp`), suppression du gain progressif
+  (`kp_min`/`knee`). Capteur diagnostic kp = de nouveau le **kp auto-réglé**.
+
+### Kept
+
+- Capteurs **MPPT** (PV power / PV output limit, 2.0.5) et **réseau naturel**
+  (hors parc) conservés. Liens doc `lachand/ha-solarbalance` (2.0.6) conservés.
+
 ## [2.0.7-beta1] — 2026-06-17
 
 ### Added
@@ -577,6 +595,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta2]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta1...v2.0.7-beta2
 [2.0.7-beta1]: https://github.com/lachand/ha-solarbalance/compare/v2.0.6...v2.0.7-beta1
 [2.0.6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.5...v2.0.6
 [2.0.5]: https://github.com/solarbalance/ha-solarbalance/compare/v2.0.4...v2.0.5
