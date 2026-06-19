@@ -559,6 +559,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         hysteresis = float(
             cfg.get(CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W)
         )
+        self._zi_hysteresis_w = hysteresis
         # ki=0: the fleet-power recursion (target = measured fleet + correction)
         # already integrates the error. A second integrator would double-count and
         # oscillate — the source of the residual limit cycle.
@@ -1485,17 +1486,28 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # VACATION (self-consume from solar, never grid-charge), but not while
         # pre-charging from the grid for a red day (storm / override / red-prep
         # drive batteries with explicit intent).
-        # Controllable fleet power (filtered), computed before the ZI step so the
-        # setpoint guards can reason about the grid *without* the fleet's own
-        # action (grid_filtered - current_fleet), which is invariant to what the
-        # fleet is currently doing.
-        current_fleet_w = self._fleet_filter.update(
-            sum(
-                b.power_w
-                for b in snapshot.batteries
-                if b.available and b.device_name in self._controllable_battery_names
-            )
+        # Controllable fleet's *grid-facing AC contribution* (filtered), computed
+        # before the ZI step so the setpoint guards can reason about the grid
+        # without the fleet's action (grid_filtered - current_fleet).
+        #
+        # The fleet exports to the grid its battery discharge PLUS its own solar
+        # passthrough; on a "solar-first" inverter (EcoFlow STREAM) a discharge
+        # setpoint is met by PV before the cells. So the contribution is the AC
+        # output, not the battery cell power:
+        #     output = mppt - battery_power   (battery_power: + charge / - discharge)
+        #     current_fleet (= -output)       = battery_power - mppt
+        # At night (mppt = 0) this equals the battery power, so it is unchanged.
+        controllable_battery_w = sum(
+            b.power_w
+            for b in snapshot.batteries
+            if b.available and b.device_name in self._controllable_battery_names
         )
+        controllable_mppt_w = sum(
+            m.power_w
+            for m in snapshot.mppts
+            if m.available and m.device_name in self._controllable_battery_names
+        )
+        current_fleet_w = self._fleet_filter.update(controllable_battery_w - controllable_mppt_w)
         zi_correction_w = 0.0
         eq_bias_w = 0.0
         zi_regulating = (
@@ -1518,6 +1530,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # the ZI setpoint, so the single ZI loop produces the extra fleet
             # discharge/charge. 0 when the equaliser is off. Requires ZI.
             eq_bias_w = self._equaliser_bias(snapshot, grid_filtered_w)
+            # Surplus-only: when the grid is actually importing (a deficit), the PV
+            # is already consumed by the house -- there is no surplus to push to the
+            # cloud battery, and forcing the fleet's solar toward it would only
+            # fight the house coverage. Suspend the offer; the ZI covers the import.
+            if grid_filtered_w > self._zi_hysteresis_w:
+                eq_bias_w = 0.0
             if self._eq_tuner is not None and self._soc_equaliser is not None:
                 # Damp the equaliser step cap if the offer is oscillating.
                 self._soc_equaliser.set_max_step_w(self._eq_tuner.step(eq_bias_w))

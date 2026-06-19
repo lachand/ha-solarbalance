@@ -37,6 +37,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta3] — 2026-06-17
+
+### Fixed
+
+- **Grosses consos en journée : le parc décharge enfin sa batterie pour couvrir
+  l'import.** La ZI suivait la **puissance batterie (cellules)**, alors que sur un
+  onduleur **« solaire d'abord »** (EcoFlow STREAM) la consigne de décharge = la
+  **sortie AC**. Quand le solaire couvrait à lui seul la consigne, la batterie
+  restait à 0 et la ZI, croyant le parc à contribution nulle, ne **poussait jamais
+  la sortie au-dessus du solaire** → on importait du réseau alors que la batterie
+  (ex. 59 %) pouvait aider. La base de la ZI est désormais la **contribution AC du
+  parc** `Σ(puissance_batterie) − Σ(puissance_MPPT)` (= −sortie AC). **La nuit
+  (PV = 0) c'est identique → l'anti-yoyo de la beta2 est préservé.**
+- **Équaliseur suspendu en déficit** — quand le réseau **importe** (au-delà de
+  l'hystérésis), l'offre est mise à 0 : il n'y a pas de surplus à redistribuer, et
+  pousser le solaire vers la batterie cloud pendant qu'elle se décharge pour la
+  maison était contre-productif. L'équaliseur ne redistribue plus que du **vrai
+  surplus**.
+
+### Known limitation
+
+- Si la **sortie AC requise** dépasse la puissance de décharge max de la batterie,
+  le plafond batterie peut limiter un peu la couverture (le solaire compte dans la
+  sortie). Cas extrême, sans impact courant.
+
 ## [2.0.7-beta2] — 2026-06-17
 
 ### Fixed
@@ -595,6 +620,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta3]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta2...v2.0.7-beta3
 [2.0.7-beta2]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta1...v2.0.7-beta2
 [2.0.7-beta1]: https://github.com/lachand/ha-solarbalance/compare/v2.0.6...v2.0.7-beta1
 [2.0.6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.5...v2.0.6
