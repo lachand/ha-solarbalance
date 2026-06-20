@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta10] — 2026-06-17
+
+### Added
+
+- **Amortisseur de volatilité adaptatif** (option, défaut **désactivé**) — les
+  charges **type moteur** (machine à laver, pompe) oscillent trop vite pour que
+  la batterie suive ; la ZI courait après → **yoyo**. Le damper mesure la
+  **volatilité** (EMA des variations tick-à-tick du réseau) et **lisse d'autant
+  plus que c'est agité** : la batterie suit la **moyenne lente** (autoconso
+  conservée) et le **réseau absorbe les à-coups** rapides. Quand c'est calme,
+  réactivité normale (pas de retard sur les vraies variations lentes). Réglage
+  *« Amortisseur de volatilité adaptatif »* dans *Configurer → Régulation*.
+
 ## [2.0.7-beta9] — 2026-06-17
 
 ### Added
@@ -730,6 +743,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta10]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta9...v2.0.7-beta10
 [2.0.7-beta9]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta8...v2.0.7-beta9
 [2.0.7-beta8]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta7...v2.0.7-beta8
 [2.0.7-beta7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta6...v2.0.7-beta7

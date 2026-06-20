@@ -188,6 +188,12 @@ DEFAULT_STOP_CLOUD_CHARGE: Final = False
 # derived home consumption).
 CONF_LOCAL_AC_LOAD_ENTITIES: Final = "local_ac_load_entities"
 
+# Adaptive volatility damper: smooth the grid signal fed to the regulation loop
+# more when it is volatile (motor-type loads), so the battery tracks the slow
+# average and the grid absorbs the fast swings (no yoyo). Off by default.
+CONF_VOLATILITY_DAMPER_ENABLED: Final = "volatility_damper_enabled"
+DEFAULT_VOLATILITY_DAMPER_ENABLED: Final = False
+
 # Active grid-overload protection: shed/reduce loads before the breaker trips.
 CONF_OVERLOAD_PROTECTION_ENABLED: Final = "overload_protection_enabled"
 DEFAULT_OVERLOAD_PROTECTION_ENABLED: Final = False

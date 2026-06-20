@@ -63,6 +63,7 @@ from .const import (
     CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
     CONF_VACATION_SOC_MAX_PCT,
+    CONF_VOLATILITY_DAMPER_ENABLED,
     CONF_WEATHER_MIN_LEVEL,
     CONF_WEATHER_PHENOMENA,
     CONF_WEATHER_WARNING_ENTITY,
@@ -105,6 +106,7 @@ from .const import (
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_VACATION_SOC_MAX_PCT,
+    DEFAULT_VOLATILITY_DAMPER_ENABLED,
     DEFAULT_WEATHER_MIN_LEVEL,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
@@ -233,6 +235,10 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             CONF_LOCAL_AC_LOAD_ENTITIES,
             default=d.get(CONF_LOCAL_AC_LOAD_ENTITIES, []),
         ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", multiple=True)),
+        vol.Optional(
+            CONF_VOLATILITY_DAMPER_ENABLED,
+            default=d.get(CONF_VOLATILITY_DAMPER_ENABLED, DEFAULT_VOLATILITY_DAMPER_ENABLED),
+        ): bool,
         vol.Optional(
             CONF_EVENING_SHED_ENABLED, default=d.get(CONF_EVENING_SHED_ENABLED, False)
         ): bool,

@@ -68,6 +68,7 @@ from .const import (
     CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
     CONF_VACATION_SOC_MAX_PCT,
+    CONF_VOLATILITY_DAMPER_ENABLED,
     CONF_WEATHER_MIN_LEVEL,
     CONF_WEATHER_PHENOMENA,
     CONF_ZERO_INJECTION_ENABLED,
@@ -112,6 +113,7 @@ from .const import (
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_VACATION_SOC_MAX_PCT,
+    DEFAULT_VOLATILITY_DAMPER_ENABLED,
     DEFAULT_WEATHER_MIN_LEVEL,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
@@ -157,7 +159,7 @@ from .core.controllers.zero_injection import (
     ZeroInjectionState,
 )
 from .core.energy import DailyEnergyAccumulator
-from .core.filters import RollingMedian
+from .core.filters import AdaptiveVolatilityDamper, RollingMedian
 from .core.forecast import (
     ForecastConfig,
     aggregate_battery_constraints,
@@ -622,6 +624,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Filter the controllable-fleet power (the regulator's base) with the same
         # window, so grid and base are time-aligned despite async cloud sensors.
         self._fleet_filter = RollingMedian(grid_samples)
+        # Optional adaptive volatility damper: when the grid is agitated (motor
+        # loads), smooth it more so the battery tracks the slow average instead of
+        # chasing the swings (which yoyos).
+        self._grid_damper = (
+            AdaptiveVolatilityDamper()
+            if bool(cfg.get(CONF_VOLATILITY_DAMPER_ENABLED, DEFAULT_VOLATILITY_DAMPER_ENABLED))
+            else None
+        )
 
         # Daily energy integration (fallback when no vendor daily_energy_entity),
         # persisted across restarts via the HA Store.
@@ -1406,6 +1416,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # --- Grid median filter (B): clean the value handed to the regulator;
         # the displayed grid sensor keeps snapshot.grid_power_w (raw). ---
         grid_filtered_w = self._grid_filter.update(snapshot.grid_power_w)
+        if self._grid_damper is not None:
+            # Smooth more when volatile (motor loads) so the loop tracks the slow
+            # average and the grid absorbs the fast swings instead of yoyoing.
+            grid_filtered_w = self._grid_damper.update(grid_filtered_w)
         grid_l1_filtered = (
             self._grid_filter_l1.update(snapshot.grid_power_l1_w)
             if snapshot.grid_power_l1_w is not None
