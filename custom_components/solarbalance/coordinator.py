@@ -43,6 +43,7 @@ from .const import (
     CONF_LOCAL_AC_LOAD_ENTITIES,
     CONF_MAX_RAMP_W,
     CONF_NO_BATTERY_EXPORT,
+    CONF_NONCONTROLLABLE_STALE_S,
     CONF_NOTIFICATIONS_ENABLED,
     CONF_OVERLOAD_PROTECTION_ENABLED,
     CONF_PREDICTIVE_CONTROL_ENABLED,
@@ -97,6 +98,7 @@ from .const import (
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_NO_BATTERY_EXPORT,
+    DEFAULT_NONCONTROLLABLE_STALE_S,
     DEFAULT_OVERLOAD_PROTECTION_ENABLED,
     DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
     DEFAULT_SOC_EQUALISER_BIDIRECTIONAL,
@@ -448,6 +450,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             )
             or 2,
             local_ac_load_entities=cfg.get(CONF_LOCAL_AC_LOAD_ENTITIES, ()) or (),
+            noncontrollable_stale_s=float(
+                cfg.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S)
+            ),
         )
         self._publisher = DecisionPublisher()
         self._balancing = BalancingController(devices, alpha=DEFAULT_BALANCING_ALPHA)
@@ -1706,7 +1711,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             noncontrollable_charging = any(
                 b.power_w > self._zi_hysteresis_w
                 for b in snapshot.batteries
-                if b.available and b.device_name not in self._controllable_battery_names
+                if b.available
+                and not b.stale
+                and b.device_name not in self._controllable_battery_names
             )
             if (
                 grid_filtered_w >= -self._zi_hysteresis_w
@@ -2382,7 +2389,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         charge = sum(
             max(0.0, b.power_w)
             for b in snapshot.batteries
-            if b.available and b.device_name not in self._controllable_battery_names
+            if b.available and not b.stale and b.device_name not in self._controllable_battery_names
         )
         return noncontrollable_charge_offset_w(charge, natural_grid_w, force_offset_w)
 

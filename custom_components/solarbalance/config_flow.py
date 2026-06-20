@@ -36,6 +36,7 @@ from .const import (
     CONF_LOCAL_AC_LOAD_ENTITIES,
     CONF_MAX_RAMP_W,
     CONF_NO_BATTERY_EXPORT,
+    CONF_NONCONTROLLABLE_STALE_S,
     CONF_NOTIFICATIONS_ENABLED,
     CONF_OVERLOAD_PROTECTION_ENABLED,
     CONF_PHASES,
@@ -90,6 +91,7 @@ from .const import (
     DEFAULT_IMPORT_PRICE,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_NO_BATTERY_EXPORT,
+    DEFAULT_NONCONTROLLABLE_STALE_S,
     DEFAULT_OVERLOAD_PROTECTION_ENABLED,
     DEFAULT_PHASES,
     DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
@@ -235,6 +237,10 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             CONF_LOCAL_AC_LOAD_ENTITIES,
             default=d.get(CONF_LOCAL_AC_LOAD_ENTITIES, []),
         ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", multiple=True)),
+        vol.Optional(
+            CONF_NONCONTROLLABLE_STALE_S,
+            default=d.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S),
+        ): vol.All(vol.Coerce(int), vol.Range(min=0)),
         vol.Optional(
             CONF_VOLATILITY_DAMPER_ENABLED,
             default=d.get(CONF_VOLATILITY_DAMPER_ENABLED, DEFAULT_VOLATILITY_DAMPER_ENABLED),

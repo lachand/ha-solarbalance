@@ -104,7 +104,8 @@
           "no_battery_export": "Strict self-consumption: never discharge the battery into the grid (blocks injection)",
           "stop_cloud_charge": "Stop a self-charging cloud battery: cut the fleet discharge to 0 (imports for the house) so it stops charging",
           "local_ac_load_entities": "Local AC-load sensors behind the fleet (e.g. STREAM AC sockets) — excluded from the grid loop so their cycling doesn't disturb it",
-          "volatility_damper_enabled": "Adaptive volatility damper: smooth the grid more on motor-type loads (battery tracks the average, no yoyo)"
+          "volatility_damper_enabled": "Adaptive volatility damper: smooth the grid more on motor-type loads (battery tracks the average, no yoyo)",
+          "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables"
         }
       },
       "forecast": {

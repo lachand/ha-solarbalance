@@ -194,6 +194,12 @@ CONF_LOCAL_AC_LOAD_ENTITIES: Final = "local_ac_load_entities"
 CONF_VOLATILITY_DAMPER_ENABLED: Final = "volatility_damper_enabled"
 DEFAULT_VOLATILITY_DAMPER_ENABLED: Final = False
 
+# Staleness limit (s) for a non-controllable battery's data: beyond this its power
+# is considered untrustworthy (e.g. a cloud battery lagging) and the power-based
+# per-battery guards ignore it; the grid loop keeps regulating. 0 disables.
+CONF_NONCONTROLLABLE_STALE_S: Final = "noncontrollable_stale_s"
+DEFAULT_NONCONTROLLABLE_STALE_S: Final = 300
+
 # Active grid-overload protection: shed/reduce loads before the breaker trips.
 CONF_OVERLOAD_PROTECTION_ENABLED: Final = "overload_protection_enabled"
 DEFAULT_OVERLOAD_PROTECTION_ENABLED: Final = False

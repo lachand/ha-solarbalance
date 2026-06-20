@@ -104,7 +104,8 @@
           "no_battery_export": "Autoconsommation stricte : ne jamais décharger la batterie vers le réseau (bloque l'injection)",
           "stop_cloud_charge": "Stopper une batterie cloud qui se charge : couper la décharge du parc à 0 (importe pour la maison) pour qu'elle arrête de charger",
           "local_ac_load_entities": "Capteurs de conso prise AC locale (ex. prises du STREAM) — exclus de la boucle réseau pour que leurs cycles ne la perturbent pas",
-          "volatility_damper_enabled": "Amortisseur de volatilité adaptatif : lisse davantage le réseau sur les charges moteur (la batterie suit la moyenne, pas de yoyo)"
+          "volatility_damper_enabled": "Amortisseur de volatilité adaptatif : lisse davantage le réseau sur les charges moteur (la batterie suit la moyenne, pas de yoyo)",
+          "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive"
         }
       },
       "forecast": {

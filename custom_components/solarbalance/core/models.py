@@ -327,6 +327,10 @@ class BatteryState:
     temperature_c: float | None = None
     cycles: float | None = None
     available: bool = True
+    # True when the source data is older than the staleness threshold (e.g. a
+    # cloud battery whose values lag). Its *power* is then untrustworthy, so the
+    # power-based per-battery guards skip it (the grid loop keeps regulating).
+    stale: bool = False
 
 
 def capacity_weighted_soc_pct(entries: Iterable[tuple[float, float]]) -> float | None:

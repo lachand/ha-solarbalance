@@ -49,6 +49,7 @@ class EntityReader:
         current_import_price: float | None = None,
         current_export_price: float | None = None,
         local_ac_load_entities: Sequence[str] = (),
+        noncontrollable_stale_s: float = 300.0,
         state_getter: Callable[[str], State | None] | None = None,
     ) -> None:
         self._hass = hass
@@ -56,6 +57,7 @@ class EntityReader:
         self._meters = tuple(meters)
         self._loads = tuple(loads or [])
         self._local_ac_load_entities = tuple(local_ac_load_entities)
+        self._stale_s = noncontrollable_stale_s
         self._pv_forecast_entity = pv_forecast_entity
         self._weather_warning_entity = weather_warning_entity
         self._weather_phenomena = tuple(weather_phenomena)
@@ -137,9 +139,35 @@ class EntityReader:
                     temperature_c=temperature,
                     cycles=cycles,
                     available=available,
+                    stale=self._is_battery_stale(device.battery),
                 )
             )
         return tuple(states)
+
+    def _is_battery_stale(self, battery: object) -> bool:
+        """True when the battery's power source hasn't refreshed within the limit.
+
+        Used to flag a cloud battery whose data lags so its (untrustworthy) power
+        is ignored by the per-battery guards. ``stale_s <= 0`` disables the check.
+        """
+        if self._stale_s <= 0:
+            return False
+        entities = [
+            getattr(battery, "power_entity", None),
+            getattr(battery, "charge_power_entity", None),
+            getattr(battery, "discharge_power_entity", None),
+        ]
+        ages = [age for e in entities if e for age in (self._entity_age_s(e),) if age is not None]
+        # Stale only if every present power source is old (a missing entity is not
+        # evidence of freshness, but at least one fresh source means not stale).
+        return bool(ages) and min(ages) > self._stale_s
+
+    def _entity_age_s(self, entity_id: str) -> float | None:
+        """Seconds since the entity last updated, or None if it has no state."""
+        state = self._get_state(entity_id)
+        if state is None or state.state in _INVALID_STATES:
+            return None
+        return (dt_util.utcnow() - state.last_updated).total_seconds()
 
     def _read_battery_power(self, device: Device) -> float | None:
         battery = device.battery

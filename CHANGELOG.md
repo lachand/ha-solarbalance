@@ -37,6 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta11] — 2026-06-17
+
+### Fixed
+
+- **Données batterie non-pilotable périmées → garde-fous gelés.** Une batterie
+  cloud (Jackery) peut **mettre des minutes** à rafraîchir ses données dans HA →
+  les garde-fous par-batterie (cloud-charge, no-feed, stop-cloud) agissaient sur
+  une **puissance périmée** ≠ réalité → décisions à côté / yoyo, et un **gros saut
+  à la mise à jour**. Désormais, au-delà du **seuil de péremption** (défaut
+  **300 s = 5 min**, réglable, 0 désactive), la puissance de la batterie
+  non-pilotable est jugée **non fiable** : les garde-fous **la sautent** et
+  laissent la **ZI** (compteur PDL temps réel, qui reflète son effet réel) tenir
+  la barre. L'équaliseur reste actif (basé SoC, qui ne « saute » pas).
+  Réglage *« Péremption batterie non-pilotable (s) »* dans *Configurer →
+  Régulation*.
+
 ## [2.0.7-beta10] — 2026-06-17
 
 ### Added
@@ -743,6 +759,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta11]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta10...v2.0.7-beta11
 [2.0.7-beta10]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta9...v2.0.7-beta10
 [2.0.7-beta9]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta8...v2.0.7-beta9
 [2.0.7-beta8]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta7...v2.0.7-beta8
