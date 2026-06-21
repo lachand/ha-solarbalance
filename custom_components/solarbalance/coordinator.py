@@ -210,6 +210,11 @@ _STORE_SAVE_DELAY_S = 60.0
 _PLAN_EVERY_TICKS = 90
 # Smoothing factor of the background-load estimate fed to the advisory planner.
 _BASELINE_EMA_ALPHA = 0.05
+# SoC margin below soc_max at which a controllable battery is treated as unable to
+# absorb more (charge tapers near full). When exporting and the whole controllable
+# fleet is within this margin of its ceiling, PV curtailment engages even though
+# the balancer nominally "allocated" the surplus (it would not be honoured).
+_CURTAIL_NEAR_FULL_MARGIN_PCT = 2.0
 
 _STRATEGY_CLASSES = {
     StrategyKind.SELF_CONSUMPTION.value: SelfConsumptionStrategy,
@@ -2573,7 +2578,26 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             return {}, 0.0
         names = {n for n, _ in self._curtailable_mppts}
         pv_total = sum(m.power_w for m in snapshot.mppts if m.available and m.device_name in names)
-        saturated = total_power_w > 0.0 and balancing_result.unallocated_w > 1.0
+        # The balancer only frees a battery from charge once soc >= soc_max, so a
+        # near-full battery (charge tapering, or a STREAM whose charge is not
+        # honoured) is reported as "allocated" → unallocated ≈ 0 → never saturated,
+        # and we export forever. Treat the fleet as unable to absorb when every
+        # controllable battery sits within a small margin of its ceiling. The
+        # curtailment step still only tightens while actually exporting.
+        soc_max_by_device = {
+            d.name: float(d.battery.soc_max_pct)
+            for d in self._devices
+            if d.battery is not None and d.battery.controllable
+        }
+        controllable_socs = [
+            (b.soc_pct, soc_max_by_device[b.device_name])
+            for b in snapshot.batteries
+            if b.available and b.device_name in soc_max_by_device
+        ]
+        near_full = bool(controllable_socs) and all(
+            soc >= soc_max - _CURTAIL_NEAR_FULL_MARGIN_PCT for soc, soc_max in controllable_socs
+        )
+        saturated = (total_power_w > 0.0 and balancing_result.unallocated_w > 1.0) or near_full
         result = self._curtailment.step(
             pv_total_w=pv_total,
             grid_w=grid_w,

@@ -37,6 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta15] — 2026-06-17
+
+### Fixed
+
+- **Bridage onduleur jamais déclenché batteries quasi-pleines → injection
+  permanente.** Le curtailment ne s'enclenchait que si le balancer **n'arrivait
+  pas à placer** la charge (`unallocated_w > 1`). Or une batterie n'est sortie de
+  l'allocation qu'à `soc_pct ≥ soc_max` (défaut **95 %**) : à **94 %** elle est
+  encore « éligible », le surplus est donc **alloué** dessus → `unallocated ≈ 0`
+  → **jamais saturé** → aucun bridage, alors qu'on **injecte** (et la STREAM, dont
+  la charge n'est pas pilotable, ne l'absorbe pas). Désormais la saturation se
+  déclenche aussi quand **tout le parc pilotable est à moins de 2 % de son
+  plafond** (la charge tapère/n'est pas honorée près du plein) : si on injecte
+  au-delà de la consigne, **l'onduleur est bridé**. Le bridage ne se resserre
+  toujours que pendant une injection réelle (pas de bridage intempestif).
+
 ## [2.0.7-beta14] — 2026-06-17
 
 ### Added
@@ -809,6 +825,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta15]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta14...v2.0.7-beta15
 [2.0.7-beta14]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta13...v2.0.7-beta14
 [2.0.7-beta13]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta12...v2.0.7-beta13
 [2.0.7-beta12]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta11...v2.0.7-beta12

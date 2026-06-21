@@ -114,6 +114,62 @@ async def test_full_tick_charges_battery_and_runs_load_on_export(hass: HomeAssis
 
 
 @pytest.mark.asyncio
+async def test_curtails_inverter_when_fleet_near_full_and_exporting(hass: HomeAssistant) -> None:
+    """A near-full controllable fleet that keeps exporting must curtail the inverter.
+
+    At 94 % (soc_max 95 %) the balancer still "allocates" the surplus, so the
+    unallocated residual is ~0. Curtailment must engage on the near-full signal,
+    otherwise the export persists forever (the bug this guards against).
+    """
+    devices = [
+        Device(
+            name="stream",
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=3000,
+                max_discharge_power_w=3000,
+                soc_entity="sensor.stream_soc",
+                power_entity="sensor.stream_power",
+                soc_max_pct=95,
+                controllable=True,
+                active_control_enabled=True,
+                charge_power_setpoint_entity="number.stream_charge",
+                discharge_power_setpoint_entity="number.stream_discharge",
+            ),
+            mppt=MpptRole(
+                peak_power_w=3000,
+                power_entity="sensor.stream_pv",
+                active_control_enabled=True,
+                power_limit_setpoint_entity="number.stream_pv_limit",
+            ),
+        ),
+    ]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid_power")]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+
+    # Near-full (94% is within 2% of the 95% ceiling) and exporting 500 W, PV 1500 W.
+    hass.states.async_set("sensor.grid_power", "-500")
+    hass.states.async_set("sensor.stream_pv", "1500")
+    hass.states.async_set("sensor.stream_soc", "94")
+    hass.states.async_set("sensor.stream_power", "0")
+
+    number_calls = async_mock_service(hass, "number", "set_value")
+
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    # The inverter output limit was lowered below its 3000 W peak.
+    assert coordinator.diagnostics.pv_limit_w < 3000
+    limit_writes = [
+        c.data["value"] for c in number_calls if c.data.get("entity_id") == "number.stream_pv_limit"
+    ]
+    assert limit_writes and limit_writes[-1] < 3000
+
+
+@pytest.mark.asyncio
 async def test_dry_run_computes_but_never_writes(hass: HomeAssistant) -> None:
     """In dry-run the engine decides (fleet target set) but writes nothing."""
     devices, meters, loads = _config()
