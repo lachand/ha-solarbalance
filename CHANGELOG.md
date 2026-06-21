@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta12] — 2026-06-17
+
+### Fixed
+
+- **Oscillations matinales (solaire faible/variable) — l'amortisseur agit aussi
+  sur la base ZI.** L'amortisseur de volatilité (beta10) ne lissait que le
+  **réseau**, mais l'oscillation du matin passe par **`current_fleet`** (=
+  batterie − MPPT) : le **MPPT bruité** du lever + la batterie qui hunt à la
+  bascule charge↔décharge jittaient la cible ZI **sans passer par l'amortisseur**
+  (d'où le `réseau naturel` qui oscillait encore plus que le réseau réel).
+  L'amortisseur adaptatif s'applique désormais **aussi à `current_fleet`** (même
+  option `volatility_damper_enabled`) → la base de la régulation est lissée quand
+  c'est agité → fini le hunting de la zone de bascule matinale.
+
 ## [2.0.7-beta11] — 2026-06-17
 
 ### Fixed
@@ -759,6 +773,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta12]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta11...v2.0.7-beta12
 [2.0.7-beta11]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta10...v2.0.7-beta11
 [2.0.7-beta10]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta9...v2.0.7-beta10
 [2.0.7-beta9]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta8...v2.0.7-beta9

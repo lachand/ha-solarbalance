@@ -632,11 +632,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Optional adaptive volatility damper: when the grid is agitated (motor
         # loads), smooth it more so the battery tracks the slow average instead of
         # chasing the swings (which yoyos).
-        self._grid_damper = (
-            AdaptiveVolatilityDamper()
-            if bool(cfg.get(CONF_VOLATILITY_DAMPER_ENABLED, DEFAULT_VOLATILITY_DAMPER_ENABLED))
-            else None
+        _damper_on = bool(
+            cfg.get(CONF_VOLATILITY_DAMPER_ENABLED, DEFAULT_VOLATILITY_DAMPER_ENABLED)
         )
+        self._grid_damper = AdaptiveVolatilityDamper() if _damper_on else None
+        # Same damper on the fleet base: a noisy MPPT (morning, clouds) enters
+        # current_fleet (= battery - mppt) and would otherwise jitter the ZI target
+        # even with the grid smoothed.
+        self._fleet_damper = AdaptiveVolatilityDamper() if _damper_on else None
 
         # Daily energy integration (fallback when no vendor daily_energy_entity),
         # persisted across restarts via the HA Store.
@@ -1544,6 +1547,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         current_fleet_w = self._fleet_filter.update(
             controllable_battery_w - controllable_mppt_w + snapshot.local_ac_load_w
         )
+        if self._fleet_damper is not None:
+            # Smooth the fleet base when volatile (noisy MPPT / battery hunting) so
+            # the ZI target doesn't jitter through current_fleet.
+            current_fleet_w = self._fleet_damper.update(current_fleet_w)
         zi_correction_w = 0.0
         eq_bias_w = 0.0
         nc_charge_offset_w = 0.0
