@@ -131,6 +131,60 @@
           "spot_price_entity": "Spot: current price entity (€/kWh)",
           "spot_markup": "Spot: added markup (€/kWh)"
         }
+      },
+      "general_eq": {
+        "title": "SoC equaliser — tuning",
+        "data": {
+          "soc_equaliser_max_w": "SoC equaliser: max offer (W)",
+          "soc_equaliser_kp_w_per_pct": "SoC equaliser: gain (W/%)",
+          "soc_equaliser_deadband_pct": "SoC equaliser: deadband (%)",
+          "soc_equaliser_probe_step_w": "SoC equaliser: step per move (W)",
+          "soc_equaliser_min_pv_w": "SoC equaliser: min PV to run / cap (W)",
+          "soc_equaliser_cadence_ticks": "SoC equaliser: cadence (ticks between moves)",
+          "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)",
+          "soc_equaliser_bidirectional": "SoC equaliser: bidirectional discharge share (also offload onto the cloud battery; may briefly import)"
+        }
+      },
+      "general_tempo_red": {
+        "title": "Tempo — red-day prep",
+        "data": {
+          "tempo_red_prep_soc_pct": "Tempo: target SoC before red day (%)"
+        }
+      },
+      "general_shed": {
+        "title": "Evening shedding",
+        "data": {
+          "evening_shed_min_power_w": "Shedding: min power of a \"big\" load (W)"
+        }
+      },
+      "general_weather": {
+        "title": "Weather warnings",
+        "data": {
+          "weather_phenomena": "Weather: phenomena that trigger storm mode"
+        }
+      },
+      "tariff_hchp": {
+        "title": "Off-peak / peak (HC/HP)",
+        "data": {
+          "hc_start": "Off-peak start (HH:MM)",
+          "hc_end": "Off-peak end (HH:MM)",
+          "hc_price": "Off-peak price (€/kWh)",
+          "hp_price": "Peak price (€/kWh)"
+        }
+      },
+      "tariff_tempo": {
+        "title": "EDF Tempo",
+        "data": {
+          "tempo_color_entity": "Tempo: today colour entity",
+          "tempo_color_tomorrow_entity": "Tempo: tomorrow colour entity"
+        }
+      },
+      "tariff_spot": {
+        "title": "Spot price",
+        "data": {
+          "spot_price_entity": "Spot: current price entity (€/kWh)",
+          "spot_markup": "Spot: added markup (€/kWh)"
+        }
       }
     }
   },

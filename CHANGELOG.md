@@ -37,6 +37,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta14] — 2026-06-17
+
+### Added
+
+- **Configuration en assistant (wizard) — plus aucun champ inutile.** Les
+  sections *Tarif* et *Régulation* affichent désormais les réglages dépendants
+  **uniquement quand leur option est activée**, en **enchaînant des étapes** (pas
+  de réouverture manuelle — tu valides et l'étape suivante apparaît) :
+  - **Tarif** : étape 1 = prix + type ; puis selon le type → **HC/HP** (`hc_hp`),
+    **Tempo** (`tempo`) ou **spot** (`spot`). En *flat*, aucune étape en plus.
+  - **Régulation** : après l'écran principal, sous-étapes affichées seulement si
+    le toggle correspondant est coché — **internes équaliseur** (équaliseur
+    activé), **SoC cible Tempo rouge** (prép. Tempo rouge), **puissance mini
+    délestage** (délestage activé), **phénomènes météo** (entité météo
+    renseignée). Les sous-étapes s'enchaînent automatiquement.
+  - Combiné au **Mode avancé** (beta13) : l'écran principal reste simple/expert,
+    et les détails de fonctionnalités ne s'affichent que s'ils servent.
+
 ## [2.0.7-beta13] — 2026-06-17
 
 ### Added
@@ -791,6 +809,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta14]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta13...v2.0.7-beta14
 [2.0.7-beta13]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta12...v2.0.7-beta13
 [2.0.7-beta12]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta11...v2.0.7-beta12
 [2.0.7-beta11]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta10...v2.0.7-beta11

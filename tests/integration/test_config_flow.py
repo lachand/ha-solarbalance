@@ -9,7 +9,11 @@ from homeassistant.data_entry_flow import FlowResultType
 from custom_components.solarbalance.const import (
     CONF_PHASES,
     CONF_PV_FORECAST_ENTITY,
+    CONF_SOC_EQUALISER_DEADBAND_PCT,
+    CONF_SOC_EQUALISER_ENABLED,
     CONF_SUBSCRIBED_POWER_KVA,
+    CONF_TARIFF_TYPE,
+    CONF_TEMPO_COLOR_ENTITY,
     CONF_TICK_INTERVAL_S,
     CONF_WEATHER_WARNING_ENTITY,
     CONF_ZERO_INJECTION_ENABLED,
@@ -78,6 +82,63 @@ async def test_options_flow_menu_section_saves_and_merges(hass: HomeAssistant) -
     # Edited value applied; an untouched option from before is preserved.
     assert entry.options[CONF_TICK_INTERVAL_S] == 20
     assert entry.options[CONF_SUBSCRIBED_POWER_KVA] == 9
+
+
+@pytest.mark.asyncio
+async def test_options_tariff_wizard_routes_to_type_substep(hass: HomeAssistant) -> None:
+    """Choosing a tariff type advances to that type's detail sub-step, then saves."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain=DOMAIN, data=_VALID_USER_INPUT, options={})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "tariff"}
+    )
+    assert result["step_id"] == "tariff"
+
+    # Pick Tempo → must show the Tempo detail step (not save yet).
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={CONF_TARIFF_TYPE: "tempo"}
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "tariff_tempo"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={CONF_TEMPO_COLOR_ENTITY: ""}
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_TARIFF_TYPE] == "tempo"
+    assert entry.options.get(CONF_TEMPO_COLOR_ENTITY) is None
+
+
+@pytest.mark.asyncio
+async def test_options_general_wizard_shows_equaliser_substep(hass: HomeAssistant) -> None:
+    """Enabling the equaliser reveals its tuning sub-step before saving."""
+    from pytest_homeassistant_custom_component.common import MockConfigEntry
+
+    entry = MockConfigEntry(domain=DOMAIN, data=_VALID_USER_INPUT, options={})
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], {"next_step_id": "general"}
+    )
+    assert result["step_id"] == "general"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={CONF_SOC_EQUALISER_ENABLED: True}
+    )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "general_eq"
+
+    result = await hass.config_entries.options.async_configure(
+        result["flow_id"], user_input={CONF_SOC_EQUALISER_DEADBAND_PCT: 3.0}
+    )
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert entry.options[CONF_SOC_EQUALISER_ENABLED] is True
+    assert entry.options[CONF_SOC_EQUALISER_DEADBAND_PCT] == 3.0
 
 
 @pytest.mark.asyncio

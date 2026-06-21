@@ -156,9 +156,14 @@ async def test_options_menu_then_tariff_section_merges(hass, entry) -> None:
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "tariff"
 
-    # Submit it; the section is merged into the entry options.
+    # Pick HC/HP → the wizard advances to the HC/HP detail sub-step.
     result = await hass.config_entries.options.async_configure(
         result["flow_id"], {CONF_TARIFF_TYPE: "hc_hp"}
     )
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "tariff_hchp"
+
+    # Submit the detail step; everything is merged into the entry options.
+    result = await hass.config_entries.options.async_configure(result["flow_id"], {})
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_TARIFF_TYPE] == "hc_hp"

@@ -141,11 +141,13 @@ _DEFAULT_PRIORITIES = [
 ]
 
 
-def _general_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
-    """Régulation, sécurité et comportements (hors tarif/prévision).
+def _general_main_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
+    """Régulation : champs principaux (hors sous-étapes dépendantes du wizard).
 
     ``advanced`` (HA per-user *Advanced Mode*) reveals the tuning internals (gains,
-    filters, equaliser knobs…). The simple set is always shown.
+    filters…). The simple set is always shown. Feature *details* (equaliser knobs,
+    Tempo-red SoC, shedding power, weather phenomena) live in their own wizard
+    sub-steps, shown only when the matching toggle is on.
     """
     fields: dict[Any, Any] = {
         # --- Simple (always shown) ---
@@ -274,67 +276,101 @@ def _general_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
                 default=d.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S),
             ): vol.All(vol.Coerce(int), vol.Range(min=0)),
             vol.Optional(
-                CONF_WEATHER_PHENOMENA, default=d.get(CONF_WEATHER_PHENOMENA, list(PHENOMENA))
-            ): selector.SelectSelector(
-                selector.SelectSelectorConfig(
-                    options=list(PHENOMENA),
-                    multiple=True,
-                    translation_key="weather_phenomena",
-                )
-            ),
-            vol.Optional(
-                CONF_TEMPO_RED_PREP_SOC_PCT,
-                default=d.get(CONF_TEMPO_RED_PREP_SOC_PCT, DEFAULT_TEMPO_RED_PREP_SOC_PCT),
-            ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
-            vol.Optional(
-                CONF_EVENING_SHED_MIN_POWER_W,
-                default=d.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-            vol.Optional(
-                CONF_SOC_EQUALISER_MAX_W,
-                default=d.get(CONF_SOC_EQUALISER_MAX_W, DEFAULT_SOC_EQUALISER_MAX_W),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-            vol.Optional(
-                CONF_SOC_EQUALISER_KP_W_PER_PCT,
-                default=d.get(CONF_SOC_EQUALISER_KP_W_PER_PCT, DEFAULT_SOC_EQUALISER_KP_W_PER_PCT),
-            ): vol.All(vol.Coerce(float), vol.Range(min=0)),
-            vol.Optional(
-                CONF_SOC_EQUALISER_DEADBAND_PCT,
-                default=d.get(CONF_SOC_EQUALISER_DEADBAND_PCT, DEFAULT_SOC_EQUALISER_DEADBAND_PCT),
-            ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
-            vol.Optional(
-                CONF_SOC_EQUALISER_PROBE_STEP_W,
-                default=d.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W),
-            ): vol.All(vol.Coerce(float), vol.Range(min=1)),
-            vol.Optional(
-                CONF_SOC_EQUALISER_MIN_PV_W,
-                default=d.get(CONF_SOC_EQUALISER_MIN_PV_W, DEFAULT_SOC_EQUALISER_MIN_PV_W),
-            ): vol.All(vol.Coerce(float), vol.Range(min=0)),
-            vol.Optional(
-                CONF_SOC_EQUALISER_CADENCE_TICKS,
-                default=d.get(
-                    CONF_SOC_EQUALISER_CADENCE_TICKS, DEFAULT_SOC_EQUALISER_CADENCE_TICKS
-                ),
-            ): vol.All(vol.Coerce(int), vol.Range(min=1)),
-            vol.Optional(
-                CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
-                default=d.get(
-                    CONF_SOC_EQUALISER_ADAPTIVE_CADENCE, DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE
-                ),
-            ): bool,
-            vol.Optional(
-                CONF_SOC_EQUALISER_BIDIRECTIONAL,
-                default=d.get(
-                    CONF_SOC_EQUALISER_BIDIRECTIONAL, DEFAULT_SOC_EQUALISER_BIDIRECTIONAL
-                ),
-            ): bool,
-            vol.Optional(
                 CONF_AUTOTUNE_ENABLED,
                 default=d.get(CONF_AUTOTUNE_ENABLED, DEFAULT_AUTOTUNE_ENABLED),
             ): bool,
         }
     )
     return fields
+
+
+# --- Wizard sub-step builders (shown only when the matching toggle is on) ---
+
+
+def _eq_internal_fields(d: dict[str, Any]) -> dict[Any, Any]:
+    """SoC-equaliser tuning — shown only when the equaliser is enabled."""
+    return {
+        vol.Optional(
+            CONF_SOC_EQUALISER_MAX_W,
+            default=d.get(CONF_SOC_EQUALISER_MAX_W, DEFAULT_SOC_EQUALISER_MAX_W),
+        ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+        vol.Optional(
+            CONF_SOC_EQUALISER_KP_W_PER_PCT,
+            default=d.get(CONF_SOC_EQUALISER_KP_W_PER_PCT, DEFAULT_SOC_EQUALISER_KP_W_PER_PCT),
+        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional(
+            CONF_SOC_EQUALISER_DEADBAND_PCT,
+            default=d.get(CONF_SOC_EQUALISER_DEADBAND_PCT, DEFAULT_SOC_EQUALISER_DEADBAND_PCT),
+        ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+        vol.Optional(
+            CONF_SOC_EQUALISER_PROBE_STEP_W,
+            default=d.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W),
+        ): vol.All(vol.Coerce(float), vol.Range(min=1)),
+        vol.Optional(
+            CONF_SOC_EQUALISER_MIN_PV_W,
+            default=d.get(CONF_SOC_EQUALISER_MIN_PV_W, DEFAULT_SOC_EQUALISER_MIN_PV_W),
+        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+        vol.Optional(
+            CONF_SOC_EQUALISER_CADENCE_TICKS,
+            default=d.get(CONF_SOC_EQUALISER_CADENCE_TICKS, DEFAULT_SOC_EQUALISER_CADENCE_TICKS),
+        ): vol.All(vol.Coerce(int), vol.Range(min=1)),
+        vol.Optional(
+            CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
+            default=d.get(
+                CONF_SOC_EQUALISER_ADAPTIVE_CADENCE, DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE
+            ),
+        ): bool,
+        vol.Optional(
+            CONF_SOC_EQUALISER_BIDIRECTIONAL,
+            default=d.get(CONF_SOC_EQUALISER_BIDIRECTIONAL, DEFAULT_SOC_EQUALISER_BIDIRECTIONAL),
+        ): bool,
+    }
+
+
+def _tempo_red_fields(d: dict[str, Any]) -> dict[Any, Any]:
+    """Tempo red-day prep — shown only when Tempo-red prep is enabled."""
+    return {
+        vol.Optional(
+            CONF_TEMPO_RED_PREP_SOC_PCT,
+            default=d.get(CONF_TEMPO_RED_PREP_SOC_PCT, DEFAULT_TEMPO_RED_PREP_SOC_PCT),
+        ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+    }
+
+
+def _shed_fields(d: dict[str, Any]) -> dict[Any, Any]:
+    """Evening shedding detail — shown only when shedding is enabled."""
+    return {
+        vol.Optional(
+            CONF_EVENING_SHED_MIN_POWER_W,
+            default=d.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W),
+        ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+    }
+
+
+def _weather_phenomena_fields(d: dict[str, Any]) -> dict[Any, Any]:
+    """Storm-triggering phenomena — shown only when a weather entity is set."""
+    return {
+        vol.Optional(
+            CONF_WEATHER_PHENOMENA, default=d.get(CONF_WEATHER_PHENOMENA, list(PHENOMENA))
+        ): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=list(PHENOMENA),
+                multiple=True,
+                translation_key="weather_phenomena",
+            )
+        ),
+    }
+
+
+def _general_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
+    """Full single-form general schema (initial setup): main + all sub-groups."""
+    return {
+        **_general_main_fields(d, advanced),
+        **_eq_internal_fields(d),
+        **_tempo_red_fields(d),
+        **_shed_fields(d),
+        **_weather_phenomena_fields(d),
+    }
 
 
 def _forecast_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
@@ -353,8 +389,8 @@ def _forecast_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]
     }
 
 
-def _tariff_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
-    """Tarif (alternative UI au bloc YAML tariff:) et prix d'import/export."""
+def _tariff_base_fields(d: dict[str, Any]) -> dict[Any, Any]:
+    """Tariff step 1: prices + type (the type drives the next wizard step)."""
     return {
         vol.Optional(
             CONF_IMPORT_PRICE, default=d.get(CONF_IMPORT_PRICE, DEFAULT_IMPORT_PRICE)
@@ -365,6 +401,12 @@ def _tariff_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
         vol.Optional(
             CONF_TARIFF_TYPE, default=d.get(CONF_TARIFF_TYPE, DEFAULT_TARIFF_TYPE)
         ): vol.In(["flat", "hc_hp", "tempo", "spot"]),
+    }
+
+
+def _tariff_hchp_fields(d: dict[str, Any]) -> dict[Any, Any]:
+    """HC/HP detail — shown only when tariff type is hc_hp."""
+    return {
         vol.Optional(CONF_HC_START, default=d.get(CONF_HC_START, DEFAULT_HC_START)): str,
         vol.Optional(CONF_HC_END, default=d.get(CONF_HC_END, DEFAULT_HC_END)): str,
         vol.Optional(CONF_HC_PRICE, default=d.get(CONF_HC_PRICE, DEFAULT_HC_PRICE)): vol.All(
@@ -373,18 +415,40 @@ def _tariff_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
         vol.Optional(CONF_HP_PRICE, default=d.get(CONF_HP_PRICE, DEFAULT_HP_PRICE)): vol.All(
             vol.Coerce(float), vol.Range(min=0)
         ),
+    }
+
+
+def _tariff_tempo_fields(d: dict[str, Any]) -> dict[Any, Any]:
+    """Tempo detail — shown only when tariff type is tempo."""
+    return {
         vol.Optional(CONF_TEMPO_COLOR_ENTITY, default=d.get(CONF_TEMPO_COLOR_ENTITY, "")): _entity(
             "sensor"
         ),
         vol.Optional(
             CONF_TEMPO_COLOR_TOMORROW_ENTITY, default=d.get(CONF_TEMPO_COLOR_TOMORROW_ENTITY, "")
         ): _entity("sensor"),
+    }
+
+
+def _tariff_spot_fields(d: dict[str, Any]) -> dict[Any, Any]:
+    """Spot detail — shown only when tariff type is spot."""
+    return {
         vol.Optional(CONF_SPOT_PRICE_ENTITY, default=d.get(CONF_SPOT_PRICE_ENTITY, "")): _entity(
             "sensor"
         ),
         vol.Optional(
             CONF_SPOT_MARKUP, default=d.get(CONF_SPOT_MARKUP, DEFAULT_SPOT_MARKUP)
         ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+    }
+
+
+def _tariff_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
+    """Full single-form tariff schema (initial setup): base + all type details."""
+    return {
+        **_tariff_base_fields(d),
+        **_tariff_hchp_fields(d),
+        **_tariff_tempo_fields(d),
+        **_tariff_spot_fields(d),
     }
 
 
@@ -454,6 +518,9 @@ class SolarBalanceOptionsFlow(OptionsFlow):
 
     def __init__(self, config_entry: Any) -> None:
         self._entry = config_entry
+        # Wizard accumulator across multi-step sections (tariff / regulation).
+        self._buffer: dict[str, Any] = {}
+        self._pending: list[str] = []
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Show the options menu (sections)."""
@@ -462,18 +529,145 @@ class SolarBalanceOptionsFlow(OptionsFlow):
     async def async_step_general(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Edit the regulation & behaviour section."""
-        return await self._section("general", _general_fields, user_input)
+        """Regulation main step → conditional feature sub-steps (wizard)."""
+        current = dict(self._entry.options or self._entry.data)
+        if user_input is not None:
+            self._buffer = {**current, **user_input}
+            self._pending = self._general_substeps(self._buffer)
+            return await self._run_general_substeps()
+        return self.async_show_form(
+            step_id="general",
+            data_schema=vol.Schema(_general_main_fields(current, self.show_advanced_options)),
+        )
+
+    def _general_substeps(self, d: dict[str, Any]) -> list[str]:
+        """Feature sub-steps to walk, in order — only those whose toggle is on."""
+        steps: list[str] = []
+        if d.get(CONF_SOC_EQUALISER_ENABLED):
+            steps.append("eq")
+        if d.get(CONF_TEMPO_RED_PREP_ENABLED):
+            steps.append("tempo_red")
+        if d.get(CONF_EVENING_SHED_ENABLED):
+            steps.append("shed")
+        if d.get(CONF_WEATHER_WARNING_ENTITY):
+            steps.append("weather")
+        return steps
+
+    async def _run_general_substeps(self) -> ConfigFlowResult:
+        """Show the next pending feature sub-step, or save when none remain."""
+        if not self._pending:
+            return self._save_buffer()
+        nxt = self._pending.pop(0)
+        return await getattr(self, f"async_step_general_{nxt}")()
+
+    async def async_step_general_eq(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """SoC-equaliser tuning (only reached when the equaliser is enabled)."""
+        if user_input is not None:
+            self._buffer.update(user_input)
+            return await self._run_general_substeps()
+        return self.async_show_form(
+            step_id="general_eq", data_schema=vol.Schema(_eq_internal_fields(self._buffer))
+        )
+
+    async def async_step_general_tempo_red(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Tempo red-day prep detail (only reached when Tempo-red prep is on)."""
+        if user_input is not None:
+            self._buffer.update(user_input)
+            return await self._run_general_substeps()
+        return self.async_show_form(
+            step_id="general_tempo_red", data_schema=vol.Schema(_tempo_red_fields(self._buffer))
+        )
+
+    async def async_step_general_shed(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Evening-shedding detail (only reached when shedding is on)."""
+        if user_input is not None:
+            self._buffer.update(user_input)
+            return await self._run_general_substeps()
+        return self.async_show_form(
+            step_id="general_shed", data_schema=vol.Schema(_shed_fields(self._buffer))
+        )
+
+    async def async_step_general_weather(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Storm-triggering phenomena (only reached when a weather entity is set)."""
+        if user_input is not None:
+            self._buffer.update(user_input)
+            return await self._run_general_substeps()
+        return self.async_show_form(
+            step_id="general_weather",
+            data_schema=vol.Schema(_weather_phenomena_fields(self._buffer)),
+        )
 
     async def async_step_forecast(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
-        """Edit the PV-forecast section."""
+        """Edit the PV-forecast section (no dependent fields)."""
         return await self._section("forecast", _forecast_fields, user_input)
 
     async def async_step_tariff(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Edit the tariff & prices section."""
-        return await self._section("tariff", _tariff_fields, user_input)
+        """Tariff step 1 (prices + type) → type-specific detail sub-step (wizard)."""
+        current = dict(self._entry.options or self._entry.data)
+        if user_input is not None:
+            self._buffer = {**current, **user_input}
+            tariff_type = user_input.get(CONF_TARIFF_TYPE)
+            if tariff_type == "hc_hp":
+                return await self.async_step_tariff_hchp()
+            if tariff_type == "tempo":
+                return await self.async_step_tariff_tempo()
+            if tariff_type == "spot":
+                return await self.async_step_tariff_spot()
+            return self._save_buffer()
+        return self.async_show_form(
+            step_id="tariff", data_schema=vol.Schema(_tariff_base_fields(current))
+        )
+
+    async def async_step_tariff_hchp(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """HC/HP detail (only reached when tariff type is hc_hp)."""
+        if user_input is not None:
+            self._buffer.update(user_input)
+            return self._save_buffer()
+        return self.async_show_form(
+            step_id="tariff_hchp", data_schema=vol.Schema(_tariff_hchp_fields(self._buffer))
+        )
+
+    async def async_step_tariff_tempo(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Tempo detail (only reached when tariff type is tempo)."""
+        if user_input is not None:
+            self._buffer.update(user_input)
+            return self._save_buffer()
+        return self.async_show_form(
+            step_id="tariff_tempo", data_schema=vol.Schema(_tariff_tempo_fields(self._buffer))
+        )
+
+    async def async_step_tariff_spot(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        """Spot detail (only reached when tariff type is spot)."""
+        if user_input is not None:
+            self._buffer.update(user_input)
+            return self._save_buffer()
+        return self.async_show_form(
+            step_id="tariff_spot", data_schema=vol.Schema(_tariff_spot_fields(self._buffer))
+        )
+
+    def _save_buffer(self) -> ConfigFlowResult:
+        """Persist the accumulated wizard buffer (normalising empty entities)."""
+        merged = dict(self._buffer)
+        for key in _OPTIONAL_ENTITY_KEYS:
+            if merged.get(key) == "":
+                merged[key] = None
+        return self.async_create_entry(title="", data=merged)
 
     async def _section(
         self,
@@ -481,7 +675,7 @@ class SolarBalanceOptionsFlow(OptionsFlow):
         fields_fn: Any,
         user_input: dict[str, Any] | None,
     ) -> ConfigFlowResult:
-        """Show one section's form and merge it into the existing options on submit."""
+        """Single-form section (forecast) — merge into existing options on submit."""
         current = dict(self._entry.options or self._entry.data)
         if user_input is not None:
             merged = {**current, **user_input}
