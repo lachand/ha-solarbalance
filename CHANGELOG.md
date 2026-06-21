@@ -37,6 +37,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta13] — 2026-06-17
+
+### Added
+
+- **Configuration en deux modes (simple / expert).** La section *Régulation* est
+  devenue dense. Elle s'appuie désormais sur le **Mode avancé natif de Home
+  Assistant** (Profil → *Mode avancé*) :
+  - **Simple** (toujours visible) : activer ZI + consigne, pilotage actif,
+    contrôle des charges, puissance souscrite, phases, réserve backup, dry-run,
+    notifications, équaliseur on/off, et les **comportements** (compensation prise
+    AC, amortisseur volatilité, no-export, stop-cloud, exclusion charge cloud,
+    prédictif, délestage, protection surcharge, Tempo, vacances, vigilance météo).
+  - **Expert** (Mode avancé HA activé) : tous les **gains/filtres** (kp,
+    hystérésis, max_ramp, fenêtre filtre réseau, settle, fenêtre baseline,
+    péremption cloud, phénomènes météo) et les **internes équaliseur** (max, gain,
+    bande morte, pas, cadence, min PV, bidirectionnel) + autotune.
+  - Masquer un champ expert **ne réinitialise pas** sa valeur (fusion préservée).
+
 ## [2.0.7-beta12] — 2026-06-17
 
 ### Fixed
@@ -773,6 +791,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta13]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta12...v2.0.7-beta13
 [2.0.7-beta12]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta11...v2.0.7-beta12
 [2.0.7-beta11]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta10...v2.0.7-beta11
 [2.0.7-beta10]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta9...v2.0.7-beta10

@@ -141,39 +141,20 @@ _DEFAULT_PRIORITIES = [
 ]
 
 
-def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
-    """Régulation, sécurité et comportements (hors tarif/prévision)."""
-    return {
-        vol.Optional(
-            CONF_TICK_INTERVAL_S, default=d.get(CONF_TICK_INTERVAL_S, DEFAULT_TICK_INTERVAL_S)
-        ): vol.All(int, vol.Range(min=5, max=60)),
+def _general_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
+    """Régulation, sécurité et comportements (hors tarif/prévision).
+
+    ``advanced`` (HA per-user *Advanced Mode*) reveals the tuning internals (gains,
+    filters, equaliser knobs…). The simple set is always shown.
+    """
+    fields: dict[Any, Any] = {
+        # --- Simple (always shown) ---
         vol.Optional(
             CONF_ZERO_INJECTION_ENABLED, default=d.get(CONF_ZERO_INJECTION_ENABLED, True)
         ): bool,
         vol.Optional(
             CONF_ZERO_INJECTION_SETPOINT_W, default=d.get(CONF_ZERO_INJECTION_SETPOINT_W, 0)
         ): vol.Coerce(int),
-        vol.Optional(
-            CONF_ZERO_INJECTION_HYSTERESIS_W,
-            default=d.get(CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W),
-        ): vol.All(int, vol.Range(min=0)),
-        vol.Optional(CONF_MAX_RAMP_W, default=d.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W)): vol.All(
-            vol.Coerce(int), vol.Range(min=0)
-        ),
-        vol.Optional(
-            CONF_GRID_FILTER_SAMPLES,
-            default=d.get(CONF_GRID_FILTER_SAMPLES, DEFAULT_GRID_FILTER_SAMPLES),
-        ): vol.All(vol.Coerce(int), vol.Range(min=1)),
-        vol.Optional(
-            CONF_ZI_SETTLE_TICKS, default=d.get(CONF_ZI_SETTLE_TICKS, DEFAULT_ZI_SETTLE_TICKS)
-        ): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
-        vol.Optional(
-            CONF_ZI_SETTLE_MIN_DROP_W,
-            default=d.get(CONF_ZI_SETTLE_MIN_DROP_W, DEFAULT_ZI_SETTLE_MIN_DROP_W),
-        ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-        vol.Optional(
-            CONF_ZERO_INJECTION_KP, default=d.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP)
-        ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
         vol.Optional(CONF_PHASES, default=d.get(CONF_PHASES, DEFAULT_PHASES)): vol.In([1, 3]),
         vol.Optional(
             CONF_SUBSCRIBED_POWER_KVA, default=d.get(CONF_SUBSCRIBED_POWER_KVA, 6)
@@ -183,41 +164,15 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             default=d.get(CONF_BACKUP_RESERVE_SOC_PCT, DEFAULT_BACKUP_RESERVE_SOC_PCT),
         ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
         vol.Optional(
-            CONF_BASELINE_WINDOW_START_H,
-            default=d.get(CONF_BASELINE_WINDOW_START_H, DEFAULT_BASELINE_WINDOW_START_H),
-        ): vol.All(int, vol.Range(min=0, max=23)),
-        vol.Optional(
-            CONF_BASELINE_WINDOW_END_H,
-            default=d.get(CONF_BASELINE_WINDOW_END_H, DEFAULT_BASELINE_WINDOW_END_H),
-        ): vol.All(int, vol.Range(min=0, max=23)),
-        vol.Optional(
-            CONF_WEATHER_WARNING_ENTITY, default=d.get(CONF_WEATHER_WARNING_ENTITY, "")
-        ): _entity("binary_sensor", "sensor"),
-        vol.Optional(
-            CONF_WEATHER_PHENOMENA, default=d.get(CONF_WEATHER_PHENOMENA, list(PHENOMENA))
-        ): selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=list(PHENOMENA),
-                multiple=True,
-                translation_key="weather_phenomena",
-            )
-        ),
-        vol.Optional(
-            CONF_WEATHER_MIN_LEVEL,
-            default=d.get(CONF_WEATHER_MIN_LEVEL, DEFAULT_WEATHER_MIN_LEVEL),
-        ): selector.SelectSelector(
-            selector.SelectSelectorConfig(
-                options=["jaune", "orange", "rouge"],
-                translation_key="weather_min_level",
-            )
-        ),
-        vol.Optional(
             CONF_ACTIVE_CONTROL_ENABLED, default=d.get(CONF_ACTIVE_CONTROL_ENABLED, False)
         ): bool,
         vol.Optional(
             CONF_LOAD_CONTROL_ENABLED, default=d.get(CONF_LOAD_CONTROL_ENABLED, False)
         ): bool,
         vol.Optional(CONF_DRY_RUN, default=d.get(CONF_DRY_RUN, DEFAULT_DRY_RUN)): bool,
+        vol.Optional(
+            CONF_NOTIFICATIONS_ENABLED, default=d.get(CONF_NOTIFICATIONS_ENABLED, True)
+        ): bool,
         vol.Optional(
             CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
             default=d.get(
@@ -238,87 +193,151 @@ def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
             default=d.get(CONF_LOCAL_AC_LOAD_ENTITIES, []),
         ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", multiple=True)),
         vol.Optional(
-            CONF_NONCONTROLLABLE_STALE_S,
-            default=d.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S),
-        ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-        vol.Optional(
             CONF_VOLATILITY_DAMPER_ENABLED,
             default=d.get(CONF_VOLATILITY_DAMPER_ENABLED, DEFAULT_VOLATILITY_DAMPER_ENABLED),
         ): bool,
         vol.Optional(
-            CONF_EVENING_SHED_ENABLED, default=d.get(CONF_EVENING_SHED_ENABLED, False)
+            CONF_SOC_EQUALISER_ENABLED, default=d.get(CONF_SOC_EQUALISER_ENABLED, False)
+        ): bool,
+        vol.Optional(
+            CONF_PREDICTIVE_CONTROL_ENABLED, default=d.get(CONF_PREDICTIVE_CONTROL_ENABLED, False)
         ): bool,
         vol.Optional(
             CONF_OVERLOAD_PROTECTION_ENABLED,
             default=d.get(CONF_OVERLOAD_PROTECTION_ENABLED, DEFAULT_OVERLOAD_PROTECTION_ENABLED),
         ): bool,
         vol.Optional(
-            CONF_PREDICTIVE_CONTROL_ENABLED, default=d.get(CONF_PREDICTIVE_CONTROL_ENABLED, False)
-        ): bool,
-        vol.Optional(
-            CONF_NOTIFICATIONS_ENABLED, default=d.get(CONF_NOTIFICATIONS_ENABLED, True)
+            CONF_EVENING_SHED_ENABLED, default=d.get(CONF_EVENING_SHED_ENABLED, False)
         ): bool,
         vol.Optional(
             CONF_TEMPO_RED_PREP_ENABLED, default=d.get(CONF_TEMPO_RED_PREP_ENABLED, False)
         ): bool,
         vol.Optional(
-            CONF_TEMPO_RED_PREP_SOC_PCT,
-            default=d.get(CONF_TEMPO_RED_PREP_SOC_PCT, DEFAULT_TEMPO_RED_PREP_SOC_PCT),
-        ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
-        vol.Optional(
             CONF_VACATION_SOC_MAX_PCT,
             default=d.get(CONF_VACATION_SOC_MAX_PCT, DEFAULT_VACATION_SOC_MAX_PCT),
         ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
         vol.Optional(
-            CONF_EVENING_SHED_MIN_POWER_W,
-            default=d.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W),
-        ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            CONF_WEATHER_WARNING_ENTITY, default=d.get(CONF_WEATHER_WARNING_ENTITY, "")
+        ): _entity("binary_sensor", "sensor"),
         vol.Optional(
-            CONF_SOC_EQUALISER_ENABLED, default=d.get(CONF_SOC_EQUALISER_ENABLED, False)
-        ): bool,
-        vol.Optional(
-            CONF_SOC_EQUALISER_MAX_W,
-            CONF_SOC_EQUALISER_MIN_PV_W,
-            default=d.get(CONF_SOC_EQUALISER_MAX_W, DEFAULT_SOC_EQUALISER_MAX_W),
-        ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_KP_W_PER_PCT,
-            default=d.get(CONF_SOC_EQUALISER_KP_W_PER_PCT, DEFAULT_SOC_EQUALISER_KP_W_PER_PCT),
-        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_DEADBAND_PCT,
-            default=d.get(CONF_SOC_EQUALISER_DEADBAND_PCT, DEFAULT_SOC_EQUALISER_DEADBAND_PCT),
-        ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_PROBE_STEP_W,
-            default=d.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W),
-        ): vol.All(vol.Coerce(float), vol.Range(min=1)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_MIN_PV_W,
-            default=d.get(CONF_SOC_EQUALISER_MIN_PV_W, DEFAULT_SOC_EQUALISER_MIN_PV_W),
-        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_CADENCE_TICKS,
-            default=d.get(CONF_SOC_EQUALISER_CADENCE_TICKS, DEFAULT_SOC_EQUALISER_CADENCE_TICKS),
-        ): vol.All(vol.Coerce(int), vol.Range(min=1)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
-            default=d.get(
-                CONF_SOC_EQUALISER_ADAPTIVE_CADENCE, DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE
-            ),
-        ): bool,
-        vol.Optional(
-            CONF_SOC_EQUALISER_BIDIRECTIONAL,
-            default=d.get(CONF_SOC_EQUALISER_BIDIRECTIONAL, DEFAULT_SOC_EQUALISER_BIDIRECTIONAL),
-        ): bool,
-        vol.Optional(
-            CONF_AUTOTUNE_ENABLED,
-            default=d.get(CONF_AUTOTUNE_ENABLED, DEFAULT_AUTOTUNE_ENABLED),
-        ): bool,
+            CONF_WEATHER_MIN_LEVEL,
+            default=d.get(CONF_WEATHER_MIN_LEVEL, DEFAULT_WEATHER_MIN_LEVEL),
+        ): selector.SelectSelector(
+            selector.SelectSelectorConfig(
+                options=["jaune", "orange", "rouge"],
+                translation_key="weather_min_level",
+            )
+        ),
     }
+    if not advanced:
+        return fields
+    fields.update(
+        {
+            # --- Expert (HA Advanced Mode) ---
+            vol.Optional(
+                CONF_TICK_INTERVAL_S, default=d.get(CONF_TICK_INTERVAL_S, DEFAULT_TICK_INTERVAL_S)
+            ): vol.All(int, vol.Range(min=5, max=60)),
+            vol.Optional(
+                CONF_ZERO_INJECTION_KP,
+                default=d.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
+            vol.Optional(
+                CONF_ZERO_INJECTION_HYSTERESIS_W,
+                default=d.get(
+                    CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W
+                ),
+            ): vol.All(int, vol.Range(min=0)),
+            vol.Optional(
+                CONF_MAX_RAMP_W, default=d.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W)
+            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Optional(
+                CONF_GRID_FILTER_SAMPLES,
+                default=d.get(CONF_GRID_FILTER_SAMPLES, DEFAULT_GRID_FILTER_SAMPLES),
+            ): vol.All(vol.Coerce(int), vol.Range(min=1)),
+            vol.Optional(
+                CONF_ZI_SETTLE_TICKS, default=d.get(CONF_ZI_SETTLE_TICKS, DEFAULT_ZI_SETTLE_TICKS)
+            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
+            vol.Optional(
+                CONF_ZI_SETTLE_MIN_DROP_W,
+                default=d.get(CONF_ZI_SETTLE_MIN_DROP_W, DEFAULT_ZI_SETTLE_MIN_DROP_W),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Optional(
+                CONF_BASELINE_WINDOW_START_H,
+                default=d.get(CONF_BASELINE_WINDOW_START_H, DEFAULT_BASELINE_WINDOW_START_H),
+            ): vol.All(int, vol.Range(min=0, max=23)),
+            vol.Optional(
+                CONF_BASELINE_WINDOW_END_H,
+                default=d.get(CONF_BASELINE_WINDOW_END_H, DEFAULT_BASELINE_WINDOW_END_H),
+            ): vol.All(int, vol.Range(min=0, max=23)),
+            vol.Optional(
+                CONF_NONCONTROLLABLE_STALE_S,
+                default=d.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Optional(
+                CONF_WEATHER_PHENOMENA, default=d.get(CONF_WEATHER_PHENOMENA, list(PHENOMENA))
+            ): selector.SelectSelector(
+                selector.SelectSelectorConfig(
+                    options=list(PHENOMENA),
+                    multiple=True,
+                    translation_key="weather_phenomena",
+                )
+            ),
+            vol.Optional(
+                CONF_TEMPO_RED_PREP_SOC_PCT,
+                default=d.get(CONF_TEMPO_RED_PREP_SOC_PCT, DEFAULT_TEMPO_RED_PREP_SOC_PCT),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+            vol.Optional(
+                CONF_EVENING_SHED_MIN_POWER_W,
+                default=d.get(CONF_EVENING_SHED_MIN_POWER_W, DEFAULT_EVENING_SHED_MIN_POWER_W),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Optional(
+                CONF_SOC_EQUALISER_MAX_W,
+                default=d.get(CONF_SOC_EQUALISER_MAX_W, DEFAULT_SOC_EQUALISER_MAX_W),
+            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            vol.Optional(
+                CONF_SOC_EQUALISER_KP_W_PER_PCT,
+                default=d.get(CONF_SOC_EQUALISER_KP_W_PER_PCT, DEFAULT_SOC_EQUALISER_KP_W_PER_PCT),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+            vol.Optional(
+                CONF_SOC_EQUALISER_DEADBAND_PCT,
+                default=d.get(CONF_SOC_EQUALISER_DEADBAND_PCT, DEFAULT_SOC_EQUALISER_DEADBAND_PCT),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
+            vol.Optional(
+                CONF_SOC_EQUALISER_PROBE_STEP_W,
+                default=d.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W),
+            ): vol.All(vol.Coerce(float), vol.Range(min=1)),
+            vol.Optional(
+                CONF_SOC_EQUALISER_MIN_PV_W,
+                default=d.get(CONF_SOC_EQUALISER_MIN_PV_W, DEFAULT_SOC_EQUALISER_MIN_PV_W),
+            ): vol.All(vol.Coerce(float), vol.Range(min=0)),
+            vol.Optional(
+                CONF_SOC_EQUALISER_CADENCE_TICKS,
+                default=d.get(
+                    CONF_SOC_EQUALISER_CADENCE_TICKS, DEFAULT_SOC_EQUALISER_CADENCE_TICKS
+                ),
+            ): vol.All(vol.Coerce(int), vol.Range(min=1)),
+            vol.Optional(
+                CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
+                default=d.get(
+                    CONF_SOC_EQUALISER_ADAPTIVE_CADENCE, DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE
+                ),
+            ): bool,
+            vol.Optional(
+                CONF_SOC_EQUALISER_BIDIRECTIONAL,
+                default=d.get(
+                    CONF_SOC_EQUALISER_BIDIRECTIONAL, DEFAULT_SOC_EQUALISER_BIDIRECTIONAL
+                ),
+            ): bool,
+            vol.Optional(
+                CONF_AUTOTUNE_ENABLED,
+                default=d.get(CONF_AUTOTUNE_ENABLED, DEFAULT_AUTOTUNE_ENABLED),
+            ): bool,
+        }
+    )
+    return fields
 
 
-def _forecast_fields(d: dict[str, Any]) -> dict[Any, Any]:
+def _forecast_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
     """Prévision PV (entités Solcast / Forecast.Solar + marge de sécurité)."""
     return {
         vol.Optional(CONF_PV_FORECAST_ENTITY, default=d.get(CONF_PV_FORECAST_ENTITY, "")): _entity(
@@ -334,7 +353,7 @@ def _forecast_fields(d: dict[str, Any]) -> dict[Any, Any]:
     }
 
 
-def _tariff_fields(d: dict[str, Any]) -> dict[Any, Any]:
+def _tariff_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
     """Tarif (alternative UI au bloc YAML tariff:) et prix d'import/export."""
     return {
         vol.Optional(
@@ -369,10 +388,16 @@ def _tariff_fields(d: dict[str, Any]) -> dict[Any, Any]:
     }
 
 
-def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
+def _main_schema(defaults: dict[str, Any] | None = None, advanced: bool = True) -> vol.Schema:
     """Full single-form schema (initial setup); options are split into sections."""
     d = defaults or {}
-    return vol.Schema({**_general_fields(d), **_forecast_fields(d), **_tariff_fields(d)})
+    return vol.Schema(
+        {
+            **_general_fields(d, advanced),
+            **_forecast_fields(d, advanced),
+            **_tariff_fields(d, advanced),
+        }
+    )
 
 
 class SolarBalanceConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -399,7 +424,9 @@ class SolarBalanceConfigFlow(ConfigFlow, domain=DOMAIN):
             user_input.setdefault(CONF_PRIORITIES, _DEFAULT_PRIORITIES)
             return self.async_create_entry(title="SolarBalance", data=user_input)
 
-        return self.async_show_form(step_id="user", data_schema=_main_schema())
+        return self.async_show_form(
+            step_id="user", data_schema=_main_schema(advanced=self.show_advanced_options)
+        )
 
     @staticmethod
     @callback
@@ -462,7 +489,10 @@ class SolarBalanceOptionsFlow(OptionsFlow):
                 if merged.get(key) == "":
                     merged[key] = None
             return self.async_create_entry(title="", data=merged)
-        return self.async_show_form(step_id=step_id, data_schema=vol.Schema(fields_fn(current)))
+        return self.async_show_form(
+            step_id=step_id,
+            data_schema=vol.Schema(fields_fn(current, self.show_advanced_options)),
+        )
 
 
 # ---------------------------------------------------------------------------
