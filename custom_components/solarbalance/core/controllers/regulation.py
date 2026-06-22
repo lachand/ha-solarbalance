@@ -155,7 +155,23 @@ class RegulationInputs:
     max_export_w: float | None
 
 
-def resolve_total_power(inp: RegulationInputs) -> float:
+@dataclass(frozen=True, slots=True)
+class RegulationResult:
+    """Outcome of the clamp pipeline + which step set the final value (observability).
+
+    ``binding`` names the last clamp that moved the target -- the one that decides
+    the command this tick (``base`` when nothing clamped). Exposed as a diagnostic
+    so a surprising target is self-explanatory ("no_feed is capping the discharge")
+    instead of guessed from graphs.
+    """
+
+    total_w: float
+    binding: str
+    base_w: float
+    natural_grid_w: float
+
+
+def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
     """Aggregate fleet target after the full clamp pipeline (positive = charge).
 
     Single pure place for the sequence the coordinator used to inline: base target
@@ -164,19 +180,32 @@ def resolve_total_power(inp: RegulationInputs) -> float:
     Behaviour-preserving extraction — see tests/integration/
     test_regulation_combinations.py and tests/core/controllers/test_regulation.py.
     """
-    total_w = resolve_fleet_target_w(
+    base_w = resolve_fleet_target_w(
         zi_regulating=inp.zi_regulating,
         current_fleet_w=inp.current_fleet_w,
         zi_correction_w=inp.zi_correction_w,
         absolute_target_w=inp.absolute_target_w,
         steering_w=inp.steering_w,
     )
+    natural_grid_w = inp.grid_filtered_w - inp.current_fleet_w
+    total_w = base_w
+    binding = "base"
+
+    def pin(value: float, name: str) -> None:
+        nonlocal total_w, binding
+        if abs(value - total_w) > 1e-6:
+            total_w = value
+            binding = name
+
     if inp.zi_regulating:
         # SoC-equaliser offer as a direct floor/ceiling on the fleet target.
-        total_w = apply_equaliser_offer(total_w, inp.eq_bias_w)
+        pin(apply_equaliser_offer(total_w, inp.eq_bias_w), "equaliser")
         # Strict self-consumption: never discharge the fleet into the grid.
         if inp.no_battery_export:
-            total_w = clamp_discharge_no_export(total_w, inp.current_fleet_w, inp.grid_filtered_w)
+            pin(
+                clamp_discharge_no_export(total_w, inp.current_fleet_w, inp.grid_filtered_w),
+                "no_export",
+            )
         # No-charge floor: in surplus (and no cloud battery absorbing it, no
         # equaliser charge intent), don't charge from the grid / a discharging
         # cloud battery — floor the output at the fleet's own solar.
@@ -185,24 +214,33 @@ def resolve_total_power(inp: RegulationInputs) -> float:
             and inp.eq_bias_w >= 0.0
             and not inp.noncontrollable_charging
         ):
-            total_w = min(total_w, -inp.controllable_mppt_w)
+            pin(min(total_w, -inp.controllable_mppt_w), "no_charge_floor")
         # No-feed: don't discharge the fleet to feed a self-charging cloud battery
         # (it draws from the grid instead). stop_cloud_charge additionally cuts the
         # discharge to 0 to starve it — but only in a surplus context, never while a
         # real load is importing (else it dumps the load on the grid and yoyos).
         if inp.nc_charge_offset_w > 0.0:
-            total_w = max(
-                total_w, inp.nc_charge_offset_w - inp.grid_filtered_w + inp.current_fleet_w
+            pin(
+                max(total_w, inp.nc_charge_offset_w - inp.grid_filtered_w + inp.current_fleet_w),
+                "no_feed",
             )
-            real_load_w = inp.grid_filtered_w - inp.current_fleet_w - inp.noncontrollable_charge_w
+            real_load_w = natural_grid_w - inp.noncontrollable_charge_w
             if inp.stop_cloud_charge and real_load_w <= inp.zi_hysteresis_w:
-                total_w = max(total_w, 0.0)
+                pin(max(total_w, 0.0), "stop_cloud")
     # Grid constraints (honour the breaker/contract regardless of the regulator).
     if inp.max_import_w is not None:
-        total_w = min(total_w, inp.max_import_w - inp.grid_filtered_w + inp.current_fleet_w)
+        pin(
+            min(total_w, inp.max_import_w - inp.grid_filtered_w + inp.current_fleet_w),
+            "grid_import",
+        )
     if inp.max_export_w is not None:
-        total_w = max(total_w, -inp.max_export_w - inp.grid_filtered_w + inp.current_fleet_w)
-    return total_w
+        pin(
+            max(total_w, -inp.max_export_w - inp.grid_filtered_w + inp.current_fleet_w),
+            "grid_export",
+        )
+    return RegulationResult(
+        total_w=total_w, binding=binding, base_w=base_w, natural_grid_w=natural_grid_w
+    )
 
 
 def apply_slew_limit(

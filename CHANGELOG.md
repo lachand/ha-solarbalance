@@ -37,7 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.7-beta25] — 2026-06-22
+## [2.0.7-beta26] — 2026-06-22
+
+### Added
+
+- **Observabilité : « Garde-fou actif » (quel clamp a fixé la cible).** La fonction
+  pure `resolve_total_power` renvoie désormais **quel garde-fou** a déterminé la
+  cible parc ce tick — `base` / `equaliser` / `no_export` / `no_charge_floor` /
+  `no_feed` / `stop_cloud` / `grid_import` / `grid_export` — exposé en **capteur
+  diagnostic** *« Garde-fou actif »*. Plus besoin de deviner depuis les courbes :
+  une cible surprenante s'explique d'elle-même (« c'est le no-feed qui plafonne la
+  décharge »). Capteur de débogage self-service pour ta carte Debug ZI.
+
+### Tests
+
+- +2 tests purs sur la trace (`binding`). **499 tests**, mypy `--strict` / `core/`
+  pur OK.
 
 ### Changed
 
@@ -996,6 +1011,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta26]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta25...v2.0.7-beta26
 [2.0.7-beta25]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta24...v2.0.7-beta25
 [2.0.7-beta24]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta23...v2.0.7-beta24
 [2.0.7-beta23]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta22...v2.0.7-beta23

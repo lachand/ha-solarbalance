@@ -38,14 +38,14 @@ class TestResolveTotalPower:
     def test_surplus_charges_when_exporting(self) -> None:
         # Exporting (grid < -hyst) → no-charge floor is skipped → charge passes.
         out = resolve_total_power(_inp(grid_filtered_w=-800.0, zi_correction_w=800.0))
-        assert out == pytest.approx(800.0)
+        assert out.total_w == pytest.approx(800.0)
 
     def test_no_charge_floor_at_balance_floors_to_own_solar(self) -> None:
         # grid ~0, no cloud charging → don't charge from grid: floor at -mppt.
         out = resolve_total_power(
             _inp(grid_filtered_w=0.0, zi_correction_w=500.0, controllable_mppt_w=200.0)
         )
-        assert out == pytest.approx(-200.0)
+        assert out.total_w == pytest.approx(-200.0)
 
     def test_no_charge_floor_bypassed_when_cloud_charging(self) -> None:
         out = resolve_total_power(
@@ -56,12 +56,14 @@ class TestResolveTotalPower:
                 noncontrollable_charging=True,
             )
         )
-        assert out == pytest.approx(500.0)
+        assert out.total_w == pytest.approx(500.0)
 
     def test_no_battery_export_caps_discharge_into_export(self) -> None:
         states = {"grid_filtered_w": -300.0, "zi_correction_w": -500.0}
-        assert resolve_total_power(_inp(**states)) == pytest.approx(-500.0)
-        assert resolve_total_power(_inp(no_battery_export=True, **states)) == pytest.approx(0.0)
+        assert resolve_total_power(_inp(**states)).total_w == pytest.approx(-500.0)
+        assert resolve_total_power(_inp(no_battery_export=True, **states)).total_w == pytest.approx(
+            0.0
+        )
 
     def test_no_feed_floor_covers_load_not_cloud_charge(self) -> None:
         # Import 600 of which 400 is the cloud charging: cover 200, leave 400.
@@ -74,7 +76,7 @@ class TestResolveTotalPower:
                 noncontrollable_charging=True,
             )
         )
-        assert out == pytest.approx(-200.0)
+        assert out.total_w == pytest.approx(-200.0)
 
     def test_stop_cloud_charge_cuts_in_surplus(self) -> None:
         # Import ~= the cloud charge (no real load) → discharge cut to >= 0.
@@ -88,7 +90,7 @@ class TestResolveTotalPower:
                 stop_cloud_charge=True,
             )
         )
-        assert out == pytest.approx(0.0)
+        assert out.total_w == pytest.approx(0.0)
 
     def test_stop_cloud_charge_does_not_cut_under_real_load(self) -> None:
         # Big real load on top of the cloud charge → keep discharging to cover it.
@@ -102,24 +104,40 @@ class TestResolveTotalPower:
                 stop_cloud_charge=True,
             )
         )
-        assert out < 0.0
+        assert out.total_w < 0.0
+
+    def test_binding_reports_the_clamp_that_set_the_target(self) -> None:
+        out = resolve_total_power(
+            _inp(
+                grid_filtered_w=600.0,
+                zi_correction_w=-600.0,
+                nc_charge_offset_w=400.0,
+                noncontrollable_charge_w=400.0,
+                noncontrollable_charging=True,
+            )
+        )
+        assert out.binding == "no_feed"
+
+    def test_binding_base_when_nothing_clamps(self) -> None:
+        out = resolve_total_power(_inp(grid_filtered_w=-800.0, zi_correction_w=800.0))
+        assert out.binding == "base"
 
     def test_equaliser_offer_forces_discharge(self) -> None:
         # Positive offer forces at least that much discharge (exporting → no floor).
         out = resolve_total_power(_inp(grid_filtered_w=-800.0, eq_bias_w=300.0))
-        assert out == pytest.approx(-300.0)
+        assert out.total_w == pytest.approx(-300.0)
 
     def test_grid_constraint_caps_export(self) -> None:
         out = resolve_total_power(
             _inp(grid_filtered_w=0.0, zi_correction_w=-2000.0, max_export_w=500.0)
         )
-        assert out == pytest.approx(-500.0)
+        assert out.total_w == pytest.approx(-500.0)
 
     def test_not_regulating_uses_absolute_target_but_still_grid_clamped(self) -> None:
         out = resolve_total_power(
             _inp(zi_regulating=False, absolute_target_w=-1000.0, max_export_w=300.0)
         )
-        assert out == pytest.approx(-300.0)
+        assert out.total_w == pytest.approx(-300.0)
 
 
 class TestResolveFleetTarget:

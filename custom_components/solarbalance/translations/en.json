@@ -780,6 +780,9 @@
       },
       "mppt_temperature": {
         "name": "PV temperature"
+      },
+      "regulation_binding": {
+        "name": "Active clamp"
       }
     },
     "select": {

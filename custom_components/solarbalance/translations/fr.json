@@ -780,6 +780,9 @@
       },
       "mppt_temperature": {
         "name": "Température PV"
+      },
+      "regulation_binding": {
+        "name": "Garde-fou actif"
       }
     },
     "select": {

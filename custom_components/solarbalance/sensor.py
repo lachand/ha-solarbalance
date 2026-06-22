@@ -96,6 +96,7 @@ async def async_setup_entry(
         SolarBalanceRegulationDiagnosticSensor(
             coordinator, entry, "natural_grid_w", "natural_grid", "mdi:transmission-tower"
         ),
+        SolarBalanceRegulationBindingSensor(coordinator, entry),
     ]
     if coordinator._curtailment is not None:
         entities.append(
@@ -985,6 +986,25 @@ class SolarBalanceRegulationDiagnosticSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float:
         return round(float(getattr(self.coordinator.diagnostics, self._diag_attr)), 1)
+
+
+class SolarBalanceRegulationBindingSensor(_SolarBalanceSensor):
+    """Which clamp set the fleet target this tick (diagnostic, text).
+
+    One of: base / equaliser / no_export / no_charge_floor / no_feed / stop_cloud /
+    grid_import / grid_export. Makes a surprising target self-explanatory.
+    """
+
+    _attr_translation_key = "regulation_binding"
+    _attr_icon = "mdi:format-list-bulleted"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "diag_regulation_binding")
+
+    @property
+    def native_value(self) -> str:
+        return self.coordinator.diagnostics.regulation_binding
 
 
 class SolarBalanceAutotuneKpSensor(_SolarBalanceSensor):

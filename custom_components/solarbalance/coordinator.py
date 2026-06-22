@@ -300,6 +300,8 @@ class RegulationDiagnostics:
     natural_grid_w: float = 0.0
     autotune_zi_kp: float = 0.0
     autotune_equaliser_step_w: float = 0.0
+    # Which clamp set the fleet target this tick ("base" when nothing clamped).
+    regulation_binding: str = "base"
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -1720,7 +1722,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # (base target → equaliser offer → no-export → no-charge floor → no-feed /
         # stop-cloud → grid constraints). See core/controllers/regulation.
         gc = result.decision.grid_constraint
-        total_power_w = resolve_total_power(
+        regulation_result = resolve_total_power(
             RegulationInputs(
                 zi_regulating=zi_regulating,
                 current_fleet_w=current_fleet_w,
@@ -1740,6 +1742,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 max_export_w=gc.max_export_w,
             )
         )
+        total_power_w = regulation_result.total_w
 
         # Vacation mode: cap charging at the vacation SoC ceiling to limit calendar
         # ageing while away. Discharge stays allowed; only the charge direction is
@@ -1778,6 +1781,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             regulating=zi_regulating,
             pv_limit_w=pv_limit_total,
             natural_grid_w=natural_grid_w,
+            regulation_binding=regulation_result.binding,
             autotune_zi_kp=self._zi_tuner.value if self._zi_tuner else 0.0,
             autotune_equaliser_step_w=self._eq_tuner.value if self._eq_tuner else 0.0,
         )
