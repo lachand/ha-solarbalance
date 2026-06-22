@@ -3,8 +3,10 @@
 from unittest.mock import MagicMock
 
 from custom_components.solarbalance.config_flow import (
+    _PRESETS,
     BatteryMpptSubentryFlowHandler,
     BatterySubentryFlowHandler,
+    MpptSubentryFlowHandler,
     _battery_input_to_device,
 )
 from custom_components.solarbalance.yaml_loader import build_device_from_dict
@@ -56,6 +58,33 @@ def test_stream_preset_autodetects_entities_and_options() -> None:
     # MPPT role nested for the battery+mppt schema.
     assert d["roles"]["mppt"]["power_entity"] == "sensor.ef_xxxxxx_pv_power_total"
     assert d["roles"]["mppt"]["peak_power_w"] == 2000
+
+
+def test_stream_inverter_preset_autodetects_curtailment() -> None:
+    # The STREAM's micro-inverter is a separate ef_bk… device, added as MPPT only.
+    ids = [
+        "number.ef_bk1611_maximum_output_power",
+        "sensor.ef_bk1611_grid_power",
+        "sensor.ef_bk1611_pv_1_power",
+    ]
+    h = _handler(MpptSubentryFlowHandler, ids)
+    d = h._preset_defaults("stream_inverter")
+    assert d["name"] == "EcoFlow STREAM inverter bk1611"
+    assert d["power_entity"] == "sensor.ef_bk1611_grid_power"
+    assert d["power_limit_setpoint_entity"] == "number.ef_bk1611_maximum_output_power"
+    assert d["active_control_enabled"] is True
+    assert d["peak_power_w"] == 800
+    assert "roles" not in d  # flat shape for the mppt kind
+
+
+def test_preset_options_are_filtered_by_kind() -> None:
+    def by_kind(kind: str) -> list[str]:
+        return [k for k, p in _PRESETS.items() if kind in p.applies_to]
+
+    assert "stream" in by_kind("battery")
+    assert "stream_inverter" not in by_kind("battery")
+    assert by_kind("mppt") == ["stream_inverter"]
+    assert "stream" in by_kind("battery_mppt")
 
 
 def test_generic_preset_is_blank() -> None:

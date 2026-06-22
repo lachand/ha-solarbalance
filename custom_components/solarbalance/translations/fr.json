@@ -615,7 +615,8 @@
     "device_preset": {
       "options": {
         "generic": "Générique (formulaire vide)",
-        "stream": "EcoFlow STREAM"
+        "stream": "EcoFlow STREAM",
+        "stream_inverter": "EcoFlow STREAM (onduleur)"
       }
     }
   },

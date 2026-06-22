@@ -37,6 +37,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta19] — 2026-06-22
+
+### Added
+
+- **Preset « EcoFlow STREAM (onduleur) » pour le flux « ajouter un onduleur ».**
+  Le micro-onduleur de la STREAM est un **appareil BLE séparé** (préfixe `ef_bk…`)
+  à ajouter en **MPPT uniquement**. Nouveau preset qui auto-détecte sa **puissance
+  de sortie** (`grid_power`) et surtout sa **limite de production**
+  (`maximum_output_power`), active le **pilotage actif** et propose `peak_power_w`
+  800 W → le **bridage onduleur** (beta15) est câblé en 2 clics.
+- **Presets filtrés par type d'équipement.** Chaque modèle ne s'affiche que pour
+  les flux pertinents : *EcoFlow STREAM* sur batterie / batterie+MPPT, *EcoFlow
+  STREAM (onduleur)* sur onduleur seul. Pas de collision de détection (probe sur
+  une entité unique au modèle).
+
 ## [2.0.7-beta18] — 2026-06-22
 
 ### Changed
@@ -891,6 +906,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta19]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta18...v2.0.7-beta19
 [2.0.7-beta18]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta17...v2.0.7-beta18
 [2.0.7-beta17]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta16...v2.0.7-beta17
 [2.0.7-beta16]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta15...v2.0.7-beta16

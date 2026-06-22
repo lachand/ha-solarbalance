@@ -951,6 +951,7 @@ class _DevicePreset:
     """
 
     name: str
+    applies_to: tuple[str, ...]  # which _preset_kind(s) it appears for
     battery: dict[str, Any]
     mppt: dict[str, Any]
     battery_entities: dict[str, tuple[str, str]]
@@ -959,10 +960,12 @@ class _DevicePreset:
 
 
 # Device presets offered as a dropdown when adding battery / mppt / battery+mppt.
-# "generic" (blank form) is implicit and always offered first.
+# "generic" (blank form) is implicit and always offered first. Each preset only
+# appears for the equipment kinds listed in ``applies_to``.
 _PRESETS: dict[str, _DevicePreset] = {
     "stream": _DevicePreset(
         name="EcoFlow STREAM",
+        applies_to=("battery", "battery_mppt"),
         battery={
             "capacity_kwh": 1.92,
             "max_charge_power_w": 2300,
@@ -988,6 +991,20 @@ _PRESETS: dict[str, _DevicePreset] = {
         mppt_entities={"power_entity": ("sensor", "pv_power_total")},
         prefix_probe=("select", "energy_strategy"),
     ),
+    # The STREAM's micro-inverter is a separate BLE device (prefix ef_bk…). Added
+    # as an inverter only; carries the curtailment knob (maximum_output_power).
+    "stream_inverter": _DevicePreset(
+        name="EcoFlow STREAM inverter",
+        applies_to=("mppt",),
+        battery={},
+        mppt={"peak_power_w": 800, "active_control_enabled": True},
+        battery_entities={},
+        mppt_entities={
+            "power_entity": ("sensor", "grid_power"),
+            "power_limit_setpoint_entity": ("number", "maximum_output_power"),
+        },
+        prefix_probe=("number", "maximum_output_power"),
+    ),
 }
 
 
@@ -1010,13 +1027,14 @@ class _DeviceSubentryFlow(_EquipmentSubentryFlow):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
         # Step 1 — pick a device model (or "generic" for a blank form).
         if user_input is None:
+            applicable = [k for k, p in _PRESETS.items() if self._preset_kind in p.applies_to]
             return self.async_show_form(
                 step_id="user",
                 data_schema=vol.Schema(
                     {
                         vol.Required("preset", default="generic"): selector.SelectSelector(
                             selector.SelectSelectorConfig(
-                                options=["generic", *_PRESETS],
+                                options=["generic", *applicable],
                                 translation_key="device_preset",
                             )
                         )
