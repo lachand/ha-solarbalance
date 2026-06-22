@@ -199,6 +199,7 @@
           "title": "Batterie",
           "description": "Déclarez une batterie. Les champs de consigne ne sont nécessaires que si vous activez le contrôle actif.",
           "data": {
+            "preset": "Modèle d'appareil (pré-remplit le formulaire)",
             "name": "Nom",
             "capacity_kwh": "Capacité (kWh)",
             "max_charge_power_w": "Puissance de charge max (W)",
@@ -378,6 +379,7 @@
           "title": "Onduleur solaire (MPPT)",
           "description": "Déclarez un onduleur/micro-onduleur. Le bridage nécessite le contrôle actif + une entité de limite.",
           "data": {
+            "preset": "Modèle d'appareil (pré-remplit le formulaire)",
             "name": "Nom",
             "peak_power_w": "Puissance crête (W)",
             "power_entity": "Entité puissance produite (W)",
@@ -472,6 +474,7 @@
           "title": "Batterie + onduleur (un seul appareil)",
           "description": "Pour un appareil tout-en-un (ex. station avec entrée PV) : champs batterie puis onduleur (préfixés « MPPT »).",
           "data": {
+            "preset": "Modèle d'appareil (pré-remplit le formulaire)",
             "name": "Nom",
             "capacity_kwh": "Capacité (kWh)",
             "max_charge_power_w": "Puissance de charge max (W)",
@@ -607,6 +610,12 @@
       "options": {
         "charge_positive": "Positif en charge",
         "discharge_positive": "Positif en décharge"
+      }
+    },
+    "device_preset": {
+      "options": {
+        "generic": "Générique (formulaire vide)",
+        "stream": "EcoFlow STREAM"
       }
     }
   },

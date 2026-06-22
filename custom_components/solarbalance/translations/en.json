@@ -199,6 +199,7 @@
           "title": "Battery",
           "description": "Declare a battery. Setpoint fields are only needed if you enable active control.",
           "data": {
+            "preset": "Device model (pre-fills the form)",
             "name": "Name",
             "capacity_kwh": "Capacity (kWh)",
             "max_charge_power_w": "Max charge power (W)",
@@ -378,6 +379,7 @@
           "title": "Solar inverter (MPPT)",
           "description": "Declare an inverter/micro-inverter. Curtailment needs active control + a limit entity.",
           "data": {
+            "preset": "Device model (pre-fills the form)",
             "name": "Name",
             "peak_power_w": "Peak power (W)",
             "power_entity": "Production power entity (W)",
@@ -472,6 +474,7 @@
           "title": "Battery + inverter (single device)",
           "description": "For an all-in-one device (e.g. a station with PV input): battery fields then inverter fields (prefixed 'MPPT').",
           "data": {
+            "preset": "Device model (pre-fills the form)",
             "name": "Name",
             "capacity_kwh": "Capacity (kWh)",
             "max_charge_power_w": "Max charge power (W)",
@@ -607,6 +610,12 @@
       "options": {
         "charge_positive": "Positive while charging",
         "discharge_positive": "Positive while discharging"
+      }
+    },
+    "device_preset": {
+      "options": {
+        "generic": "Generic (blank form)",
+        "stream": "EcoFlow STREAM"
       }
     }
   },

@@ -1,6 +1,7 @@
 """Config flow for SolarBalance."""
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 import voluptuous as vol
@@ -939,15 +940,133 @@ class _EquipmentSubentryFlow(ConfigSubentryFlow):
         )
 
 
+@dataclass(frozen=True)
+class _DevicePreset:
+    """A known device model: static field defaults + entity auto-detection.
+
+    ``*_entities`` map a role field to ``(domain, suffix)``; the suffix is appended
+    to a discovered device prefix (e.g. ``ef_60605``) to build the entity_id. The
+    ``prefix_probe`` (domain, suffix) is an entity unique to the model, used to find
+    that prefix among the existing HA entities.
+    """
+
+    name: str
+    battery: dict[str, Any]
+    mppt: dict[str, Any]
+    battery_entities: dict[str, tuple[str, str]]
+    mppt_entities: dict[str, tuple[str, str]]
+    prefix_probe: tuple[str, str]
+
+
+# Device presets offered as a dropdown when adding battery / mppt / battery+mppt.
+# "generic" (blank form) is implicit and always offered first.
+_PRESETS: dict[str, _DevicePreset] = {
+    "stream": _DevicePreset(
+        name="EcoFlow STREAM",
+        battery={
+            "capacity_kwh": 1.92,
+            "max_charge_power_w": 2300,
+            "max_discharge_power_w": 2300,
+            "soc_min_pct": 10,
+            "soc_max_pct": 95,
+            "power_sign_convention": "charge_positive",
+            "controllable": True,
+            "active_control_enabled": True,
+            "charge_mode_option": "scheduled",
+            "discharge_mode_option": "self_powered",
+        },
+        mppt={"peak_power_w": 2000, "active_control_enabled": False},
+        battery_entities={
+            "soc_entity": ("sensor", "battery_level"),
+            "power_entity": ("sensor", "battery_power"),
+            "temperature_entity": ("sensor", "cell_temperature"),
+            "charge_power_setpoint_entity": ("number", "charging_power_limit"),
+            "discharge_power_setpoint_entity": ("number", "base_load_power"),
+            "mode_setpoint_entity": ("select", "energy_strategy"),
+            "reserve_soc_setpoint_entity": ("number", "backup_reserve"),
+        },
+        mppt_entities={"power_entity": ("sensor", "pv_power_total")},
+        prefix_probe=("select", "energy_strategy"),
+    ),
+}
+
+
 class _DeviceSubentryFlow(_EquipmentSubentryFlow):
-    """Equipment flow whose stored dict is a device (battery / mppt / both)."""
+    """Equipment flow whose stored dict is a device (battery / mppt / both).
+
+    Adds a first **preset** step: the user picks a device model (e.g. EcoFlow
+    STREAM) or *generic*; the form then opens pre-filled with the preset's defaults
+    and any matching HA entities auto-detected. Reconfigure skips the preset step.
+    """
 
     _error_key = "invalid_device"
+    _preset_kind = ""  # "battery" | "mppt" | "battery_mppt" — set by subclasses
 
     def _build(self, data: dict[str, Any]) -> None:
         from .yaml_loader import build_device_from_dict
 
         build_device_from_dict(data)
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> SubentryFlowResult:
+        # Step 1 — pick a device model (or "generic" for a blank form).
+        if user_input is None:
+            return self.async_show_form(
+                step_id="user",
+                data_schema=vol.Schema(
+                    {
+                        vol.Required("preset", default="generic"): selector.SelectSelector(
+                            selector.SelectSelectorConfig(
+                                options=["generic", *_PRESETS],
+                                translation_key="device_preset",
+                            )
+                        )
+                    }
+                ),
+            )
+        # Step 2 — model chosen: show the form pre-filled (defaults + auto-detected).
+        if "name" not in user_input:
+            defaults = self._preset_defaults(user_input.get("preset", "generic"))
+            return self.async_show_form(step_id="user", data_schema=self._schema(defaults))
+        # Step 3 — form submitted: validate and create (shared logic).
+        return await self._show("user", user_input)
+
+    def _preset_defaults(self, preset_key: str) -> dict[str, Any]:
+        """Build the form defaults for a preset, auto-detecting matching entities."""
+        preset = _PRESETS.get(preset_key)
+        if preset is None:  # "generic" → blank form (current behaviour)
+            return {}
+        prefix = self._discover_prefix(preset.prefix_probe)
+        battery = dict(preset.battery)
+        mppt = dict(preset.mppt)
+        name = preset.name
+        if prefix is not None:
+            battery.update(self._detect_entities(prefix, preset.battery_entities))
+            mppt.update(self._detect_entities(prefix, preset.mppt_entities))
+            name = f"{preset.name} {prefix.split('_')[-1]}"
+        if self._preset_kind == "battery":
+            return {"name": name, **battery}
+        if self._preset_kind == "mppt":
+            return {"name": name, **mppt}
+        return {"name": name, **battery, "roles": {"mppt": mppt}}
+
+    def _discover_prefix(self, probe: tuple[str, str]) -> str | None:
+        """Find a device prefix (e.g. ``ef_60605``) from a model-unique entity."""
+        domain, suffix = probe
+        needle = f"_{suffix}"
+        for entity_id in self.hass.states.async_entity_ids(domain):
+            object_id = entity_id.split(".", 1)[1]
+            if object_id.endswith(needle):
+                return object_id[: -len(needle)]
+        return None
+
+    def _detect_entities(self, prefix: str, mapping: dict[str, tuple[str, str]]) -> dict[str, str]:
+        """Resolve role→entity for entities that actually exist under ``prefix``."""
+        found: dict[str, str] = {}
+        for field_name, (domain, suffix) in mapping.items():
+            entity_id = f"{domain}.{prefix}_{suffix}"
+            if self.hass.states.get(entity_id) is not None:
+                found[field_name] = entity_id
+        return found
 
 
 def _battery_error_key(exc: Exception, default: str) -> str:
@@ -964,6 +1083,8 @@ def _battery_error_key(exc: Exception, default: str) -> str:
 
 class BatterySubentryFlowHandler(_DeviceSubentryFlow):
     """Add or reconfigure a battery device from the UI."""
+
+    _preset_kind = "battery"
 
     def _to_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
         return _battery_input_to_device(user_input)
@@ -1171,6 +1292,8 @@ def _mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
 class MpptSubentryFlowHandler(_DeviceSubentryFlow):
     """Add or reconfigure a PV inverter / MPPT from the UI."""
 
+    _preset_kind = "mppt"
+
     def _to_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
         return _mppt_input_to_device(user_input)
 
@@ -1315,6 +1438,8 @@ def _battery_mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
 
 class BatteryMpptSubentryFlowHandler(_DeviceSubentryFlow):
     """Add or reconfigure a device that is both a battery and a PV inverter."""
+
+    _preset_kind = "battery_mppt"
 
     def _to_data(self, user_input: dict[str, Any]) -> dict[str, Any]:
         return _battery_mppt_input_to_device(user_input)
