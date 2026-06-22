@@ -101,3 +101,22 @@ def test_setpoint_entity_without_domain_rejected() -> None:
 def test_valid_setpoint_entity_accepted() -> None:
     devices, *_rest = parse_yaml_config(_stream_battery("number.ef_xxxxxx_backup_reserve"))
     assert devices[0].battery.reserve_soc_setpoint_entity == "number.ef_xxxxxx_backup_reserve"
+
+
+def test_mppt_temperature_entity_round_trips() -> None:
+    cfg = {
+        "devices": [
+            {
+                "name": "inverter",
+                "roles": {
+                    "mppt": {
+                        "peak_power_w": 800,
+                        "power_entity": "sensor.ef_bkxxxx_grid_power",
+                        "temperature_entity": "sensor.ef_bkxxxx_temperature",
+                    }
+                },
+            }
+        ]
+    }
+    devices, *_rest = parse_yaml_config(cfg)
+    assert devices[0].mppt.temperature_entity == "sensor.ef_bkxxxx_temperature"

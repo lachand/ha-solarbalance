@@ -162,6 +162,10 @@ async def async_setup_entry(
             dev_entities.append(
                 SolarBalanceMpptPowerSensor(coordinator, entry, device.name, dev_info)
             )
+            if device.mppt.temperature_entity is not None:
+                dev_entities.append(
+                    SolarBalanceMpptTemperatureSensor(coordinator, entry, device.name, dev_info)
+                )
             # PV output limit is only meaningful for a curtailable inverter.
             if device.mppt.active_control_enabled and (
                 device.mppt.power_limit_setpoint_entity is not None
@@ -888,6 +892,37 @@ class SolarBalanceMpptPowerSensor(_SolarBalanceSensor):
         if state is None or not state.available:
             return None
         return round(state.power_w, 1)
+
+
+class SolarBalanceMpptTemperatureSensor(_SolarBalanceSensor):
+    """Per-inverter temperature (°C)."""
+
+    _attr_translation_key = "mppt_temperature"
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: SolarBalanceCoordinator,
+        entry: ConfigEntry,
+        device_name: str,
+        device_info: DeviceInfo,
+    ) -> None:
+        super().__init__(
+            coordinator, entry, f"{device_name}_pv_temperature", device_info=device_info
+        )
+        self._device_name = device_name
+
+    @property
+    def native_value(self) -> float | None:
+        snap: Snapshot | None = self.coordinator.data
+        if snap is None:
+            return None
+        state = next((m for m in snap.mppts if m.device_name == self._device_name), None)
+        if state is None or not state.available or state.temperature_c is None:
+            return None
+        return round(state.temperature_c, 1)
 
 
 class SolarBalanceMpptLimitSensor(_SolarBalanceSensor):

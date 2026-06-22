@@ -1278,6 +1278,9 @@ def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Optional("daily_energy_entity", default=m.get("daily_energy_entity", "")): _entity(
                 "sensor"
             ),
+            vol.Optional("temperature_entity", default=m.get("temperature_entity", "")): _entity(
+                "sensor"
+            ),
             vol.Optional(
                 "active_control_enabled", default=m.get("active_control_enabled", False)
             ): selector.BooleanSelector(),
@@ -1292,6 +1295,7 @@ _MPPT_ROLE_KEYS = (
     "peak_power_w",
     "power_entity",
     "daily_energy_entity",
+    "temperature_entity",
     "active_control_enabled",
     "power_limit_setpoint_entity",
 )
@@ -1422,6 +1426,9 @@ def _battery_mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
                 "mppt_daily_energy_entity", default=m.get("daily_energy_entity", "")
             ): _entity("sensor"),
             vol.Optional(
+                "mppt_temperature_entity", default=m.get("temperature_entity", "")
+            ): _entity("sensor"),
+            vol.Optional(
                 "mppt_active_control_enabled", default=m.get("active_control_enabled", False)
             ): selector.BooleanSelector(),
             vol.Optional(
@@ -1437,6 +1444,7 @@ _MPPT_PREFIXED = {
     "mppt_peak_power_w": "peak_power_w",
     "mppt_power_entity": "power_entity",
     "mppt_daily_energy_entity": "daily_energy_entity",
+    "mppt_temperature_entity": "temperature_entity",
     "mppt_active_control_enabled": "active_control_enabled",
     "mppt_power_limit_setpoint_entity": "power_limit_setpoint_entity",
 }

@@ -384,6 +384,7 @@
             "peak_power_w": "Peak power (W)",
             "power_entity": "Production power entity (W)",
             "daily_energy_entity": "Daily energy entity",
+            "temperature_entity": "Temperature sensor (°C)",
             "active_control_enabled": "Active curtailment (limit output)",
             "power_limit_setpoint_entity": "Output limit entity (number, W)"
           },
@@ -400,6 +401,7 @@
             "peak_power_w": "Peak power (W)",
             "power_entity": "Production power entity (W)",
             "daily_energy_entity": "Daily energy entity",
+            "temperature_entity": "Temperature sensor (°C)",
             "active_control_enabled": "Active curtailment (limit output)",
             "power_limit_setpoint_entity": "Output limit entity (number, W)"
           },
@@ -503,6 +505,7 @@
             "mppt_peak_power_w": "MPPT: peak power (W)",
             "mppt_power_entity": "MPPT: production power entity (W)",
             "mppt_daily_energy_entity": "MPPT: daily energy",
+            "mppt_temperature_entity": "Inverter temperature sensor (°C)",
             "mppt_active_control_enabled": "MPPT: active curtailment",
             "mppt_power_limit_setpoint_entity": "MPPT: output limit entity (number, W)"
           },
@@ -544,6 +547,7 @@
             "mppt_peak_power_w": "MPPT: peak power (W)",
             "mppt_power_entity": "MPPT: production power entity (W)",
             "mppt_daily_energy_entity": "MPPT: daily energy",
+            "mppt_temperature_entity": "Inverter temperature sensor (°C)",
             "mppt_active_control_enabled": "MPPT: active curtailment",
             "mppt_power_limit_setpoint_entity": "MPPT: output limit entity (number, W)"
           },
@@ -770,6 +774,9 @@
           "force_charge": "Force charging",
           "unknown": "Unknown"
         }
+      },
+      "mppt_temperature": {
+        "name": "PV temperature"
       }
     },
     "select": {

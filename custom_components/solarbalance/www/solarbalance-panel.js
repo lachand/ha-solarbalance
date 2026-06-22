@@ -284,6 +284,7 @@ class SolarBalancePanel extends HTMLElement {
       battery_setpoint_discharge: "setpoint_discharge",
       mppt_power: "mppt_power",
       mppt_limit: "mppt_limit",
+      mppt_temperature: "mppt_temperature",
     };
     for (const eid in h.entities) {
       const e = h.entities[eid];
@@ -832,6 +833,8 @@ class SolarBalancePanel extends HTMLElement {
         if (k.mppt_power) rows.push(this._row("Production solaire", this._fmt(k.mppt_power, 0, "W")));
         if (k.mppt_limit) rows.push(this._row("Limite production", this._fmt(k.mppt_limit, 0, "W")));
         if (k.temperature) rows.push(this._row("Température", this._fmt(k.temperature, 1, "°C")));
+        if (k.mppt_temperature)
+          rows.push(this._row("Température", this._fmt(k.mppt_temperature, 1, "°C")));
         if (k.setpoint_charge) rows.push(this._row("Consigne charge", this._fmt(k.setpoint_charge, 0, "W")));
         if (k.setpoint_discharge)
           rows.push(this._row("Consigne décharge", this._fmt(k.setpoint_discharge, 0, "W")));

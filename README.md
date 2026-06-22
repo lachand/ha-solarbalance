@@ -8,7 +8,7 @@
 
 SolarBalance orchestrates photovoltaic production, battery storage, and electrical loads in your home to meet one or several energy goals (self-consumption, cost minimization, autonomy, hardware longevity), while adapting to dynamic context (tariffs, weather, grid alerts).
 
-> **Status**: pre-release **v2.0.7-beta21** (enable beta versions in HACS). Stable line: v2.0.6. Core engine, all strategies, **active hardware control** (incl. mode-switch batteries like the EcoFlow STREAM), a **device-preset add wizard** (auto-detects matching entities), zero-injection (auto-tuned, AC-output-aware), the **SoC equaliser** (PV-gated), watchdog, services and Lovelace examples are functional. Next: the rest of Wave 4 (consumption forecasting, battery-health throttling, real-time PV-drop detection).
+> **Status**: pre-release **v2.0.7-beta22** (enable beta versions in HACS). Stable line: v2.0.6. Core engine, all strategies, **active hardware control** (incl. mode-switch batteries like the EcoFlow STREAM), a **device-preset add wizard** (auto-detects matching entities), zero-injection (auto-tuned, AC-output-aware), the **SoC equaliser** (PV-gated), watchdog, services and Lovelace examples are functional. Next: the rest of Wave 4 (consumption forecasting, battery-health throttling, real-time PV-drop detection).
 
 ## Highlights
 

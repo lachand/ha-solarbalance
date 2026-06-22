@@ -37,6 +37,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta22] — 2026-06-22
+
+### Added
+
+- **Température MPPT / onduleur.** Le rôle MPPT accepte désormais un
+  `temperature_entity` — disponible dans la config **« onduleur seul »** ET
+  **batterie+MPPT** (champ `mppt_temperature_entity`). Un capteur dédié l'expose
+  (`mppt_temperature`, °C) et le panneau l'affiche dans « Par appareil ». Plombé de
+  bout en bout (modèle, lecture, capteur, YAML, UI, traductions FR/EN).
+
 ## [2.0.7-beta21] — 2026-06-22
 
 ### Fixed
@@ -926,6 +936,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta22]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta21...v2.0.7-beta22
 [2.0.7-beta21]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta20...v2.0.7-beta21
 [2.0.7-beta20]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta19...v2.0.7-beta20
 [2.0.7-beta19]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta18...v2.0.7-beta19

@@ -190,10 +190,16 @@ class EntityReader:
             if device.mppt is None:
                 continue
             power = self._read_float(device.mppt.power_entity, default=None)
+            temperature = (
+                self._read_float(device.mppt.temperature_entity, default=None)
+                if device.mppt.temperature_entity
+                else None
+            )
             states.append(
                 MpptState(
                     device_name=device.name,
                     power_w=power if power is not None else 0.0,
+                    temperature_c=temperature,
                     available=power is not None,
                 )
             )

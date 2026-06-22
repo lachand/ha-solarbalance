@@ -191,6 +191,7 @@ class MpptRole:
     daily_energy_entity: str | None = None
     voltage_entity: str | None = None
     current_entity: str | None = None
+    temperature_entity: str | None = None
     feeds: tuple[str, ...] = ()
     active_control_enabled: bool = False
     """When True (and global active control is on), SolarBalance caps this
@@ -418,6 +419,7 @@ class MpptState:
 
     device_name: str
     power_w: float
+    temperature_c: float | None = None
     available: bool = True
 
 

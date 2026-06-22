@@ -384,6 +384,7 @@
             "peak_power_w": "Puissance crête (W)",
             "power_entity": "Entité puissance produite (W)",
             "daily_energy_entity": "Entité énergie du jour",
+            "temperature_entity": "Capteur de température (°C)",
             "active_control_enabled": "Bridage actif (limiter la sortie)",
             "power_limit_setpoint_entity": "Entité limite de sortie (number, W)"
           },
@@ -400,6 +401,7 @@
             "peak_power_w": "Puissance crête (W)",
             "power_entity": "Entité puissance produite (W)",
             "daily_energy_entity": "Entité énergie du jour",
+            "temperature_entity": "Capteur de température (°C)",
             "active_control_enabled": "Bridage actif (limiter la sortie)",
             "power_limit_setpoint_entity": "Entité limite de sortie (number, W)"
           },
@@ -503,6 +505,7 @@
             "mppt_peak_power_w": "MPPT : puissance crête (W)",
             "mppt_power_entity": "MPPT : entité puissance produite (W)",
             "mppt_daily_energy_entity": "MPPT : énergie du jour",
+            "mppt_temperature_entity": "Capteur de température onduleur (°C)",
             "mppt_active_control_enabled": "MPPT : bridage actif",
             "mppt_power_limit_setpoint_entity": "MPPT : entité limite de sortie (number, W)"
           },
@@ -544,6 +547,7 @@
             "mppt_peak_power_w": "MPPT : puissance crête (W)",
             "mppt_power_entity": "MPPT : entité puissance produite (W)",
             "mppt_daily_energy_entity": "MPPT : énergie du jour",
+            "mppt_temperature_entity": "Capteur de température onduleur (°C)",
             "mppt_active_control_enabled": "MPPT : bridage actif",
             "mppt_power_limit_setpoint_entity": "MPPT : entité limite de sortie (number, W)"
           },
@@ -770,6 +774,9 @@
           "force_charge": "Charge forcée",
           "unknown": "Inconnu"
         }
+      },
+      "mppt_temperature": {
+        "name": "Température PV"
       }
     },
     "select": {
