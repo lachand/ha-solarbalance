@@ -90,7 +90,7 @@ class ActiveControlPublisher:
         self._last_reserve: dict[str, float] = {}
 
         # Catch a common misconfiguration early: a setpoint entity_id without a
-        # domain (e.g. "ef_60605_backup_reserve" instead of "number.ef_...").
+        # domain (e.g. "ef_xxxxxx_backup_reserve" instead of "number.ef_...").
         for name, m in managed.items():
             for label, eid in (
                 ("charge", m.charge_entity),

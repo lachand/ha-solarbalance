@@ -228,13 +228,13 @@
           },
           "data_description": {
             "capacity_kwh": "Capacité nominale. Ex : 3.92",
-            "soc_entity": "Capteur du niveau de charge en %. Ex : sensor.ef_60605_battery_level",
+            "soc_entity": "Capteur du niveau de charge en %. Ex : sensor.ef_xxxxxx_battery_level",
             "power_entity": "Capteur signé unique. Doit être POSITIF en charge (sinon ajustez la convention). Laissez vide si vous utilisez les deux capteurs charge/décharge ci-dessous.",
             "charge_power_entity": "Alternative au capteur signé : puissance de charge (toujours >= 0). À coupler avec la décharge.",
             "discharge_power_entity": "Alternative au capteur signé : puissance de décharge (toujours >= 0). À coupler avec la charge.",
             "power_sign_convention": "charge_positive = positif quand la batterie charge. Sinon discharge_positive. Ignoré si les deux capteurs charge/décharge sont utilisés.",
             "active_control_enabled": "Si activé, SolarBalance écrit les consignes (nécessite une batterie pilotable et les entités de consigne).",
-            "reserve_soc_setpoint_entity": "number/% que le device obéit comme SoC mini ; relevé à la cible en mode tempête. Ex : number.ef_60605_backup_reserve",
+            "reserve_soc_setpoint_entity": "number/% que le device obéit comme SoC mini ; relevé à la cible en mode tempête. Ex : number.ef_xxxxxx_backup_reserve",
             "ac_charge_limit_w": "Puissance max absorbée depuis l'AC (équaliseur de SoC)."
           }
         },
@@ -270,13 +270,13 @@
           },
           "data_description": {
             "capacity_kwh": "Capacité nominale. Ex : 3.92",
-            "soc_entity": "Capteur du niveau de charge en %. Ex : sensor.ef_60605_battery_level",
+            "soc_entity": "Capteur du niveau de charge en %. Ex : sensor.ef_xxxxxx_battery_level",
             "power_entity": "Capteur signé unique. Doit être POSITIF en charge (sinon ajustez la convention). Laissez vide si vous utilisez les deux capteurs charge/décharge ci-dessous.",
             "charge_power_entity": "Alternative au capteur signé : puissance de charge (toujours >= 0). À coupler avec la décharge.",
             "discharge_power_entity": "Alternative au capteur signé : puissance de décharge (toujours >= 0). À coupler avec la charge.",
             "power_sign_convention": "charge_positive = positif quand la batterie charge. Sinon discharge_positive. Ignoré si les deux capteurs charge/décharge sont utilisés.",
             "active_control_enabled": "Si activé, SolarBalance écrit les consignes (nécessite une batterie pilotable et les entités de consigne).",
-            "reserve_soc_setpoint_entity": "number/% que le device obéit comme SoC mini ; relevé à la cible en mode tempête. Ex : number.ef_60605_backup_reserve",
+            "reserve_soc_setpoint_entity": "number/% que le device obéit comme SoC mini ; relevé à la cible en mode tempête. Ex : number.ef_xxxxxx_backup_reserve",
             "ac_charge_limit_w": "Puissance max absorbée depuis l'AC (équaliseur de SoC)."
           }
         }

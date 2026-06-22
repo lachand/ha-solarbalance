@@ -228,13 +228,13 @@
           },
           "data_description": {
             "capacity_kwh": "Nominal capacity. E.g. 3.92",
-            "soc_entity": "State-of-charge sensor in %. E.g. sensor.ef_60605_battery_level",
+            "soc_entity": "State-of-charge sensor in %. E.g. sensor.ef_xxxxxx_battery_level",
             "power_entity": "Single signed sensor. Must be POSITIVE while charging (else flip the convention). Leave empty if you use the two charge/discharge sensors below.",
             "charge_power_entity": "Alternative to the signed sensor: charge power (always >= 0). Pair with discharge.",
             "discharge_power_entity": "Alternative to the signed sensor: discharge power (always >= 0). Pair with charge.",
             "power_sign_convention": "charge_positive = positive while charging. Otherwise discharge_positive. Ignored when the two charge/discharge sensors are used.",
             "active_control_enabled": "If on, SolarBalance writes setpoints (requires a controllable battery and the setpoint entities).",
-            "reserve_soc_setpoint_entity": "number/% the device obeys as its min SoC; raised to the target in storm mode. E.g. number.ef_60605_backup_reserve",
+            "reserve_soc_setpoint_entity": "number/% the device obeys as its min SoC; raised to the target in storm mode. E.g. number.ef_xxxxxx_backup_reserve",
             "ac_charge_limit_w": "Max power absorbed from AC (SoC equaliser)."
           }
         },
@@ -270,13 +270,13 @@
           },
           "data_description": {
             "capacity_kwh": "Nominal capacity. E.g. 3.92",
-            "soc_entity": "State-of-charge sensor in %. E.g. sensor.ef_60605_battery_level",
+            "soc_entity": "State-of-charge sensor in %. E.g. sensor.ef_xxxxxx_battery_level",
             "power_entity": "Single signed sensor. Must be POSITIVE while charging (else flip the convention). Leave empty if you use the two charge/discharge sensors below.",
             "charge_power_entity": "Alternative to the signed sensor: charge power (always >= 0). Pair with discharge.",
             "discharge_power_entity": "Alternative to the signed sensor: discharge power (always >= 0). Pair with charge.",
             "power_sign_convention": "charge_positive = positive while charging. Otherwise discharge_positive. Ignored when the two charge/discharge sensors are used.",
             "active_control_enabled": "If on, SolarBalance writes setpoints (requires a controllable battery and the setpoint entities).",
-            "reserve_soc_setpoint_entity": "number/% the device obeys as its min SoC; raised to the target in storm mode. E.g. number.ef_60605_backup_reserve",
+            "reserve_soc_setpoint_entity": "number/% the device obeys as its min SoC; raised to the target in storm mode. E.g. number.ef_xxxxxx_backup_reserve",
             "ac_charge_limit_w": "Max power absorbed from AC (SoC equaliser)."
           }
         }

@@ -945,7 +945,7 @@ class _DevicePreset:
     """A known device model: static field defaults + entity auto-detection.
 
     ``*_entities`` map a role field to ``(domain, suffix)``; the suffix is appended
-    to a discovered device prefix (e.g. ``ef_60605``) to build the entity_id. The
+    to a discovered device prefix (e.g. ``ef_xxxxxx``) to build the entity_id. The
     ``prefix_probe`` (domain, suffix) is an entity unique to the model, used to find
     that prefix among the existing HA entities.
     """
@@ -1050,7 +1050,7 @@ class _DeviceSubentryFlow(_EquipmentSubentryFlow):
         return {"name": name, **battery, "roles": {"mppt": mppt}}
 
     def _discover_prefix(self, probe: tuple[str, str]) -> str | None:
-        """Find a device prefix (e.g. ``ef_60605``) from a model-unique entity."""
+        """Find a device prefix (e.g. ``ef_xxxxxx``) from a model-unique entity."""
         domain, suffix = probe
         needle = f"_{suffix}"
         for entity_id in self.hass.states.async_entity_ids(domain):

@@ -37,6 +37,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta18] — 2026-06-22
+
+### Changed
+
+- **Vie privée : suppression d'un numéro de série réel des exemples.** Un préfixe
+  d'appareil EcoFlow réel (`ef_60605`) servait d'exemple dans des descriptions de
+  champs, commentaires et tests. Remplacé partout par le placeholder générique
+  `ef_xxxxxx`. Aucun impact fonctionnel : le préfixe d'appareil est **découvert à
+  l'exécution** chez chaque utilisateur, jamais codé en dur.
+
 ## [2.0.7-beta17] — 2026-06-22
 
 ### Added
@@ -48,10 +58,10 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
     de signe, pilotage actif, options de mode `scheduled`/`self_powered` pour la
     STREAM, `peak_power_w`…) ;
   - **entités auto-détectées** : SB repère le **préfixe d'appareil** (ex.
-    `ef_60605`) via une entité unique au modèle, puis mappe chaque rôle par suffixe
+    `ef_xxxxxx`) via une entité unique au modèle, puis mappe chaque rôle par suffixe
     (`battery_level`→SoC, `charging_power_limit`→charge, `base_load_power`→décharge,
     `energy_strategy`→mode, `backup_reserve`→réserve, `pv_power_total`→MPPT…) et
-    **suggère un nom** (« EcoFlow STREAM 60605 ») ;
+    **suggère un nom** (« EcoFlow STREAM xxxxxx ») ;
   - tu **vérifies/ajustes** puis valides. *Générique* = formulaire vide (inchangé).
   - La **reconfiguration** (édition) ne passe pas par l'étape modèle.
   - Architecture **générique** (registre de presets) : ajouter d'autres marques
@@ -881,6 +891,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta18]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta17...v2.0.7-beta18
 [2.0.7-beta17]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta16...v2.0.7-beta17
 [2.0.7-beta16]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta15...v2.0.7-beta16
 [2.0.7-beta15]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta14...v2.0.7-beta15

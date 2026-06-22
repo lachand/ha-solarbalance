@@ -43,7 +43,7 @@ _METER_KIND = vol.In([k.value for k in MeterKind])
 _LOAD_CONTROL = vol.In([c.value for c in LoadControlType])
 _HHMM = vol.Match(r"^([01]\d|2[0-3]):[0-5]\d$", msg="Must be HH:MM (e.g. 06:00)")
 # Strict entity_id (requires a domain, e.g. number.x) for control/write entities,
-# so a typo like "ef_60605_backup_reserve" is rejected at load instead of failing
+# so a typo like "ef_xxxxxx_backup_reserve" is rejected at load instead of failing
 # silently every tick.
 _ENTITY = cv.entity_id
 

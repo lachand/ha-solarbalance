@@ -93,11 +93,11 @@ def _stream_battery(reserve: str) -> dict:
 
 
 def test_setpoint_entity_without_domain_rejected() -> None:
-    # The exact bug class: "ef_60605_backup_reserve" (no domain) must be rejected.
+    # The exact bug class: "ef_xxxxxx_backup_reserve" (no domain) must be rejected.
     with pytest.raises(ConfigEntryError):
-        parse_yaml_config(_stream_battery("ef_60605_backup_reserve"))
+        parse_yaml_config(_stream_battery("ef_xxxxxx_backup_reserve"))
 
 
 def test_valid_setpoint_entity_accepted() -> None:
-    devices, *_rest = parse_yaml_config(_stream_battery("number.ef_60605_backup_reserve"))
-    assert devices[0].battery.reserve_soc_setpoint_entity == "number.ef_60605_backup_reserve"
+    devices, *_rest = parse_yaml_config(_stream_battery("number.ef_xxxxxx_backup_reserve"))
+    assert devices[0].battery.reserve_soc_setpoint_entity == "number.ef_xxxxxx_backup_reserve"
