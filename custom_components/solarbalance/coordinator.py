@@ -27,6 +27,9 @@ from .const import (
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
+    CONF_CURTAILMENT_DEADBAND_W,
+    CONF_CURTAILMENT_RAMP_W,
+    CONF_CURTAILMENT_SETTLE_TICKS,
     CONF_DRY_RUN,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
@@ -85,6 +88,9 @@ from .const import (
     DEFAULT_BASELINE_WINDOW_START_H,
     DEFAULT_COST_MIN_CHEAP_THRESHOLD,
     DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD,
+    DEFAULT_CURTAILMENT_DEADBAND_W,
+    DEFAULT_CURTAILMENT_RAMP_W,
+    DEFAULT_CURTAILMENT_SETTLE_TICKS,
     DEFAULT_DRY_RUN,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
@@ -569,7 +575,16 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if d.mppt is not None and d.mppt.active_control_enabled
         )
         self._curtailment: CurtailmentController | None = (
-            CurtailmentController(peak_total_w=sum(peak for _, peak in self._curtailable_mppts))
+            CurtailmentController(
+                peak_total_w=sum(peak for _, peak in self._curtailable_mppts),
+                deadband_w=float(
+                    cfg.get(CONF_CURTAILMENT_DEADBAND_W, DEFAULT_CURTAILMENT_DEADBAND_W)
+                ),
+                ramp_w=float(cfg.get(CONF_CURTAILMENT_RAMP_W, DEFAULT_CURTAILMENT_RAMP_W)),
+                settle_ticks=int(
+                    cfg.get(CONF_CURTAILMENT_SETTLE_TICKS, DEFAULT_CURTAILMENT_SETTLE_TICKS)
+                ),
+            )
             if self._curtailable_mppts
             else None
         )

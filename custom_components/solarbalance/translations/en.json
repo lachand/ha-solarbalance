@@ -68,6 +68,7 @@
           "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
           "zi_settle_ticks": "Anti-yoyo: ZI freeze ticks after a load drop",
           "zi_settle_min_drop_w": "Anti-yoyo: dropped-power threshold (W)",
+          "curtailment_ramp_w": "Curtailment: max output-limit step per move (W)",
           "phases": "Electrical phases",
           "subscribed_power_kva": "Subscribed power (kVA)",
           "backup_reserve_soc_pct": "Backup reserve (SoC %)",
@@ -105,7 +106,9 @@
           "stop_cloud_charge": "Stop a self-charging cloud battery: cut the fleet discharge to 0 (imports for the house) so it stops charging",
           "local_ac_load_entities": "Local AC-load sensors behind the fleet (e.g. STREAM AC sockets) — excluded from the grid loop so their cycling doesn't disturb it",
           "volatility_damper_enabled": "Adaptive volatility damper: smooth the grid more on motor-type loads (battery tracks the average, no yoyo)",
-          "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables"
+          "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables",
+          "curtailment_deadband_w": "Curtailment: export deadband (W)",
+          "curtailment_settle_ticks": "Curtailment: settle window (ticks held after each move)"
         }
       },
       "forecast": {

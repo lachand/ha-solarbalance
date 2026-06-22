@@ -37,6 +37,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta23] — 2026-06-22
+
+### Fixed
+
+- **Yoyo d'injection / bridage onduleur en « tout ou rien » (0 ↔ pic).** Le
+  curtailment **claquait** la limite à `production − excès` d'un coup, puis la
+  **relâchait par paliers** ; combiné au **temps mort** de l'EcoFlow (BLE +
+  onduleur) et à la latence du compteur, ça produisait une **dent de scie** (la
+  limite sautait entre 0 et le pic), et près du plein la batterie ne pouvait plus
+  amortir. Désormais le contrôleur :
+  - bouge **graduellement** (≤ `ramp_w` par mouvement, dans les deux sens) → la
+    limite **converge** sur l'équilibre au lieu de claquer ;
+  - tient une **fenêtre de stabilisation** (`settle_ticks`, défaut **3**) après
+    chaque mouvement, le temps que l'onduleur + la mesure rattrapent → fini la
+    boucle dent-de-scie due au temps mort.
+  - Réglages **mode expert** : *Bridage : pas max / bande morte / fenêtre de
+    stabilisation* dans *Configurer → Régulation*.
+  - Effet de bord bénéfique : en ne coupant plus la production à 0, le **surplus
+    reste disponible** pour charger la batterie pilotable.
+
 ## [2.0.7-beta22] — 2026-06-22
 
 ### Added
@@ -936,6 +956,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta23]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta22...v2.0.7-beta23
 [2.0.7-beta22]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta21...v2.0.7-beta22
 [2.0.7-beta21]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta20...v2.0.7-beta21
 [2.0.7-beta20]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta19...v2.0.7-beta20

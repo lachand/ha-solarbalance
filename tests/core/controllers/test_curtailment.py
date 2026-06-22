@@ -8,8 +8,11 @@ from custom_components.solarbalance.core.controllers.curtailment import (
 )
 
 
-def _ctrl(peak: float = 1000.0) -> CurtailmentController:
-    return CurtailmentController(peak_total_w=peak, deadband_w=50.0, ramp_w=200.0)
+def _ctrl(peak: float = 1000.0, settle_ticks: int = 1) -> CurtailmentController:
+    # settle_ticks=1 → a move is allowed every step (per-step unit assertions).
+    return CurtailmentController(
+        peak_total_w=peak, deadband_w=50.0, ramp_w=200.0, settle_ticks=settle_ticks
+    )
 
 
 def test_starts_unrestricted() -> None:
@@ -25,35 +28,58 @@ def test_no_curtail_when_batteries_can_absorb() -> None:
     assert r.limit_total_w == 1000.0
 
 
-def test_curtails_excess_when_saturated_and_exporting() -> None:
+def test_curtails_gradually_when_saturated_and_exporting() -> None:
+    # Each move trims at most ramp_w (200), converging instead of slamming to 0.
     c = _ctrl()
-    r = c.step(pv_total_w=1000.0, grid_w=-300.0, setpoint_w=0.0, batteries_saturated=True)
-    assert r.limit_total_w == pytest.approx(700.0)  # 1000 - 300 export
+    r = c.step(pv_total_w=1000.0, grid_w=-500.0, setpoint_w=0.0, batteries_saturated=True)
+    assert r.limit_total_w == pytest.approx(800.0)  # 1000 - min(500, 200)
     assert r.curtailing is True
+    r = c.step(pv_total_w=800.0, grid_w=-300.0, setpoint_w=0.0, batteries_saturated=True)
+    assert r.limit_total_w == pytest.approx(600.0)  # another 200
+
+
+def test_small_excess_step_is_not_capped() -> None:
+    c = _ctrl()
+    r = c.step(pv_total_w=1000.0, grid_w=-120.0, setpoint_w=0.0, batteries_saturated=True)
+    assert r.limit_total_w == pytest.approx(880.0)  # 1000 - min(120, 200)
 
 
 def test_holds_limit_at_balance() -> None:
     c = _ctrl()
-    c.step(pv_total_w=1000.0, grid_w=-300.0, setpoint_w=0.0, batteries_saturated=True)  # → 700
-    r = c.step(pv_total_w=700.0, grid_w=0.0, setpoint_w=0.0, batteries_saturated=True)
-    assert r.limit_total_w == pytest.approx(700.0)  # balanced → hold
+    c.step(pv_total_w=1000.0, grid_w=-300.0, setpoint_w=0.0, batteries_saturated=True)  # → 800
+    r = c.step(pv_total_w=800.0, grid_w=0.0, setpoint_w=0.0, batteries_saturated=True)
+    assert r.limit_total_w == pytest.approx(800.0)  # balanced → hold
 
 
 def test_relaxes_when_importing() -> None:
     c = _ctrl()
-    c.step(pv_total_w=1000.0, grid_w=-300.0, setpoint_w=0.0, batteries_saturated=True)  # → 700
-    r = c.step(pv_total_w=700.0, grid_w=200.0, setpoint_w=0.0, batteries_saturated=False)
-    assert r.limit_total_w == pytest.approx(900.0)  # 700 + 200 ramp
+    c.step(pv_total_w=1000.0, grid_w=-500.0, setpoint_w=0.0, batteries_saturated=True)  # → 800
+    r = c.step(pv_total_w=800.0, grid_w=300.0, setpoint_w=0.0, batteries_saturated=False)
+    assert r.limit_total_w == pytest.approx(1000.0)  # 800 + 200 ramp
 
 
 def test_relaxes_back_to_peak_when_batteries_free() -> None:
     c = _ctrl()
-    c.step(pv_total_w=1000.0, grid_w=-300.0, setpoint_w=0.0, batteries_saturated=True)  # → 700
+    c.step(pv_total_w=1000.0, grid_w=-500.0, setpoint_w=0.0, batteries_saturated=True)  # → 800
+    c.step(pv_total_w=800.0, grid_w=-500.0, setpoint_w=0.0, batteries_saturated=True)  # → 600
     # batteries no longer saturated → relax even at balance
-    c.step(pv_total_w=700.0, grid_w=0.0, setpoint_w=0.0, batteries_saturated=False)  # → 900
-    r = c.step(pv_total_w=900.0, grid_w=0.0, setpoint_w=0.0, batteries_saturated=False)  # → 1000
+    c.step(pv_total_w=600.0, grid_w=0.0, setpoint_w=0.0, batteries_saturated=False)  # → 800
+    r = c.step(pv_total_w=800.0, grid_w=0.0, setpoint_w=0.0, batteries_saturated=False)  # → 1000
     assert r.limit_total_w == pytest.approx(1000.0)
     assert r.curtailing is False
+
+
+def test_settle_window_holds_between_moves() -> None:
+    c = _ctrl(settle_ticks=3)
+    r = c.step(pv_total_w=1000.0, grid_w=-500.0, setpoint_w=0.0, batteries_saturated=True)
+    assert r.limit_total_w == pytest.approx(800.0)  # first move allowed
+    # next two ticks fall inside the settle window → hold
+    for _ in range(2):
+        r = c.step(pv_total_w=800.0, grid_w=-500.0, setpoint_w=0.0, batteries_saturated=True)
+        assert r.limit_total_w == pytest.approx(800.0)
+    # settle elapsed → may move again
+    r = c.step(pv_total_w=800.0, grid_w=-500.0, setpoint_w=0.0, batteries_saturated=True)
+    assert r.limit_total_w == pytest.approx(600.0)
 
 
 def test_reset_releases_curtailment() -> None:

@@ -38,6 +38,9 @@ CONF_MAX_RAMP_W: Final = "max_ramp_w"
 CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
 CONF_ZI_SETTLE_TICKS: Final = "zi_settle_ticks"
 CONF_ZI_SETTLE_MIN_DROP_W: Final = "zi_settle_min_drop_w"
+CONF_CURTAILMENT_RAMP_W: Final = "curtailment_ramp_w"
+CONF_CURTAILMENT_DEADBAND_W: Final = "curtailment_deadband_w"
+CONF_CURTAILMENT_SETTLE_TICKS: Final = "curtailment_settle_ticks"
 CONF_BACKUP_RESERVE_SOC_PCT: Final = "backup_reserve_soc_pct"
 CONF_BASELINE_WINDOW_START_H: Final = "baseline_window_start_h"
 CONF_BASELINE_WINDOW_END_H: Final = "baseline_window_end_h"
@@ -112,6 +115,13 @@ DEFAULT_ZI_SETTLE_TICKS: Final = 2
 # Only load drops at/above this power (W) arm the settle hold; smaller steps are
 # left to the normal regulation + grid median filter.
 DEFAULT_ZI_SETTLE_MIN_DROP_W: Final = 300
+# PV curtailment anti-yoyo: max change of the inverter output limit per move (W),
+# the export deadband around the setpoint, and the settle window (ticks held after
+# each move so the inverter's dead-time + the meter catch up). Gradual + settle
+# converge the limit on the balance instead of slamming between 0 and peak.
+DEFAULT_CURTAILMENT_RAMP_W: Final = 150
+DEFAULT_CURTAILMENT_DEADBAND_W: Final = 50
+DEFAULT_CURTAILMENT_SETTLE_TICKS: Final = 3
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1

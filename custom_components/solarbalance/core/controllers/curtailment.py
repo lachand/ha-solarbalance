@@ -11,6 +11,12 @@ while batteries are saturated and the grid exports past its setpoint, and only
 raised again when the batteries can absorb again or the grid imports (so more PV
 can be used). At balance it holds.
 
+Anti-yoyo: moves are **gradual** (at most ``ramp_w`` per move, both directions) so
+the limit converges on the balance instead of slamming between 0 and peak, and a
+**settle window** (``settle_ticks``) holds the limit for a few ticks after each
+move so the inverter's dead-time and the meter can catch up — writing a new limit
+every tick out-runs the measurement and produces a 0↔peak sawtooth.
+
 Pure module — no Home Assistant imports.
 """
 
@@ -30,7 +36,12 @@ class CurtailmentController:
     """Sticky aggregate PV output limit, ramped to avoid oscillation."""
 
     def __init__(
-        self, *, peak_total_w: float, deadband_w: float = 50.0, ramp_w: float = 200.0
+        self,
+        *,
+        peak_total_w: float,
+        deadband_w: float = 50.0,
+        ramp_w: float = 150.0,
+        settle_ticks: int = 3,
     ) -> None:
         if peak_total_w < 0:
             raise ValueError("peak_total_w must be non-negative")
@@ -41,7 +52,9 @@ class CurtailmentController:
         self._peak_total_w = peak_total_w
         self._deadband_w = deadband_w
         self._ramp_w = ramp_w
+        self._settle_ticks = max(1, int(settle_ticks))
         self._limit_w = peak_total_w  # start unrestricted
+        self._since_move = self._settle_ticks  # allow an immediate first move
 
     @property
     def limit_w(self) -> float:
@@ -51,6 +64,7 @@ class CurtailmentController:
     def reset_to_unlimited(self) -> None:
         """Release any curtailment (e.g. when suspended/degraded)."""
         self._limit_w = self._peak_total_w
+        self._since_move = self._settle_ticks
 
     def step(
         self,
@@ -70,15 +84,34 @@ class CurtailmentController:
                 charge demand this tick (full) — curtailment may engage.
         """
         export_excess_w = setpoint_w - grid_w  # > 0 → exporting more than allowed
-        if batteries_saturated and export_excess_w > self._deadband_w:
-            # Remove the un-absorbable surplus from PV output (only tighten).
-            self._limit_w = min(self._limit_w, max(0.0, pv_total_w - export_excess_w))
-        elif self._limit_w < self._peak_total_w and (
-            not batteries_saturated or grid_w > setpoint_w + self._deadband_w
-        ):
-            # Headroom returned (batteries free, or importing) → relax toward peak.
-            self._limit_w = min(self._peak_total_w, self._limit_w + self._ramp_w)
+        # Settle window: hold the limit for a few ticks after each move so the
+        # inverter + meter catch up (writing every tick out-runs the dead-time and
+        # yoyos between 0 and peak).
+        self._since_move += 1
+        if self._since_move < self._settle_ticks:
+            return CurtailmentResult(
+                limit_total_w=self._limit_w,
+                curtailing=self._limit_w < self._peak_total_w - 1e-6,
+            )
 
+        moved = False
+        if batteries_saturated and export_excess_w > self._deadband_w:
+            # Trim the un-absorbable surplus gradually (at most ramp_w per move) so
+            # the limit converges on the balance instead of slamming to zero.
+            new_limit = max(0.0, self._limit_w - min(export_excess_w, self._ramp_w))
+            if new_limit < self._limit_w - 1e-6:
+                self._limit_w = new_limit
+                moved = True
+        elif self._limit_w < self._peak_total_w and (
+            not batteries_saturated or -export_excess_w > self._deadband_w
+        ):
+            # Headroom returned (batteries free, or importing past the deadband) →
+            # relax gently toward peak.
+            self._limit_w = min(self._peak_total_w, self._limit_w + self._ramp_w)
+            moved = True
+
+        if moved:
+            self._since_move = 0
         self._limit_w = max(0.0, min(self._peak_total_w, self._limit_w))
         return CurtailmentResult(
             limit_total_w=self._limit_w,

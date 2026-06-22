@@ -68,6 +68,7 @@
           "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
           "zi_settle_ticks": "Anti-yoyo : ticks de gel ZI après coupure d'un load",
           "zi_settle_min_drop_w": "Anti-yoyo : seuil de puissance coupée (W)",
+          "curtailment_ramp_w": "Bridage : pas max de la limite par mouvement (W)",
           "phases": "Nombre de phases",
           "subscribed_power_kva": "Puissance souscrite (kVA)",
           "backup_reserve_soc_pct": "Réserve backup (SoC %)",
@@ -105,7 +106,9 @@
           "stop_cloud_charge": "Stopper une batterie cloud qui se charge : couper la décharge du parc à 0 (importe pour la maison) pour qu'elle arrête de charger",
           "local_ac_load_entities": "Capteurs de conso prise AC locale (ex. prises du STREAM) — exclus de la boucle réseau pour que leurs cycles ne la perturbent pas",
           "volatility_damper_enabled": "Amortisseur de volatilité adaptatif : lisse davantage le réseau sur les charges moteur (la batterie suit la moyenne, pas de yoyo)",
-          "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive"
+          "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive",
+          "curtailment_deadband_w": "Bridage : bande morte d'injection (W)",
+          "curtailment_settle_ticks": "Bridage : fenêtre de stabilisation (ticks tenus après chaque mouvement)"
         }
       },
       "forecast": {
