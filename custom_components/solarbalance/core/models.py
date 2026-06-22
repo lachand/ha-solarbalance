@@ -130,7 +130,22 @@ class BatteryRole:
     charge_power_setpoint_entity: str | None = None
     """HA entity (number/input_number) receiving the charge power setpoint (W)."""
     mode_setpoint_entity: str | None = None
-    """HA select/input_select receiving the operating mode (charge/discharge/idle)."""
+    """HA select/input_select receiving the operating mode. The publisher writes
+    ``charge_mode_option`` / ``discharge_mode_option`` / ``idle_mode_option`` to it.
+    Defaults to the canonical ``charge`` / ``discharge`` / ``idle`` strings (bridge
+    to vendor labels with a template select); set the options to point the entity
+    straight at a vendor mode select (e.g. an EcoFlow STREAM ``energy_strategy``
+    with ``scheduled`` / ``self_powered``)."""
+    charge_mode_option: str = "charge"
+    """Option written to ``mode_setpoint_entity`` to put the battery in charge."""
+    discharge_mode_option: str = "discharge"
+    """Option written to ``mode_setpoint_entity`` to put the battery in discharge."""
+    idle_mode_option: str | None = None
+    """Option written to ``mode_setpoint_entity`` when idle. When ``None`` the mode
+    is left untouched at idle (only the active-direction power is zeroed)."""
+    mode_switch_zeroes_opposite: bool = True
+    """When mode-based, zero the opposite-direction power before switching mode
+    (one-direction-at-a-time devices like the STREAM need a clean switch)."""
     reserve_soc_setpoint_entity: str | None = None
     """HA entity (number/input_number) receiving the battery's backup-reserve /
     minimum-SoC setpoint (%). SolarBalance raises it to the storm target during

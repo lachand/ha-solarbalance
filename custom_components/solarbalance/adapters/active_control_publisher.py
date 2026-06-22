@@ -41,6 +41,10 @@ class _Managed:
     charge_entity: str | None
     discharge_entity: str | None
     mode_entity: str | None
+    charge_option: str
+    discharge_option: str
+    idle_option: str | None
+    mode_zeroes_opposite: bool
     soc_floor: float
     soc_ceiling: float
 
@@ -59,6 +63,10 @@ class ActiveControlPublisher:
                 charge_entity=battery.charge_power_setpoint_entity,
                 discharge_entity=battery.discharge_power_setpoint_entity,
                 mode_entity=battery.mode_setpoint_entity,
+                charge_option=battery.charge_mode_option,
+                discharge_option=battery.discharge_mode_option,
+                idle_option=battery.idle_mode_option,
+                mode_zeroes_opposite=battery.mode_switch_zeroes_opposite,
                 soc_floor=float(battery.soc_min_pct) + _SOC_MARGIN_PCT,
                 soc_ceiling=float(battery.soc_max_pct) - _SOC_MARGIN_PCT,
             )
@@ -171,19 +179,52 @@ class ActiveControlPublisher:
                     discharge_w = 0.0
                 if soc >= m.soc_ceiling:
                     charge_w = 0.0
-            if m.discharge_entity is not None:
-                await self._write_power(m.discharge_entity, discharge_w)
-            if m.charge_entity is not None:
-                await self._write_power(m.charge_entity, charge_w)
             if m.mode_entity is not None:
-                mode = (
-                    "charge"
-                    if charge_w > _WRITE_EPSILON_W
-                    else "discharge"
-                    if discharge_w > _WRITE_EPSILON_W
-                    else "idle"
-                )
-                await self._write_mode(m.mode_entity, mode)
+                await self._apply_mode_battery(m, charge_w, discharge_w)
+            else:
+                if m.discharge_entity is not None:
+                    await self._write_power(m.discharge_entity, discharge_w)
+                if m.charge_entity is not None:
+                    await self._write_power(m.charge_entity, charge_w)
+
+    async def _apply_mode_battery(self, m: _Managed, charge_w: float, discharge_w: float) -> None:
+        """Drive a mode-based battery (e.g. STREAM): one direction at a time.
+
+        On a mode change the opposite-direction power is zeroed and the mode is
+        switched **before** the new direction's power is set, in order, blocking —
+        a one-direction-at-a-time inverter ignores a power written in the wrong
+        mode. In steady state nothing switches and the writes are cheap (latched).
+        """
+        assert m.mode_entity is not None
+        if charge_w > _WRITE_EPSILON_W:
+            option, active_entity, active_w, opposite = (
+                m.charge_option,
+                m.charge_entity,
+                charge_w,
+                m.discharge_entity,
+            )
+        elif discharge_w > _WRITE_EPSILON_W:
+            option, active_entity, active_w, opposite = (
+                m.discharge_option,
+                m.discharge_entity,
+                discharge_w,
+                m.charge_entity,
+            )
+        else:  # idle — zero both, optionally switch to an idle mode
+            if m.discharge_entity is not None:
+                await self._write_power(m.discharge_entity, 0.0)
+            if m.charge_entity is not None:
+                await self._write_power(m.charge_entity, 0.0)
+            if m.idle_option is not None:
+                await self._write_mode(m.mode_entity, m.idle_option)
+            return
+
+        switching = self._last_mode.get(m.mode_entity) != option
+        if switching and m.mode_zeroes_opposite and opposite is not None:
+            await self._write_power(opposite, 0.0, blocking=True)
+        await self._write_mode(m.mode_entity, option, blocking=switching)
+        if active_entity is not None:
+            await self._write_power(active_entity, active_w, blocking=switching)
 
     async def reset(self) -> None:
         """Command all managed power setpoints to 0 W (e.g. when suspended)."""
@@ -193,7 +234,7 @@ class ActiveControlPublisher:
             if m.charge_entity is not None:
                 await self._write_power(m.charge_entity, 0.0)
 
-    async def _write_power(self, entity_id: str, value_w: float) -> None:
+    async def _write_power(self, entity_id: str, value_w: float, *, blocking: bool = False) -> None:
         last = self._last_power.get(entity_id)
         if last is not None and abs(last - value_w) < _WRITE_EPSILON_W:
             return
@@ -203,7 +244,7 @@ class ActiveControlPublisher:
                 service_domain,
                 "set_value",
                 {"entity_id": entity_id, "value": round(value_w, 1)},
-                blocking=False,
+                blocking=blocking,
             )
         except Exception:
             _LOGGER.exception("Active control: failed to write %s = %.0f W", entity_id, value_w)
@@ -211,7 +252,7 @@ class ActiveControlPublisher:
         self._last_power[entity_id] = value_w
         _LOGGER.debug("Active control: %s <- %.0f W", entity_id, value_w)
 
-    async def _write_mode(self, entity_id: str, mode: str) -> None:
+    async def _write_mode(self, entity_id: str, mode: str, *, blocking: bool = False) -> None:
         if self._last_mode.get(entity_id) == mode:
             return
         service_domain = "input_select" if entity_id.startswith("input_select.") else "select"
@@ -220,7 +261,7 @@ class ActiveControlPublisher:
                 service_domain,
                 "select_option",
                 {"entity_id": entity_id, "option": mode},
-                blocking=False,
+                blocking=blocking,
             )
         except Exception:
             _LOGGER.exception("Active control: failed to set %s mode = %s", entity_id, mode)

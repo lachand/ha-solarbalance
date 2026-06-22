@@ -37,6 +37,42 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta16] — 2026-06-22
+
+### Added
+
+- **Contrôle de la charge des batteries « à changement de mode » (générique) —
+  1ᵉʳ client : EcoFlow STREAM.** On peut désormais piloter la **charge** d'une
+  batterie qui n'expose pas un setpoint signé mais un **sélecteur de mode** (ex.
+  STREAM via l'intégration *Unofficial EcoFlow BLE* : `energy_strategy`
+  `scheduled`/`self_powered`). Le `mode_setpoint_entity` (déjà présent) reçoit des
+  **options de mode configurables** :
+  - `charge_mode_option` (défaut `charge`), `discharge_mode_option` (défaut
+    `discharge`), `idle_mode_option` (défaut **vide** = mode laissé tel quel à
+    l'arrêt), `mode_switch_zeroes_opposite` (défaut vrai).
+  - Au **changement de direction**, le publisher exécute la séquence **dans
+    l'ordre et en bloquant** : met à zéro la direction opposée → bascule le mode →
+    écrit la puissance de la nouvelle direction (un onduleur mono-direction ignore
+    une puissance écrite dans le mauvais mode). En régime établi, rien ne bascule
+    (writes latchés). Le `backup_reserve` est déjà poussé chaque tick.
+  - **Générique** : les batteries à setpoint signé simple sont **inchangées** ;
+    n'importe quelle marque avec un select de mode se câble via ses propres
+    options. Exemple STREAM : `mode_setpoint_entity=select.ef_..._energy_strategy`,
+    `charge_mode_option=scheduled`, `discharge_mode_option=self_powered`,
+    `charge_power_setpoint_entity=number.ef_..._charging_power_limit`,
+    `discharge_power_setpoint_entity=number.ef_..._base_load_power`,
+    `reserve_soc_setpoint_entity=number.ef_..._backup_reserve`.
+  - Bénéfice : SB **stocke le surplus dans la STREAM** au lieu de brider l'onduleur
+    (beta15) ou d'exporter → meilleure autoconso.
+
+### Changed
+
+- **Mode à l'arrêt** : par défaut, le `mode_setpoint_entity` n'est **plus** forcé à
+  `idle` quand la batterie est au repos (un sélecteur de stratégie vendeur n'a
+  souvent pas d'option « idle » → écriture en erreur). Les puissances sont mises à
+  zéro de toute façon. Pour retrouver l'ancien comportement, définir
+  `idle_mode_option: idle`.
+
 ## [2.0.7-beta15] — 2026-06-17
 
 ### Fixed
@@ -825,6 +861,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta16]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta15...v2.0.7-beta16
 [2.0.7-beta15]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta14...v2.0.7-beta15
 [2.0.7-beta14]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta13...v2.0.7-beta14
 [2.0.7-beta13]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta12...v2.0.7-beta13

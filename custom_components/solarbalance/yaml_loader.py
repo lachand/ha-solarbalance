@@ -74,6 +74,10 @@ _BATTERY_SCHEMA = vol.Schema(
         vol.Optional("discharge_power_setpoint_entity"): _ENTITY,
         vol.Optional("charge_power_setpoint_entity"): _ENTITY,
         vol.Optional("mode_setpoint_entity"): _ENTITY,
+        vol.Optional("charge_mode_option", default="charge"): str,
+        vol.Optional("discharge_mode_option", default="discharge"): str,
+        vol.Optional("idle_mode_option"): str,
+        vol.Optional("mode_switch_zeroes_opposite", default=True): bool,
         vol.Optional("reserve_soc_setpoint_entity"): _ENTITY,
         vol.Optional("ac_charge_limit_w"): vol.Coerce(int),
     }
@@ -266,6 +270,10 @@ def _build_battery_role(raw: Mapping[str, Any]) -> BatteryRole:
         discharge_power_setpoint_entity=raw.get("discharge_power_setpoint_entity"),
         charge_power_setpoint_entity=raw.get("charge_power_setpoint_entity"),
         mode_setpoint_entity=raw.get("mode_setpoint_entity"),
+        charge_mode_option=raw.get("charge_mode_option", "charge"),
+        discharge_mode_option=raw.get("discharge_mode_option", "discharge"),
+        idle_mode_option=raw.get("idle_mode_option"),
+        mode_switch_zeroes_opposite=raw.get("mode_switch_zeroes_opposite", True),
         reserve_soc_setpoint_entity=raw.get("reserve_soc_setpoint_entity"),
         ac_charge_limit_w=raw.get("ac_charge_limit_w"),
     )
