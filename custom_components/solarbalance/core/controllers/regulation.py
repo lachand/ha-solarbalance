@@ -15,6 +15,8 @@ used. A slew-rate limit then caps the per-tick change as a hard safety belt.
 Pure module — no Home Assistant imports.
 """
 
+from dataclasses import dataclass
+
 
 def resolve_fleet_target_w(
     *,
@@ -129,6 +131,78 @@ def predictive_steering_w(
     if is_expensive and planner_w < base_target_w:
         return planner_w - base_target_w
     return 0.0
+
+
+@dataclass(frozen=True, slots=True)
+class RegulationInputs:
+    """All inputs to the aggregate-target clamp pipeline (see resolve_total_power)."""
+
+    zi_regulating: bool
+    current_fleet_w: float
+    zi_correction_w: float
+    absolute_target_w: float
+    steering_w: float
+    eq_bias_w: float
+    grid_filtered_w: float
+    controllable_mppt_w: float
+    nc_charge_offset_w: float
+    noncontrollable_charging: bool
+    noncontrollable_charge_w: float
+    zi_hysteresis_w: float
+    no_battery_export: bool
+    stop_cloud_charge: bool
+    max_import_w: float | None
+    max_export_w: float | None
+
+
+def resolve_total_power(inp: RegulationInputs) -> float:
+    """Aggregate fleet target after the full clamp pipeline (positive = charge).
+
+    Single pure place for the sequence the coordinator used to inline: base target
+    → equaliser offer → no-export → no-charge floor → no-feed / stop-cloud → grid
+    constraints. Mode caps (vacation) and the slew limit stay in the caller.
+    Behaviour-preserving extraction — see tests/integration/
+    test_regulation_combinations.py and tests/core/controllers/test_regulation.py.
+    """
+    total_w = resolve_fleet_target_w(
+        zi_regulating=inp.zi_regulating,
+        current_fleet_w=inp.current_fleet_w,
+        zi_correction_w=inp.zi_correction_w,
+        absolute_target_w=inp.absolute_target_w,
+        steering_w=inp.steering_w,
+    )
+    if inp.zi_regulating:
+        # SoC-equaliser offer as a direct floor/ceiling on the fleet target.
+        total_w = apply_equaliser_offer(total_w, inp.eq_bias_w)
+        # Strict self-consumption: never discharge the fleet into the grid.
+        if inp.no_battery_export:
+            total_w = clamp_discharge_no_export(total_w, inp.current_fleet_w, inp.grid_filtered_w)
+        # No-charge floor: in surplus (and no cloud battery absorbing it, no
+        # equaliser charge intent), don't charge from the grid / a discharging
+        # cloud battery — floor the output at the fleet's own solar.
+        if (
+            inp.grid_filtered_w >= -inp.zi_hysteresis_w
+            and inp.eq_bias_w >= 0.0
+            and not inp.noncontrollable_charging
+        ):
+            total_w = min(total_w, -inp.controllable_mppt_w)
+        # No-feed: don't discharge the fleet to feed a self-charging cloud battery
+        # (it draws from the grid instead). stop_cloud_charge additionally cuts the
+        # discharge to 0 to starve it — but only in a surplus context, never while a
+        # real load is importing (else it dumps the load on the grid and yoyos).
+        if inp.nc_charge_offset_w > 0.0:
+            total_w = max(
+                total_w, inp.nc_charge_offset_w - inp.grid_filtered_w + inp.current_fleet_w
+            )
+            real_load_w = inp.grid_filtered_w - inp.current_fleet_w - inp.noncontrollable_charge_w
+            if inp.stop_cloud_charge and real_load_w <= inp.zi_hysteresis_w:
+                total_w = max(total_w, 0.0)
+    # Grid constraints (honour the breaker/contract regardless of the regulator).
+    if inp.max_import_w is not None:
+        total_w = min(total_w, inp.max_import_w - inp.grid_filtered_w + inp.current_fleet_w)
+    if inp.max_export_w is not None:
+        total_w = max(total_w, -inp.max_export_w - inp.grid_filtered_w + inp.current_fleet_w)
+    return total_w
 
 
 def apply_slew_limit(

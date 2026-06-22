@@ -152,12 +152,11 @@ from .core.controllers.load_dispatch import LoadCommand, LoadDispatchController
 from .core.controllers.load_settle import SettleState, advance_settle, arm_settle
 from .core.controllers.overload import SheddableLoad, relieve_overload
 from .core.controllers.regulation import (
-    apply_equaliser_offer,
+    RegulationInputs,
     apply_slew_limit,
-    clamp_discharge_no_export,
     noncontrollable_charge_offset_w,
     predictive_steering_w,
-    resolve_fleet_target_w,
+    resolve_total_power,
 )
 from .core.controllers.soc_equaliser import SocEqualiserController
 from .core.controllers.zero_injection import (
@@ -1571,6 +1570,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # Smooth the fleet base when volatile (noisy MPPT / battery hunting) so
             # the ZI target doesn't jitter through current_fleet.
             current_fleet_w = self._fleet_damper.update(current_fleet_w)
+        # Natural grid = the grid the fleet would face if it did nothing. Invariant
+        # to the fleet's own action, so it is the reference for deficit detection
+        # and the cloud-charge guards (the raw grid sits at ~0 once the fleet covers
+        # the house). Computed once and reused.
+        natural_grid_w = grid_filtered_w - current_fleet_w
         zi_correction_w = 0.0
         eq_bias_w = 0.0
         nc_charge_offset_w = 0.0
@@ -1596,7 +1600,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # Deficit = the house needs more than the fleet provides. Detected on
             # the *natural* grid (grid - fleet), invariant to what the fleet does
             # (the raw grid sits at ~0 because the batteries cover the house).
-            is_deficit = (grid_filtered_w - current_fleet_w) > self._zi_hysteresis_w
+            is_deficit = natural_grid_w > self._zi_hysteresis_w
             eq_bias_w = self._equaliser_bias(snapshot, grid_filtered_w, deficit=is_deficit)
             # In a deficit the offer steers the discharge share to converge SoC
             # (higher-SoC battery carries more). Unidirectional (default) only lets
@@ -1615,7 +1619,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # as a direct floor on the fleet target below (apply_equaliser_offer).
             force_offset_w = self._force_charge_grid_offset_w(snapshot)
             nc_charge_offset_w = self._noncontrollable_charge_offset_w(
-                snapshot, grid_filtered_w - current_fleet_w, force_offset_w
+                snapshot, natural_grid_w, force_offset_w
             )
             effective_setpoint_w = self._zi_setpoint_w + force_offset_w + nc_charge_offset_w
             if (
@@ -1702,94 +1706,40 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     ts, threshold=DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD
                 ),
             )
-        total_power_w = resolve_fleet_target_w(
-            zi_regulating=zi_regulating,
-            current_fleet_w=current_fleet_w,
-            zi_correction_w=zi_correction_w,
-            absolute_target_w=absolute_target_w,
-            steering_w=steering_w,
+        # Non-controllable (cloud) battery charge — used by the no-charge floor and
+        # the no-feed / stop-cloud guards inside the clamp pipeline.
+        noncontrollable_charge_w = sum(
+            b.power_w
+            for b in snapshot.batteries
+            if b.available
+            and not b.stale
+            and b.device_name not in self._controllable_battery_names
+            and b.power_w > self._zi_hysteresis_w
         )
-        # SoC equaliser: force at least `offer` of fleet discharge (or charge) so it
-        # can push the controllable fleet's PV into a below-target automatic battery
-        # even while the fleet is charging. Only when ZI regulates (else the offer
-        # is 0). The balancing controller and SoC floors bound the actual write.
-        if zi_regulating:
-            total_power_w = apply_equaliser_offer(total_power_w, eq_bias_w)
-            # Strict self-consumption (opt-in): never discharge the fleet into the
-            # grid. Caps the discharge so the projected grid does not export,
-            # enforcing grid >= 0 from the battery in a single tick (direct
-            # projection) instead of the slow PI wind-down. Reduces a discharge
-            # only; a PV surplus still exports freely. Off by default so injection
-            # stays possible (e.g. to force-charge a non-controllable battery).
-            if self._no_battery_export:
-                total_power_w = clamp_discharge_no_export(
-                    total_power_w, current_fleet_w, grid_filtered_w
-                )
-            # Self-consumption: don't charge the controllable battery from the grid
-            # or from a discharging non-controllable battery. Floor the target at
-            # the fleet's own solar (output >= PV, so the battery never charges),
-            # which makes the stream cover the house with its solar instead of
-            # hoarding it while the cloud battery over-discharges to compensate.
-            # Bypassed when there is a real surplus to store -- grid exporting OR a
-            # non-controllable battery is charging (it absorbs surplus, which masks
-            # it on the meter, so the fleet should charge its own solar instead of
-            # feeding the already-higher cloud battery) -- or when the equaliser
-            # intentionally wants to charge the fleet (negative offer).
-            noncontrollable_charge_w = sum(
-                b.power_w
-                for b in snapshot.batteries
-                if b.available
-                and not b.stale
-                and b.device_name not in self._controllable_battery_names
-                and b.power_w > self._zi_hysteresis_w
-            )
-            noncontrollable_charging = noncontrollable_charge_w > 0.0
-            if (
-                grid_filtered_w >= -self._zi_hysteresis_w
-                and eq_bias_w >= 0.0
-                and not noncontrollable_charging
-            ):
-                total_power_w = min(total_power_w, -controllable_mppt_w)
-            # Don't discharge the fleet to feed a self-charging cloud battery.
-            # The setpoint feed-forward already biases the loop, but the slow PI
-            # ramp lets the fleet discharge into the cloud battery's charge for a
-            # while. Cap the discharge directly so the projected grid stays >= the
-            # tolerated cloud-charge import (single tick): the cloud battery draws
-            # from the grid, not from the controllable fleet.
-            if nc_charge_offset_w > 0.0:
-                no_feed_floor = nc_charge_offset_w - grid_filtered_w + current_fleet_w
-                total_power_w = max(total_power_w, no_feed_floor)
-                # Opt-in: starve the cloud battery's charge. Instead of just not
-                # feeding it (the cloud then draws from the grid), force the fleet
-                # to stop discharging entirely (target >= 0): the house draws from
-                # the grid, the local output the cloud battery feeds on disappears,
-                # so it stops charging. Imports for the house while active.
-                #
-                # Only when the grid import is essentially the cloud's charge itself
-                # (surplus context). With a real load present (e.g. an EV), the
-                # import is the load, not the cloud: cutting the fleet then would
-                # dump the load on the grid and yoyo against the cloud's bursty
-                # charging without stopping it (it draws from the grid anyway).
-                real_load_w = grid_filtered_w - current_fleet_w - noncontrollable_charge_w
-                if self._stop_cloud_charge and real_load_w <= self._zi_hysteresis_w:
-                    total_power_w = max(total_power_w, 0.0)
-
-        # Apply grid constraints: clamp the aggregate battery target so the
-        # projected grid exchange honours max_import_w and max_export_w. Only the
-        # controllable fleet moves, so the projection uses the controllable fleet
-        # power (not all batteries) and the same filtered grid as the regulator:
-        #   new_grid ≈ grid_filtered + (target_fleet - current_fleet)
+        # Whole aggregate-target clamp pipeline, extracted to a single pure function
+        # (base target → equaliser offer → no-export → no-charge floor → no-feed /
+        # stop-cloud → grid constraints). See core/controllers/regulation.
         gc = result.decision.grid_constraint
-        if gc.max_import_w is not None:
-            total_power_w = min(
-                total_power_w,
-                gc.max_import_w - grid_filtered_w + current_fleet_w,
+        total_power_w = resolve_total_power(
+            RegulationInputs(
+                zi_regulating=zi_regulating,
+                current_fleet_w=current_fleet_w,
+                zi_correction_w=zi_correction_w,
+                absolute_target_w=absolute_target_w,
+                steering_w=steering_w,
+                eq_bias_w=eq_bias_w,
+                grid_filtered_w=grid_filtered_w,
+                controllable_mppt_w=controllable_mppt_w,
+                nc_charge_offset_w=nc_charge_offset_w,
+                noncontrollable_charging=noncontrollable_charge_w > 0.0,
+                noncontrollable_charge_w=noncontrollable_charge_w,
+                zi_hysteresis_w=self._zi_hysteresis_w,
+                no_battery_export=self._no_battery_export,
+                stop_cloud_charge=self._stop_cloud_charge,
+                max_import_w=gc.max_import_w,
+                max_export_w=gc.max_export_w,
             )
-        if gc.max_export_w is not None:
-            total_power_w = max(
-                total_power_w,
-                -gc.max_export_w - grid_filtered_w + current_fleet_w,
-            )
+        )
 
         # Vacation mode: cap charging at the vacation SoC ceiling to limit calendar
         # ageing while away. Discharge stays allowed; only the charge direction is
@@ -1827,7 +1777,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             fleet_target_w=total_power_w,
             regulating=zi_regulating,
             pv_limit_w=pv_limit_total,
-            natural_grid_w=grid_filtered_w - current_fleet_w,
+            natural_grid_w=natural_grid_w,
             autotune_zi_kp=self._zi_tuner.value if self._zi_tuner else 0.0,
             autotune_equaliser_step_w=self._eq_tuner.value if self._eq_tuner else 0.0,
         )

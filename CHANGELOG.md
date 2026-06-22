@@ -37,7 +37,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.7-beta24] — 2026-06-22
+## [2.0.7-beta25] — 2026-06-22
+
+### Changed
+
+- **Régulation vérifiable : pipeline de clamps extraite en fonction pure
+  (refactor, sans changement de comportement).** Toute la séquence qui résout la
+  cible parc (cible de base → offre équaliseur → no-export → plancher no-charge →
+  no-feed / stop-cloud → contraintes réseau) vit désormais dans une **fonction
+  pure** `resolve_total_power(RegulationInputs)`
+  ([core/controllers/regulation.py](custom_components/solarbalance/core/controllers/regulation.py)),
+  au lieu d'être disséminée dans le tick du coordinator. Bénéfices : lisible d'un
+  bloc, **testable unitairement** (mypy `--strict`, sans Home Assistant), et les
+  **combinaisons d'options** sont enfin couvertes.
+- **`natural_grid` unifié** : le « réseau naturel » (`grid − parc`, invariant à
+  l'action du parc) est calculé **une seule fois** et réutilisé (détection de
+  déficit, garde-fous cloud, diagnostic) au lieu de trois calculs séparés.
+
+### Tests
+
+- **Matrice de combinaisons d'options** (10 tests purs sur `resolve_total_power` :
+  surplus/déficit, no-export, plancher no-charge, no-feed, stop-cloud
+  surplus-vs-charge, offre équaliseur, contraintes réseau) + **4 tests de
+  caractérisation e2e** figeant le comportement actuel. Filet anti-régression
+  d'interactions. **497 tests** au total, mypy `--strict` et `core/` pur OK.
 
 ### Fixed
 
@@ -973,6 +996,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta25]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta24...v2.0.7-beta25
 [2.0.7-beta24]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta23...v2.0.7-beta24
 [2.0.7-beta23]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta22...v2.0.7-beta23
 [2.0.7-beta22]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta21...v2.0.7-beta22
