@@ -37,6 +37,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta20] — 2026-06-22
+
+### Changed
+
+- **Vie privée : suppression d'un n° de série de micro-onduleur réel du test.**
+  `ef_bk1611` (exemple concret dans un test de preset) remplacé par le placeholder
+  `ef_bkxxxx`. Aucun impact fonctionnel (préfixe découvert à l'exécution).
+
 ## [2.0.7-beta19] — 2026-06-22
 
 ### Added
@@ -906,6 +914,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta20]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta19...v2.0.7-beta20
 [2.0.7-beta19]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta18...v2.0.7-beta19
 [2.0.7-beta18]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta17...v2.0.7-beta18
 [2.0.7-beta17]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta16...v2.0.7-beta17

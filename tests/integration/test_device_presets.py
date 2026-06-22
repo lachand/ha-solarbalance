@@ -63,15 +63,15 @@ def test_stream_preset_autodetects_entities_and_options() -> None:
 def test_stream_inverter_preset_autodetects_curtailment() -> None:
     # The STREAM's micro-inverter is a separate ef_bk… device, added as MPPT only.
     ids = [
-        "number.ef_bk1611_maximum_output_power",
-        "sensor.ef_bk1611_grid_power",
-        "sensor.ef_bk1611_pv_1_power",
+        "number.ef_bkxxxx_maximum_output_power",
+        "sensor.ef_bkxxxx_grid_power",
+        "sensor.ef_bkxxxx_pv_1_power",
     ]
     h = _handler(MpptSubentryFlowHandler, ids)
     d = h._preset_defaults("stream_inverter")
-    assert d["name"] == "EcoFlow STREAM inverter bk1611"
-    assert d["power_entity"] == "sensor.ef_bk1611_grid_power"
-    assert d["power_limit_setpoint_entity"] == "number.ef_bk1611_maximum_output_power"
+    assert d["name"] == "EcoFlow STREAM inverter bkxxxx"
+    assert d["power_entity"] == "sensor.ef_bkxxxx_grid_power"
+    assert d["power_limit_setpoint_entity"] == "number.ef_bkxxxx_maximum_output_power"
     assert d["active_control_enabled"] is True
     assert d["peak_power_w"] == 800
     assert "roles" not in d  # flat shape for the mppt kind
