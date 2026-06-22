@@ -57,6 +57,8 @@ const STR_EN = {
   Restant: "Remaining",
   Exploitable: "Usable",
   "Par appareil": "Per device",
+  "Production solaire": "Solar production",
+  "Limite production": "Output limit",
   Consommateurs: "Loads",
   "Stratégie : ": "Strategy: ",
   "Charger maintenant": "Charge now",
@@ -280,6 +282,8 @@ class SolarBalancePanel extends HTMLElement {
       batt_temperature: "temperature",
       battery_setpoint_charge: "setpoint_charge",
       battery_setpoint_discharge: "setpoint_discharge",
+      mppt_power: "mppt_power",
+      mppt_limit: "mppt_limit",
     };
     for (const eid in h.entities) {
       const e = h.entities[eid];
@@ -825,6 +829,8 @@ class SolarBalancePanel extends HTMLElement {
         const soc = this._num(k.soc);
         const rows = [];
         if (k.power) rows.push(this._row("Puissance", this._fmt(k.power, 0, "W")));
+        if (k.mppt_power) rows.push(this._row("Production solaire", this._fmt(k.mppt_power, 0, "W")));
+        if (k.mppt_limit) rows.push(this._row("Limite production", this._fmt(k.mppt_limit, 0, "W")));
         if (k.temperature) rows.push(this._row("Température", this._fmt(k.temperature, 1, "°C")));
         if (k.setpoint_charge) rows.push(this._row("Consigne charge", this._fmt(k.setpoint_charge, 0, "W")));
         if (k.setpoint_discharge)

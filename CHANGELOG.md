@@ -37,6 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta21] — 2026-06-22
+
+### Fixed
+
+- **Panneau HTML — section « Par appareil » : les micro-onduleurs n'apparaissaient
+  pas.** La collecte ne prenait que les métriques **batterie** (`batt_soc`,
+  `batt_power`…) ; un appareil **MPPT seul** (micro-onduleur) n'avait aucune de ces
+  entités → jamais affiché. Le panneau collecte désormais aussi `mppt_power` et
+  `mppt_limit` → chaque onduleur s'affiche avec **Production solaire** et **Limite
+  production** (et un appareil batterie+MPPT combiné montre ces lignes en plus).
+  *(Rafraîchir la page / vider le cache si le panneau ne se met pas à jour.)*
+
 ## [2.0.7-beta20] — 2026-06-22
 
 ### Changed
@@ -914,6 +926,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta21]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta20...v2.0.7-beta21
 [2.0.7-beta20]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta19...v2.0.7-beta20
 [2.0.7-beta19]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta18...v2.0.7-beta19
 [2.0.7-beta18]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta17...v2.0.7-beta18
