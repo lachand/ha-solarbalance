@@ -37,6 +37,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7-beta24] — 2026-06-22
+
+### Fixed
+
+- **Yoyo pendant la charge voiture (VE) avec `stop_cloud_charge` activé.**
+  L'option « Stopper une batterie cloud qui se charge » coupait la décharge du
+  parc à 0 **dès que** la batterie cloud (Jackery) chargeait — **même en déficit**
+  (grosse conso comme un VE). Or la Jackery charge **par à-coups** : couper →
+  relâcher → couper… produisait une **dent de scie** (consigne décharge 0↔1100)
+  alors que la voiture tirait une puissance **constante**, et ça ne stoppait même
+  pas la Jackery (qui charge depuis le réseau). Désormais la coupure ne s'applique
+  **que si l'import réseau correspond essentiellement à la charge du cloud**
+  (contexte **surplus**) : `réseau_naturel − charge_cloud ≤ hystérésis`. En
+  présence d'une **vraie conso**, le parc **continue de la couvrir** (plus de
+  yoyo) ; le garde-fou « ne pas nourrir le cloud » (no-feed) reste actif et borne
+  juste la décharge pour ne pas alimenter la charge du cloud.
+
 ## [2.0.7-beta23] — 2026-06-22
 
 ### Fixed
@@ -956,6 +973,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta24]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta23...v2.0.7-beta24
 [2.0.7-beta23]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta22...v2.0.7-beta23
 [2.0.7-beta22]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta21...v2.0.7-beta22
 [2.0.7-beta21]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta20...v2.0.7-beta21

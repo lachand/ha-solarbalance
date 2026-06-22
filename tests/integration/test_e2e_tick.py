@@ -17,6 +17,7 @@ from custom_components.solarbalance.const import (
     CONF_ACTIVE_CONTROL_ENABLED,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
+    CONF_STOP_CLOUD_CHARGE,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_SETPOINT_W,
     DOMAIN,
@@ -167,6 +168,70 @@ async def test_curtails_inverter_when_fleet_near_full_and_exporting(hass: HomeAs
         c.data["value"] for c in number_calls if c.data.get("entity_id") == "number.stream_pv_limit"
     ]
     assert limit_writes and limit_writes[-1] < 3000
+
+
+@pytest.mark.asyncio
+async def test_stop_cloud_charge_does_not_cut_discharge_under_real_load(
+    hass: HomeAssistant,
+) -> None:
+    """stop_cloud_charge must not cut the fleet discharge while a real load imports.
+
+    A cloud battery charging in bursts must not make the fleet cut its discharge to
+    0 while a genuine load (EV) is importing — that dumps the load on the grid and
+    yoyos against the cloud's bursty charge without stopping it. The cut only
+    applies when the import IS the cloud's charge (surplus context).
+    """
+    devices = [
+        Device(
+            name="stream",
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=2300,
+                max_discharge_power_w=2300,
+                soc_entity="sensor.stream_soc",
+                power_entity="sensor.stream_power",
+                controllable=True,
+                active_control_enabled=True,
+                charge_power_setpoint_entity="number.stream_charge",
+                discharge_power_setpoint_entity="number.stream_discharge",
+            ),
+        ),
+        Device(
+            name="jackery",
+            battery=BatteryRole(
+                capacity_kwh=2.0,
+                max_charge_power_w=1000,
+                max_discharge_power_w=1000,
+                soc_entity="sensor.jackery_soc",
+                power_entity="sensor.jackery_power",
+                controllable=False,
+            ),
+        ),
+    ]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid_power")]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+
+    # A real load (EV) imports 1500 W while the cloud battery self-charges 500 W.
+    hass.states.async_set("sensor.grid_power", "1500")
+    hass.states.async_set("sensor.stream_soc", "50")
+    hass.states.async_set("sensor.stream_power", "0")
+    hass.states.async_set("sensor.jackery_soc", "60")
+    hass.states.async_set("sensor.jackery_power", "500")  # charge_positive → charging
+
+    number_calls = async_mock_service(hass, "number", "set_value")
+
+    entry = MockConfigEntry(domain=DOMAIN, data={**_ENTRY_DATA, CONF_STOP_CLOUD_CHARGE: True})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # The fleet still discharges to cover the real load (not slammed to 0).
+    discharge_writes = [
+        c.data["value"]
+        for c in number_calls
+        if c.data.get("entity_id") == "number.stream_discharge"
+    ]
+    assert discharge_writes and discharge_writes[-1] > 0
 
 
 @pytest.mark.asyncio

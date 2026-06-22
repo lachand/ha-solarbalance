@@ -1735,13 +1735,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # it on the meter, so the fleet should charge its own solar instead of
             # feeding the already-higher cloud battery) -- or when the equaliser
             # intentionally wants to charge the fleet (negative offer).
-            noncontrollable_charging = any(
-                b.power_w > self._zi_hysteresis_w
+            noncontrollable_charge_w = sum(
+                b.power_w
                 for b in snapshot.batteries
                 if b.available
                 and not b.stale
                 and b.device_name not in self._controllable_battery_names
+                and b.power_w > self._zi_hysteresis_w
             )
+            noncontrollable_charging = noncontrollable_charge_w > 0.0
             if (
                 grid_filtered_w >= -self._zi_hysteresis_w
                 and eq_bias_w >= 0.0
@@ -1762,7 +1764,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 # to stop discharging entirely (target >= 0): the house draws from
                 # the grid, the local output the cloud battery feeds on disappears,
                 # so it stops charging. Imports for the house while active.
-                if self._stop_cloud_charge:
+                #
+                # Only when the grid import is essentially the cloud's charge itself
+                # (surplus context). With a real load present (e.g. an EV), the
+                # import is the load, not the cloud: cutting the fleet then would
+                # dump the load on the grid and yoyo against the cloud's bursty
+                # charging without stopping it (it draws from the grid anyway).
+                real_load_w = grid_filtered_w - current_fleet_w - noncontrollable_charge_w
+                if self._stop_cloud_charge and real_load_w <= self._zi_hysteresis_w:
                     total_power_w = max(total_power_w, 0.0)
 
         # Apply grid constraints: clamp the aggregate battery target so the
