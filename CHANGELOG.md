@@ -37,7 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.7-beta28] — 2026-06-23
+## [2.0.7-beta29] — 2026-06-23
+
+### Tests
+
+- **Régression du lissage cloud (beta27)** : test multi-tick qui vérifie qu'un
+  à-coup de charge de la batterie cloud est amorti par l'EMA (~0.2 par tick) au
+  lieu de passer en plein → fige le correctif anti-yoyo matinal. **501 tests**.
+
+### Docs
+
+- **Guide « EcoFlow STREAM (pilotage actif, via le wizard) »** dans
+  [device-mapping](docs/device-mapping.md) : topologie en 2 appareils BLE
+  (batterie `ef_xxxxxx` + onduleur `ef_bk…`), ajout via les presets, mode-switch
+  charge/décharge (`scheduled`/`self_powered`), batterie cloud non-pilotable
+  (Jackery) en complément, options de régulation recommandées, et débogage via le
+  capteur « Garde-fou actif ».
 
 ### Fixed
 
@@ -1035,6 +1050,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta29]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta28...v2.0.7-beta29
 [2.0.7-beta28]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta27...v2.0.7-beta28
 [2.0.7-beta27]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta26...v2.0.7-beta27
 [2.0.7-beta26]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta25...v2.0.7-beta26

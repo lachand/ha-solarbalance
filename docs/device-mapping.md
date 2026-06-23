@@ -38,6 +38,86 @@ These stations expose battery, solar input, and AC output as separate sensors vi
 
 **Sign convention check**: in Developer Tools, observe the `power_entity` while the battery is clearly charging from the wall. If positive → `charge_positive`. If negative → `discharge_positive`.
 
+## Recipe — EcoFlow STREAM (active control, via the add wizard)
+
+The EcoFlow STREAM is **actively controllable** over local Bluetooth (Unofficial
+EcoFlow BLE integration): SolarBalance can drive its **charge and discharge**, not
+just read it. Two things make it special:
+
+1. **It is exposed as two BLE devices.** Add them as **two separate SolarBalance
+   devices**:
+   - the **battery** — prefix `ef_xxxxxx` (its serial), added as **a battery**;
+   - the **inverter** — prefix `ef_bk…`, added as **an inverter (MPPT) only**. It
+     carries the curtailment knob `maximum_output_power`.
+2. **Charge is a mode switch, not a single setpoint.** The box does one direction
+   at a time via its `energy_strategy` select: `scheduled` (charge) /
+   `self_powered` (discharge). SolarBalance handles the whole sequence for you
+   (zero the opposite direction → switch the strategy → set the power), and keeps
+   the opposite direction at 0 every tick so it never charges and discharges at
+   once.
+
+### Add it with the wizard (recommended)
+
+Use **Settings → Devices & Services → SolarBalance → Add**, and pick the preset
+from the **"Device model"** dropdown — the form is pre-filled and the matching
+entities are auto-detected from the device prefix:
+
+- **Add a battery → preset "EcoFlow STREAM"** → fills SoC, battery power, charge
+  (`charging_power_limit`), discharge (`base_load_power`), mode
+  (`energy_strategy`, `scheduled`/`self_powered`), backup reserve, temperature.
+- **Add an inverter → preset "EcoFlow STREAM inverter"** → fills the output power
+  (`grid_power`) and the curtailment limit (`maximum_output_power`), active
+  control on.
+
+**Verify after auto-fill**: `capacity_kwh`, `max_charge_power_w` /
+`max_discharge_power_w` (the STREAM's **AC max is ~2300 W, solar included** — set
+both to your real AC max so the discharge setpoint is bounded), and the inverter's
+`peak_power_w`.
+
+The equivalent YAML (for reference — the wizard writes this for you):
+
+```yaml
+- name: ecoflow_stream            # the ef_xxxxxx battery
+  roles:
+    battery:
+      capacity_kwh: 1.92
+      max_charge_power_w: 2300
+      max_discharge_power_w: 2300
+      soc_entity: sensor.ef_xxxxxx_battery_level
+      power_entity: sensor.ef_xxxxxx_battery_power
+      power_sign_convention: charge_positive
+      controllable: true
+      active_control_enabled: true
+      charge_power_setpoint_entity: number.ef_xxxxxx_charging_power_limit
+      discharge_power_setpoint_entity: number.ef_xxxxxx_base_load_power
+      mode_setpoint_entity: select.ef_xxxxxx_energy_strategy
+      charge_mode_option: scheduled
+      discharge_mode_option: self_powered
+      reserve_soc_setpoint_entity: number.ef_xxxxxx_backup_reserve
+- name: ecoflow_stream_inverter   # the ef_bk… inverter (curtailable)
+  roles:
+    mppt:
+      peak_power_w: 800
+      power_entity: sensor.ef_bkxxxx_grid_power
+      active_control_enabled: true
+      power_limit_setpoint_entity: number.ef_bkxxxx_maximum_output_power
+```
+
+### A non-controllable cloud battery alongside (e.g. Jackery)
+
+Declare a cloud-only battery (Jackery HomePower) with `controllable: false` and
+**no setpoint entities** — SolarBalance reads it but cannot command it, and steers
+it indirectly via the SoC equaliser and the cloud guards. Recommended options
+(*Configure → Regulation*): **"Don't discharge the fleet to feed a self-charging
+cloud battery"** (on), **adaptive volatility damper** (on), and optionally **"Stop
+a self-charging cloud battery"** (it only acts in surplus, never under a real load).
+
+### Debugging
+
+Add the **"Active clamp"** diagnostic sensor to a chart: it names which guard set
+the fleet target each tick (`base` / `no_feed` / `stop_cloud` / `no_charge_floor`
+/ `grid_*`), so a surprising target is self-explanatory.
+
 ## Recipe — Victron (separate MPPT + Multi + battery)
 
 Victron systems are typically split. Declare each component as its own device:

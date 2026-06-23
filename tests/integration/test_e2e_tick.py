@@ -171,6 +171,63 @@ async def test_curtails_inverter_when_fleet_near_full_and_exporting(hass: HomeAs
 
 
 @pytest.mark.asyncio
+async def test_cloud_charge_signal_is_smoothed_across_ticks(hass: HomeAssistant) -> None:
+    """A cloud battery's charge bursts are EMA-smoothed before the cloud guards.
+
+    A single burst tick must move the smoothed signal by only ~alpha (≈0.2), not the
+    full value, so a 30 s Jackery blip cannot chop the fleet (the morning-yoyo fix).
+    """
+    devices = [
+        Device(
+            name="stream",
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=2300,
+                max_discharge_power_w=2300,
+                soc_entity="sensor.stream_soc",
+                power_entity="sensor.stream_power",
+                controllable=True,
+                active_control_enabled=True,
+                discharge_power_setpoint_entity="number.stream_discharge",
+            ),
+        ),
+        Device(
+            name="jackery",
+            battery=BatteryRole(
+                capacity_kwh=2.0,
+                max_charge_power_w=1000,
+                max_discharge_power_w=1000,
+                soc_entity="sensor.jackery_soc",
+                power_entity="sensor.jackery_power",
+                controllable=False,
+            ),
+        ),
+    ]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid_power")]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+    hass.states.async_set("sensor.grid_power", "0")
+    hass.states.async_set("sensor.stream_soc", "50")
+    hass.states.async_set("sensor.stream_power", "0")
+    hass.states.async_set("sensor.jackery_soc", "60")
+    hass.states.async_set("sensor.jackery_power", "0")  # not charging at setup
+
+    async_mock_service(hass, "number", "set_value")
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    assert coordinator._nc_charge_smoothed_w == pytest.approx(0.0, abs=1.0)
+
+    # One burst tick: the EMA must damp 600 W down to ~0.2*600, not jump to 600.
+    hass.states.async_set("sensor.jackery_power", "600")
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert 0.0 < coordinator._nc_charge_smoothed_w < 600.0
+    assert coordinator._nc_charge_smoothed_w == pytest.approx(120.0, abs=25.0)
+
+
+@pytest.mark.asyncio
 async def test_stop_cloud_charge_does_not_cut_discharge_under_real_load(
     hass: HomeAssistant,
 ) -> None:
