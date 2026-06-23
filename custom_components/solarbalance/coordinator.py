@@ -220,6 +220,10 @@ _BASELINE_EMA_ALPHA = 0.05
 # fleet is within this margin of its ceiling, PV curtailment engages even though
 # the balancer nominally "allocated" the surplus (it would not be honoured).
 _CURTAIL_NEAR_FULL_MARGIN_PCT = 2.0
+# EMA smoothing of the non-controllable (cloud) battery charge before it drives the
+# cloud guards. A dumb cloud battery charges in short bursts; ~0.2 (≈ 90 s at a 10 s
+# tick) averages them so the guards react to a sustained charge, not each blip.
+_NC_CHARGE_EMA_ALPHA = 0.2
 
 _STRATEGY_CLASSES = {
     StrategyKind.SELF_CONSUMPTION.value: SelfConsumptionStrategy,
@@ -568,6 +572,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Slew-rate limit on the aggregate battery target (anti limit-cycle).
         self._max_ramp_w = float(cfg.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W))
         self._last_total_power_w: float | None = None
+        # EMA state for the smoothed non-controllable (cloud) battery charge.
+        self._nc_charge_smoothed_w: float | None = None
 
         # PV curtailment — zero-injection's last resort when batteries saturate.
         self._curtailable_mppts: tuple[tuple[str, float], ...] = tuple(
@@ -1577,6 +1583,24 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # and the cloud-charge guards (the raw grid sits at ~0 once the fleet covers
         # the house). Computed once and reused.
         natural_grid_w = grid_filtered_w - current_fleet_w
+        # Smoothed non-controllable (cloud) battery charge. A dumb cloud battery
+        # (Jackery) charges in short bursts (0↔~110 W, ~30 s); reacting tick-by-tick
+        # made the cloud guards (no-feed / stop-cloud) chop the fleet discharge
+        # (0↔300 W) even though the grid stayed fine. An EMA (~90 s) averages the
+        # bursts to a stable value so the guards engage only on a *sustained* cloud
+        # charge, not on each blip. Used by every cloud guard below.
+        nc_charge_raw_w = sum(
+            max(0.0, b.power_w)
+            for b in snapshot.batteries
+            if b.available and not b.stale and b.device_name not in self._controllable_battery_names
+        )
+        if self._nc_charge_smoothed_w is None:
+            self._nc_charge_smoothed_w = nc_charge_raw_w
+        else:
+            self._nc_charge_smoothed_w += _NC_CHARGE_EMA_ALPHA * (
+                nc_charge_raw_w - self._nc_charge_smoothed_w
+            )
+        nc_charge_w = self._nc_charge_smoothed_w
         zi_correction_w = 0.0
         eq_bias_w = 0.0
         nc_charge_offset_w = 0.0
@@ -1621,7 +1645,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # as a direct floor on the fleet target below (apply_equaliser_offer).
             force_offset_w = self._force_charge_grid_offset_w(snapshot)
             nc_charge_offset_w = self._noncontrollable_charge_offset_w(
-                snapshot, natural_grid_w, force_offset_w
+                nc_charge_w, natural_grid_w, force_offset_w
             )
             effective_setpoint_w = self._zi_setpoint_w + force_offset_w + nc_charge_offset_w
             if (
@@ -1708,16 +1732,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     ts, threshold=DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD
                 ),
             )
-        # Non-controllable (cloud) battery charge — used by the no-charge floor and
-        # the no-feed / stop-cloud guards inside the clamp pipeline.
-        noncontrollable_charge_w = sum(
-            b.power_w
-            for b in snapshot.batteries
-            if b.available
-            and not b.stale
-            and b.device_name not in self._controllable_battery_names
-            and b.power_w > self._zi_hysteresis_w
-        )
+        # Smoothed cloud charge (computed above) feeds the no-charge floor and the
+        # no-feed / stop-cloud guards inside the clamp pipeline.
+        noncontrollable_charge_w = nc_charge_w
         # Whole aggregate-target clamp pipeline, extracted to a single pure function
         # (base target → equaliser offer → no-export → no-charge floor → no-feed /
         # stop-cloud → grid constraints). See core/controllers/regulation.
@@ -1733,7 +1750,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 grid_filtered_w=grid_filtered_w,
                 controllable_mppt_w=controllable_mppt_w,
                 nc_charge_offset_w=nc_charge_offset_w,
-                noncontrollable_charging=noncontrollable_charge_w > 0.0,
+                noncontrollable_charging=noncontrollable_charge_w > self._zi_hysteresis_w,
                 noncontrollable_charge_w=noncontrollable_charge_w,
                 zi_hysteresis_w=self._zi_hysteresis_w,
                 no_battery_export=self._no_battery_export,
@@ -2354,7 +2371,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return total
 
     def _noncontrollable_charge_offset_w(
-        self, snapshot: Snapshot, natural_grid_w: float, force_offset_w: float
+        self, charge_w: float, natural_grid_w: float, force_offset_w: float
     ) -> float:
         """Don't drain the controllable fleet to feed a self-charging cloud battery.
 
@@ -2376,12 +2393,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         """
         if not self._exclude_noncontrollable_charge:
             return 0.0
-        charge = sum(
-            max(0.0, b.power_w)
-            for b in snapshot.batteries
-            if b.available and not b.stale and b.device_name not in self._controllable_battery_names
-        )
-        return noncontrollable_charge_offset_w(charge, natural_grid_w, force_offset_w)
+        return noncontrollable_charge_offset_w(charge_w, natural_grid_w, force_offset_w)
 
     def _load_floor_w(self, load: Load) -> tuple[float, bool]:
         """Return (floor_w, reducible) for overload relief — how low a load may run."""

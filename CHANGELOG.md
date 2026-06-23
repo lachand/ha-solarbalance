@@ -37,7 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.7-beta26] — 2026-06-22
+## [2.0.7-beta27] — 2026-06-23
+
+### Fixed
+
+- **Yoyo matinal : lissage du signal de charge de la batterie cloud.** La trace
+  « Garde-fou actif » l'a prouvé : une batterie cloud « bête » (Jackery) charge en
+  **créneaux** (0↔~110 W, ~30 s), et réagir tick-par-tick faisait **hacher la
+  décharge du parc** (0↔300 W) via `no_feed`/`stop_cloud` — alors que le **réseau
+  restait bon** (preuve : dès que le Jackery arrête de pulser, la consigne redevient
+  parfaitement lisse). La puissance de charge des batteries non-pilotables est
+  désormais **lissée (EMA ~90 s)** avant d'alimenter les garde-fous cloud : ils
+  s'engagent sur une charge cloud **soutenue**, plus sur chaque à-coup → fini le
+  cyclage inutile de la STREAM le matin. Le signal de charge cloud est aussi
+  **calculé une seule fois** et réutilisé (offset, plancher, no-feed, stop-cloud).
 
 ### Added
 
@@ -1011,6 +1024,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta27]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta26...v2.0.7-beta27
 [2.0.7-beta26]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta25...v2.0.7-beta26
 [2.0.7-beta25]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta24...v2.0.7-beta25
 [2.0.7-beta24]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta23...v2.0.7-beta24
