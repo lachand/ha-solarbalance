@@ -37,7 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.7-beta27] — 2026-06-23
+## [2.0.7-beta28] — 2026-06-23
+
+### Fixed
+
+- **Charge STREAM inefficace : charge ET décharge en même temps.** En mode charge,
+  la STREAM **ré-imposait sa propre « base load »** (ex. `base_load_power` = 399 W
+  alors qu'on chargeait à 1000 W) → elle **chargeait et déchargeait à la fois**, donc
+  ne chargeait quasiment pas. Le publisher ne remettait la direction opposée à 0
+  **qu'au changement de mode**, jamais ensuite. Désormais il **ré-affirme la
+  direction opposée à 0 à chaque tick** : il **lit l'état réel** de l'entité et ne
+  réécrit 0 **que** si elle a dérivé (la latch interne ne suivait que ce que SB avait
+  écrit, jamais ce que l'appareil change seul). Plus de charge+décharge simultanée.
 
 ### Fixed
 
@@ -1024,6 +1035,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7-beta28]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta27...v2.0.7-beta28
 [2.0.7-beta27]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta26...v2.0.7-beta27
 [2.0.7-beta26]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta25...v2.0.7-beta26
 [2.0.7-beta25]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta24...v2.0.7-beta25

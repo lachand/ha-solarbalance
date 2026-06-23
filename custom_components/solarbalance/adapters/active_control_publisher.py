@@ -193,7 +193,11 @@ class ActiveControlPublisher:
         On a mode change the opposite-direction power is zeroed and the mode is
         switched **before** the new direction's power is set, in order, blocking —
         a one-direction-at-a-time inverter ignores a power written in the wrong
-        mode. In steady state nothing switches and the writes are cheap (latched).
+        mode. The opposite direction is **re-asserted to 0 every tick** (not only on
+        the switch): a STREAM re-imposes its own base load, so without this it would
+        charge and discharge at once (e.g. charging 1000 W while still outputting
+        399 W). In steady state these writes are cheap (latched / skipped when the
+        device already reads 0).
         """
         assert m.mode_entity is not None
         if charge_w > _WRITE_EPSILON_W:
@@ -212,19 +216,41 @@ class ActiveControlPublisher:
             )
         else:  # idle — zero both, optionally switch to an idle mode
             if m.discharge_entity is not None:
-                await self._write_power(m.discharge_entity, 0.0)
+                await self._ensure_zero(m.discharge_entity)
             if m.charge_entity is not None:
-                await self._write_power(m.charge_entity, 0.0)
+                await self._ensure_zero(m.charge_entity)
             if m.idle_option is not None:
                 await self._write_mode(m.mode_entity, m.idle_option)
             return
 
         switching = self._last_mode.get(m.mode_entity) != option
-        if switching and m.mode_zeroes_opposite and opposite is not None:
-            await self._write_power(opposite, 0.0, blocking=True)
+        if m.mode_zeroes_opposite and opposite is not None:
+            if switching:
+                await self._write_power(opposite, 0.0, blocking=True)
+            else:
+                # Re-assert 0 against the device's self-imposed base load.
+                await self._ensure_zero(opposite)
         await self._write_mode(m.mode_entity, option, blocking=switching)
         if active_entity is not None:
             await self._write_power(active_entity, active_w, blocking=switching)
+
+    async def _ensure_zero(self, entity_id: str) -> None:
+        """Force the power setpoint back to 0 when the device reads non-zero.
+
+        The latch in ``_write_power`` tracks what *we* last wrote, so a value the
+        device sets on its own (a STREAM's base load) is never corrected. This reads
+        the entity's actual state and re-writes 0 only when it has drifted, so the
+        opposite direction truly stays off while charging/discharging.
+        """
+        state = self._hass.states.get(entity_id)
+        if state is None or state.state in ("unknown", "unavailable"):
+            return
+        try:
+            current = float(state.state)
+        except (TypeError, ValueError):
+            return
+        if abs(current) > _WRITE_EPSILON_W:
+            await self._write_power(entity_id, 0.0, force=True)
 
     async def reset(self) -> None:
         """Command all managed power setpoints to 0 W (e.g. when suspended)."""
@@ -234,9 +260,11 @@ class ActiveControlPublisher:
             if m.charge_entity is not None:
                 await self._write_power(m.charge_entity, 0.0)
 
-    async def _write_power(self, entity_id: str, value_w: float, *, blocking: bool = False) -> None:
+    async def _write_power(
+        self, entity_id: str, value_w: float, *, blocking: bool = False, force: bool = False
+    ) -> None:
         last = self._last_power.get(entity_id)
-        if last is not None and abs(last - value_w) < _WRITE_EPSILON_W:
+        if not force and last is not None and abs(last - value_w) < _WRITE_EPSILON_W:
             return
         service_domain = "input_number" if entity_id.startswith("input_number.") else "number"
         try:

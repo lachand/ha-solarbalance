@@ -286,3 +286,22 @@ async def test_mode_idle_writes_option_when_configured() -> None:
     await pub.apply({"s": 0.0}, {"s": 50.0})
     modes = [c for c in _calls(hass) if c[1] == "select_option"]
     assert modes == [("select", "select_option", {"entity_id": "select.strat", "option": "idle"})]
+
+
+async def test_mode_charge_reasserts_zero_on_self_imposed_base_load() -> None:
+    # The STREAM re-imposes its own base load (discharge) while charging: SB must
+    # force it back to 0 each tick, else it charges and discharges at once.
+    from types import SimpleNamespace
+
+    hass = _hass()
+    hass.states.get = lambda eid: SimpleNamespace(state="399") if eid == "number.dis" else None
+    pub = ActiveControlPublisher(hass, [_mode_device()])
+    await pub.apply({"s": 600.0}, {"s": 50.0})  # switch to charge (zeros discharge once)
+    hass.services.async_call.reset_mock()
+    await pub.apply({"s": 600.0}, {"s": 50.0})  # no switch, device shows 399 → re-zero
+    zeroed = [
+        c
+        for c in _calls(hass)
+        if c[2].get("entity_id") == "number.dis" and c[2].get("value") == 0.0
+    ]
+    assert zeroed
