@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta1] — 2026-06-24
+
+### Added
+
+- **Prévision de conso — profil heure-par-heure appris (Wave 4, prédictif).** Le
+  planner prédictif n'utilise plus seulement un **talon plat** : il s'appuie sur un
+  profil de **conso de fond appris par heure de la journée** (EMA inter-jours,
+  ~3 jours de mémoire), **persisté** et restauré au redémarrage → le plan
+  **anticipe les pics matin/soir** au lieu de supposer une conso constante. Modèle
+  pur `ConsumptionProfile` (testé), branché dans `build_forecast_slots`. Nouveau
+  capteur diagnostic *« Conso prévue (heure courante) »* pour voir le profil se
+  remplir. Apprentissage **en ligne** pour l'instant ; le **pré-chargement depuis
+  l'historique (recorder)** arrivera en beta2 (même modèle).
+
 ## [2.0.7] — 2026-06-24
 
 Stable release consolidating the `2.0.7-beta1…29` line (full per-beta detail
@@ -1088,6 +1102,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta1]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7...v2.0.8-beta1
 [2.0.7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.6...v2.0.7
 [2.0.7-beta29]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta28...v2.0.7-beta29
 [2.0.7-beta28]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta27...v2.0.7-beta28

@@ -783,6 +783,9 @@
       },
       "regulation_binding": {
         "name": "Garde-fou actif"
+      },
+      "consumption_forecast_now": {
+        "name": "Conso prévue (heure courante)"
       }
     },
     "select": {

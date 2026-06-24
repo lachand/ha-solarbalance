@@ -86,6 +86,7 @@ def build_forecast_slots(
     baseline_w: float,
     tariff: TariffConfig,
     slot_s: float = 3600.0,
+    consumption_by_hour: Sequence[float] | None = None,
 ) -> tuple[ForecastSlot, ...]:
     """Build hourly forecast slots for the planner.
 
@@ -94,9 +95,14 @@ def build_forecast_slots(
         n_hours: Number of hourly slots to build.
         pv_w_by_hour: Forecast PV power (W) per hour. Shorter sequences repeat
             their last value; empty means no PV (0 W).
-        baseline_w: Estimated background load (W), held flat across the horizon.
+        baseline_w: Estimated background load (W); the flat fallback used when no
+            learned hour-of-day profile is supplied.
         tariff: Tariff used to price each slot (evaluated at the slot start).
         slot_s: Slot duration in seconds.
+        consumption_by_hour: Optional 24-length hour-of-day consumption profile (W)
+            from the learned consumption profile. When given, each slot uses the
+            value for its wall-clock hour instead of the flat ``baseline_w`` — so
+            the plan anticipates the morning/evening peaks.
     """
     slots: list[ForecastSlot] = []
     for h in range(n_hours):
@@ -105,13 +111,17 @@ def build_forecast_slots(
             pv_w = pv_w_by_hour[h] if h < len(pv_w_by_hour) else pv_w_by_hour[-1]
         else:
             pv_w = 0.0
+        if consumption_by_hour and slot_start.hour < len(consumption_by_hour):
+            load_w = consumption_by_hour[slot_start.hour]
+        else:
+            load_w = baseline_w
         import_price = tariff.current_import_price(slot_start)
         export_price = tariff.current_export_price(slot_start)
         slots.append(
             ForecastSlot(
                 start=slot_start,
                 duration_s=slot_s,
-                net_load_w=baseline_w - pv_w,
+                net_load_w=load_w - pv_w,
                 import_price=import_price if import_price is not None else _DEFAULT_IMPORT_PRICE,
                 export_price=export_price if export_price is not None else _DEFAULT_EXPORT_PRICE,
             )

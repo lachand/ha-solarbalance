@@ -139,6 +139,7 @@ from .const import (
 from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.autotuner import RegulationAutoTuner
 from .core.baseline import NightBaselineEstimator
+from .core.consumption_profile import ConsumptionProfile
 from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
 from .core.controllers.deadline import DeadlineDecision, evaluate_deadline
@@ -699,6 +700,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._scheduler = PredictiveScheduler(aggregate) if aggregate is not None else None
         self._plan: PlanningResult | None = None
         self._plan_tick = 0
+        # Learned hour-of-day background-consumption profile (predictive input):
+        # replaces the flat night-talon in the planner so it anticipates the
+        # morning/evening peaks. Learned online, persisted, restored on start.
+        self._consumption_profile = ConsumptionProfile()
         self._baseline_ema_w: float | None = None
 
         # Watchdog — entity lists built from config
@@ -747,6 +752,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return self._plan
 
     @property
+    def predicted_consumption_now_w(self) -> float | None:
+        """Learned typical background consumption for the current hour (W), if any."""
+        return self._consumption_profile.predict(dt_util.now().hour)
+
+    @property
     def is_degraded(self) -> bool:
         """True when the HEMS is in degraded mode."""
         return self._mode is HemsMode.DEGRADED
@@ -777,6 +787,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             with contextlib.suppress(ValueError, TypeError):
                 self._load_energy_day = date.fromisoformat(le["day"])
                 self._load_energy_kwh = {str(k): float(v) for k, v in (le.get("kwh") or {}).items()}
+        cp = (data or {}).get("consumption_profile")
+        if isinstance(cp, dict):
+            with contextlib.suppress(ValueError, TypeError):
+                self._consumption_profile = ConsumptionProfile.from_dict(cp)
         energy = (data or {}).get("energy")
         if not energy:
             return
@@ -917,6 +931,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 "year": self._savings_year,
                 "year_eur": round(self._savings_year_eur, 4),
             },
+            "consumption_profile": self._consumption_profile.to_dict(),
         }
 
     @property
@@ -1869,9 +1884,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         fed into the control loop. The PV series comes from the configured
         ``forecast`` block (hourly entities); without it, a flat estimate is used.
         """
+        baseline = snapshot.baseline_consumption_w
+        # Learn the hour-of-day consumption profile every tick (even without a
+        # planner — it is also a diagnostic and a seed for predictive control).
+        self._consumption_profile.observe(
+            dt_util.as_local(snapshot.timestamp).hour, max(0.0, baseline)
+        )
         if self._scheduler is None:
             return
-        baseline = snapshot.baseline_consumption_w
         self._baseline_ema_w = (
             baseline
             if self._baseline_ema_w is None
@@ -1886,12 +1906,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         avg_soc = self._controllable_avg_soc(snapshot)
         if avg_soc is None:
             return
+        baseline_w = max(0.0, self._baseline_ema_w)
         slots = build_forecast_slots(
             start=dt_util.as_local(snapshot.timestamp),
             n_hours=24,
             pv_w_by_hour=self._forecast_pv_by_hour(snapshot),
-            baseline_w=max(0.0, self._baseline_ema_w),
+            baseline_w=baseline_w,
             tariff=self._tariff,
+            consumption_by_hour=self._consumption_profile.by_hour(baseline_w),
         )
         self._plan = self._scheduler.plan(slots, avg_soc)
 

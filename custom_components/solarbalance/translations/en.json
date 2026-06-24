@@ -783,6 +783,9 @@
       },
       "regulation_binding": {
         "name": "Active clamp"
+      },
+      "consumption_forecast_now": {
+        "name": "Forecast consumption (now)"
       }
     },
     "select": {

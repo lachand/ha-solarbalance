@@ -97,6 +97,7 @@ async def async_setup_entry(
             coordinator, entry, "natural_grid_w", "natural_grid", "mdi:transmission-tower"
         ),
         SolarBalanceRegulationBindingSensor(coordinator, entry),
+        SolarBalanceConsumptionForecastSensor(coordinator, entry),
     ]
     if coordinator._curtailment is not None:
         entities.append(
@@ -986,6 +987,29 @@ class SolarBalanceRegulationDiagnosticSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float:
         return round(float(getattr(self.coordinator.diagnostics, self._diag_attr)), 1)
+
+
+class SolarBalanceConsumptionForecastSensor(_SolarBalanceSensor):
+    """Learned typical background consumption for the current hour (W, diagnostic).
+
+    Fills in as the hour-of-day profile is learned (unavailable until that hour has
+    data); lets you see the prediction the planner uses.
+    """
+
+    _attr_translation_key = "consumption_forecast_now"
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:home-lightning-bolt"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "diag_consumption_forecast_now")
+
+    @property
+    def native_value(self) -> float | None:
+        value = self.coordinator.predicted_consumption_now_w
+        return round(value, 1) if value is not None else None
 
 
 class SolarBalanceRegulationBindingSensor(_SolarBalanceSensor):
