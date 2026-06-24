@@ -5,15 +5,11 @@
         "title": "SolarBalance — Paramètres globaux",
         "description": "Configurez le système de gestion énergétique (HEMS). Les équipements et compteurs sont déclarés dans configuration.yaml.",
         "data": {
-          "tick_interval_s": "Intervalle de mise à jour (secondes)",
           "zero_injection_enabled": "Activer la régulation zéro injection",
           "zero_injection_setpoint_w": "Consigne zéro injection (W)",
-          "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
           "phases": "Nombre de phases",
           "subscribed_power_kva": "Puissance souscrite (kVA)",
           "backup_reserve_soc_pct": "Réserve backup (SoC %)",
-          "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
-          "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
           "load_control_enabled": "Activer le contrôle des consommateurs (switches)",
           "evening_shed_enabled": "Délestage fin de journée (priorité charge batterie)",
           "evening_shed_min_power_w": "Délestage : puissance mini d'un « gros » consommateur (W)",
@@ -42,6 +38,21 @@
           "zero_injection_setpoint_w": "Puissance réseau cible en watts. 0 = zéro injection exacte. Une valeur négative autorise une légère marge d'injection.",
           "pv_forecast_entity": "Identifiant d'un capteur fournissant la prévision PV instantanée en watts (ex: Solcast, Forecast.Solar).",
           "weather_warning_entity": "Identifiant d'un binary_sensor ou capteur représentant une vigilance Météo-France."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Avancé (réglages fins)",
+            "data": {
+              "tick_interval_s": "Intervalle de mise à jour (secondes)",
+              "zero_injection_kp": "Gain proportionnel zéro injection (Kp)",
+              "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
+              "max_ramp_w": "Variation max de la consigne parc par tick (W)",
+              "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
+              "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
+              "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
+              "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive"
+            }
+          }
         }
       }
     },
@@ -62,15 +73,11 @@
       "general": {
         "title": "Régulation & comportements",
         "data": {
-          "tick_interval_s": "Intervalle de mise à jour (secondes)",
           "zero_injection_enabled": "Activer la régulation zéro injection",
           "zero_injection_setpoint_w": "Consigne zéro injection (W)",
-          "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
           "phases": "Nombre de phases",
           "subscribed_power_kva": "Puissance souscrite (kVA)",
           "backup_reserve_soc_pct": "Réserve backup (SoC %)",
-          "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
-          "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
           "weather_warning_entity": "Entité vigilance Météo-France (optionnel)",
           "weather_phenomena": "Météo : phénomènes qui déclenchent le mode tempête",
           "weather_min_level": "Météo : niveau d'alerte minimum",
@@ -83,16 +90,27 @@
           "vacation_soc_max_pct": "Vacances : SoC max (plafond charge, %)",
           "evening_shed_min_power_w": "Délestage : puissance mini d'un « gros » consommateur (W)",
           "active_control_enabled": "Pilotage actif des batteries/onduleurs",
-          "max_ramp_w": "Variation max de la consigne parc par tick (W)",
-          "zero_injection_kp": "Gain proportionnel zéro injection (Kp)",
           "soc_equaliser_enabled": "Activer l'équaliseur de SoC",
           "soc_equaliser_max_w": "Équaliseur SoC : offre max (W)",
           "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)",
-          "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
           "no_battery_export": "Autoconsommation stricte : ne jamais décharger la batterie vers le réseau (bloque l'injection)",
           "local_ac_load_entities": "Capteurs de conso prise AC locale (ex. prises du STREAM) — exclus de la boucle réseau pour que leurs cycles ne la perturbent pas",
-          "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive",
           "pv_drop_compensation_enabled": "Compensation chute PV : sur une chute soudaine (nuage), décharger la perte tout de suite (plus rapide que la boucle)"
+        },
+        "sections": {
+          "advanced": {
+            "name": "Avancé (réglages fins)",
+            "data": {
+              "tick_interval_s": "Intervalle de mise à jour (secondes)",
+              "zero_injection_kp": "Gain proportionnel zéro injection (Kp)",
+              "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
+              "max_ramp_w": "Variation max de la consigne parc par tick (W)",
+              "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
+              "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
+              "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
+              "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive"
+            }
+          }
         }
       },
       "forecast": {

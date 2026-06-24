@@ -17,16 +17,15 @@ from custom_components.solarbalance.const import (
     CONF_TICK_INTERVAL_S,
     CONF_WEATHER_WARNING_ENTITY,
     CONF_ZERO_INJECTION_ENABLED,
-    CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_SETPOINT_W,
     DOMAIN,
 )
 
+# Flat stored-config representation (simple fields only); the expert tuning lives in
+# the collapsed "advanced" section and is submitted nested by the form tests.
 _VALID_USER_INPUT: dict[str, Any] = {
-    CONF_TICK_INTERVAL_S: 10,
     CONF_ZERO_INJECTION_ENABLED: True,
     CONF_ZERO_INJECTION_SETPOINT_W: 0,
-    CONF_ZERO_INJECTION_HYSTERESIS_W: 50,
     CONF_PHASES: 1,
     CONF_SUBSCRIBED_POWER_KVA: 6,
     CONF_PV_FORECAST_ENTITY: "",
@@ -42,11 +41,13 @@ async def test_config_flow_creates_entry(hass: HomeAssistant) -> None:
     assert result["step_id"] == "user"
 
     result2 = await hass.config_entries.flow.async_configure(
-        result["flow_id"], user_input=_VALID_USER_INPUT
+        result["flow_id"],
+        user_input={**_VALID_USER_INPUT, "advanced": {CONF_TICK_INTERVAL_S: 10}},
     )
     assert result2["type"] == FlowResultType.CREATE_ENTRY
     assert result2["title"] == "SolarBalance"
     data = result2["data"]
+    # The "advanced" section is flattened back to the top level on save.
     assert data[CONF_TICK_INTERVAL_S] == 10
     # Empty strings normalised to None for optional entity fields.
     assert data.get(CONF_PV_FORECAST_ENTITY) is None
@@ -76,10 +77,11 @@ async def test_options_flow_menu_section_saves_and_merges(hass: HomeAssistant) -
     assert result["step_id"] == "general"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={CONF_TICK_INTERVAL_S: 20}
+        result["flow_id"], user_input={"advanced": {CONF_TICK_INTERVAL_S: 20}}
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
-    # Edited value applied; an untouched option from before is preserved.
+    # Edited value (from the advanced section) applied + flattened; an untouched
+    # option from before is preserved.
     assert entry.options[CONF_TICK_INTERVAL_S] == 20
     assert entry.options[CONF_SUBSCRIBED_POWER_KVA] == 9
 

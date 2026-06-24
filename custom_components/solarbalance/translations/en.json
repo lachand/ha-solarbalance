@@ -5,15 +5,11 @@
         "title": "SolarBalance — Global Settings",
         "description": "Set up the Home Energy Management System. Devices and meters are declared in configuration.yaml.",
         "data": {
-          "tick_interval_s": "Update interval (seconds)",
           "zero_injection_enabled": "Enable zero-injection regulation",
           "zero_injection_setpoint_w": "Zero-injection setpoint (W)",
-          "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
           "phases": "Electrical phases",
           "subscribed_power_kva": "Subscribed power (kVA)",
           "backup_reserve_soc_pct": "Backup reserve (SoC %)",
-          "baseline_window_start_h": "Talon: night window start (h)",
-          "baseline_window_end_h": "Talon: night window end (h)",
           "load_control_enabled": "Enable load control (switches)",
           "evening_shed_enabled": "End-of-day shedding (battery-charge priority)",
           "evening_shed_min_power_w": "Shedding: min power of a \"big\" load (W)",
@@ -42,6 +38,21 @@
           "zero_injection_setpoint_w": "Target grid power in watts. 0 = exactly zero injection. Negative values allow a small safety export buffer.",
           "pv_forecast_entity": "Entity ID of a sensor providing current PV forecast in watts (e.g. from Solcast or Forecast.Solar).",
           "weather_warning_entity": "Entity ID of a binary_sensor or sensor representing a Météo-France weather warning."
+        },
+        "sections": {
+          "advanced": {
+            "name": "Advanced (tuning)",
+            "data": {
+              "tick_interval_s": "Update interval (seconds)",
+              "zero_injection_kp": "Zero-injection proportional gain (Kp)",
+              "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
+              "max_ramp_w": "Max fleet-target change per tick (W)",
+              "dry_run": "Dry-run (compute everything, never write to hardware)",
+              "baseline_window_start_h": "Talon: night window start (h)",
+              "baseline_window_end_h": "Talon: night window end (h)",
+              "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables"
+            }
+          }
         }
       }
     },
@@ -62,15 +73,11 @@
       "general": {
         "title": "Regulation & behaviour",
         "data": {
-          "tick_interval_s": "Update interval (seconds)",
           "zero_injection_enabled": "Enable zero-injection regulation",
           "zero_injection_setpoint_w": "Zero-injection setpoint (W)",
-          "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
           "phases": "Electrical phases",
           "subscribed_power_kva": "Subscribed power (kVA)",
           "backup_reserve_soc_pct": "Backup reserve (SoC %)",
-          "baseline_window_start_h": "Talon: night window start (h)",
-          "baseline_window_end_h": "Talon: night window end (h)",
           "weather_warning_entity": "Météo-France warning entity (optional)",
           "weather_phenomena": "Weather: phenomena that trigger storm mode",
           "weather_min_level": "Weather: minimum alert level",
@@ -83,16 +90,27 @@
           "vacation_soc_max_pct": "Vacation: max SoC (charge ceiling, %)",
           "evening_shed_min_power_w": "Shedding: min power of a \"big\" load (W)",
           "active_control_enabled": "Active battery/inverter control",
-          "max_ramp_w": "Max fleet-target change per tick (W)",
-          "zero_injection_kp": "Zero-injection proportional gain (Kp)",
           "soc_equaliser_enabled": "Enable SoC equaliser",
           "soc_equaliser_max_w": "SoC equaliser: max offer (W)",
           "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
-          "dry_run": "Dry-run (compute everything, never write to hardware)",
           "no_battery_export": "Strict self-consumption: never discharge the battery into the grid (blocks injection)",
           "local_ac_load_entities": "Local AC-load sensors behind the fleet (e.g. STREAM AC sockets) — excluded from the grid loop so their cycling doesn't disturb it",
-          "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables",
           "pv_drop_compensation_enabled": "PV-drop compensation: on a sudden PV drop (cloud), discharge the lost PV immediately (faster than the loop)"
+        },
+        "sections": {
+          "advanced": {
+            "name": "Advanced (tuning)",
+            "data": {
+              "tick_interval_s": "Update interval (seconds)",
+              "zero_injection_kp": "Zero-injection proportional gain (Kp)",
+              "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
+              "max_ramp_w": "Max fleet-target change per tick (W)",
+              "dry_run": "Dry-run (compute everything, never write to hardware)",
+              "baseline_window_start_h": "Talon: night window start (h)",
+              "baseline_window_end_h": "Talon: night window end (h)",
+              "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables"
+            }
+          }
         }
       },
       "forecast": {

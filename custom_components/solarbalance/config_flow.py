@@ -13,6 +13,7 @@ from homeassistant.config_entries import (
     SubentryFlowResult,
 )
 from homeassistant.core import callback
+from homeassistant.data_entry_flow import section
 from homeassistant.helpers import selector
 
 from .const import (
@@ -96,6 +97,24 @@ from .core.weather import PHENOMENA
 
 _LOGGER = logging.getLogger(__name__)
 
+# Key of the collapsed "advanced" section folding the expert tuning fields. The
+# form returns its fields nested under this key; _flatten_sections merges them up.
+_ADVANCED_SECTION = "advanced"
+
+
+def _flatten_sections(user_input: dict[str, Any]) -> dict[str, Any]:
+    """Merge a collapsible section's sub-dict (the ``advanced`` group) up to top level.
+
+    A ``section`` returns its fields nested (``user_input["advanced"][...]``); the
+    rest of the flow stores options flat, so unwrap it here.
+    """
+    flat = dict(user_input)
+    nested = flat.pop(_ADVANCED_SECTION, None)
+    if isinstance(nested, dict):
+        flat.update(nested)
+    return flat
+
+
 # Optional entity selectors whose empty string is normalised to None.
 _OPTIONAL_ENTITY_KEYS = (
     CONF_PV_DROP_COMPENSATION_ENABLED,
@@ -117,13 +136,14 @@ _DEFAULT_PRIORITIES = [
 ]
 
 
-def _general_main_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
-    """Régulation : champs principaux (hors sous-étapes dépendantes du wizard).
+def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
+    """Régulation : champs principaux + une section « avancé » repliée.
 
-    ``advanced`` (HA per-user *Advanced Mode*) reveals the tuning internals (gains,
-    filters…). The simple set is always shown. Feature *details* (equaliser knobs,
-    Tempo-red SoC, shedding power, weather phenomena) live in their own wizard
-    sub-steps, shown only when the matching toggle is on.
+    The simple set is always shown; the expert tuning (gains, filters, windows…)
+    lives in a collapsed ``section`` — expanded inline on demand, with no dependency
+    on HA's global Advanced Mode. Feature *details* (equaliser cap, Tempo-red SoC,
+    shedding power, weather phenomena) live in their own wizard sub-steps, shown only
+    when the matching toggle is on.
     """
     fields: dict[Any, Any] = {
         # --- Simple (always shown) ---
@@ -195,41 +215,43 @@ def _general_main_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, 
             )
         ),
     }
-    if not advanced:
-        return fields
-    fields.update(
-        {
-            # --- Expert (HA Advanced Mode) ---
-            vol.Optional(
-                CONF_TICK_INTERVAL_S, default=d.get(CONF_TICK_INTERVAL_S, DEFAULT_TICK_INTERVAL_S)
-            ): vol.All(int, vol.Range(min=5, max=60)),
-            vol.Optional(
-                CONF_ZERO_INJECTION_KP,
-                default=d.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP),
-            ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
-            vol.Optional(
-                CONF_ZERO_INJECTION_HYSTERESIS_W,
-                default=d.get(
-                    CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W
-                ),
-            ): vol.All(int, vol.Range(min=0)),
-            vol.Optional(
-                CONF_MAX_RAMP_W, default=d.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W)
-            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-            vol.Optional(CONF_DRY_RUN, default=d.get(CONF_DRY_RUN, DEFAULT_DRY_RUN)): bool,
-            vol.Optional(
-                CONF_BASELINE_WINDOW_START_H,
-                default=d.get(CONF_BASELINE_WINDOW_START_H, DEFAULT_BASELINE_WINDOW_START_H),
-            ): vol.All(int, vol.Range(min=0, max=23)),
-            vol.Optional(
-                CONF_BASELINE_WINDOW_END_H,
-                default=d.get(CONF_BASELINE_WINDOW_END_H, DEFAULT_BASELINE_WINDOW_END_H),
-            ): vol.All(int, vol.Range(min=0, max=23)),
-            vol.Optional(
-                CONF_NONCONTROLLABLE_STALE_S,
-                default=d.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-        }
+    # --- Expert tuning, folded into a collapsed section (expand on demand) ---
+    fields[vol.Optional(_ADVANCED_SECTION)] = section(
+        vol.Schema(
+            {
+                vol.Optional(
+                    CONF_TICK_INTERVAL_S,
+                    default=d.get(CONF_TICK_INTERVAL_S, DEFAULT_TICK_INTERVAL_S),
+                ): vol.All(int, vol.Range(min=5, max=60)),
+                vol.Optional(
+                    CONF_ZERO_INJECTION_KP,
+                    default=d.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP),
+                ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=2.0)),
+                vol.Optional(
+                    CONF_ZERO_INJECTION_HYSTERESIS_W,
+                    default=d.get(
+                        CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W
+                    ),
+                ): vol.All(int, vol.Range(min=0)),
+                vol.Optional(
+                    CONF_MAX_RAMP_W, default=d.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W)
+                ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+                vol.Optional(CONF_DRY_RUN, default=d.get(CONF_DRY_RUN, DEFAULT_DRY_RUN)): bool,
+                vol.Optional(
+                    CONF_BASELINE_WINDOW_START_H,
+                    default=d.get(CONF_BASELINE_WINDOW_START_H, DEFAULT_BASELINE_WINDOW_START_H),
+                ): vol.All(int, vol.Range(min=0, max=23)),
+                vol.Optional(
+                    CONF_BASELINE_WINDOW_END_H,
+                    default=d.get(CONF_BASELINE_WINDOW_END_H, DEFAULT_BASELINE_WINDOW_END_H),
+                ): vol.All(int, vol.Range(min=0, max=23)),
+                vol.Optional(
+                    CONF_NONCONTROLLABLE_STALE_S,
+                    default=d.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+            }
+        ),
+        {"collapsed": True},
     )
     return fields
 
@@ -287,10 +309,10 @@ def _weather_phenomena_fields(d: dict[str, Any]) -> dict[Any, Any]:
     }
 
 
-def _general_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
+def _general_fields(d: dict[str, Any]) -> dict[Any, Any]:
     """Full single-form general schema (initial setup): main + all sub-groups."""
     return {
-        **_general_main_fields(d, advanced),
+        **_general_main_fields(d),
         **_eq_internal_fields(d),
         **_tempo_red_fields(d),
         **_shed_fields(d),
@@ -298,7 +320,7 @@ def _general_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
     }
 
 
-def _forecast_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
+def _forecast_fields(d: dict[str, Any]) -> dict[Any, Any]:
     """Prévision PV (entités Solcast / Forecast.Solar + marge de sécurité)."""
     return {
         vol.Optional(CONF_PV_FORECAST_ENTITY, default=d.get(CONF_PV_FORECAST_ENTITY, "")): _entity(
@@ -367,7 +389,7 @@ def _tariff_spot_fields(d: dict[str, Any]) -> dict[Any, Any]:
     }
 
 
-def _tariff_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
+def _tariff_fields(d: dict[str, Any]) -> dict[Any, Any]:
     """Full single-form tariff schema (initial setup): base + all type details."""
     return {
         **_tariff_base_fields(d),
@@ -377,14 +399,14 @@ def _tariff_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, Any]:
     }
 
 
-def _main_schema(defaults: dict[str, Any] | None = None, advanced: bool = True) -> vol.Schema:
+def _main_schema(defaults: dict[str, Any] | None = None) -> vol.Schema:
     """Full single-form schema (initial setup); options are split into sections."""
     d = defaults or {}
     return vol.Schema(
         {
-            **_general_fields(d, advanced),
-            **_forecast_fields(d, advanced),
-            **_tariff_fields(d, advanced),
+            **_general_fields(d),
+            **_forecast_fields(d),
+            **_tariff_fields(d),
         }
     )
 
@@ -406,6 +428,7 @@ class SolarBalanceConfigFlow(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="single_instance_allowed")
 
         if user_input is not None:
+            user_input = _flatten_sections(user_input)
             # Normalise empty strings to None for optional entity selectors.
             for key in _OPTIONAL_ENTITY_KEYS:
                 if user_input.get(key) == "":
@@ -413,9 +436,7 @@ class SolarBalanceConfigFlow(ConfigFlow, domain=DOMAIN):
             user_input.setdefault(CONF_PRIORITIES, _DEFAULT_PRIORITIES)
             return self.async_create_entry(title="SolarBalance", data=user_input)
 
-        return self.async_show_form(
-            step_id="user", data_schema=_main_schema(advanced=self.show_advanced_options)
-        )
+        return self.async_show_form(step_id="user", data_schema=_main_schema())
 
     @staticmethod
     @callback
@@ -457,12 +478,12 @@ class SolarBalanceOptionsFlow(OptionsFlow):
         """Regulation main step → conditional feature sub-steps (wizard)."""
         current = dict(self._entry.options or self._entry.data)
         if user_input is not None:
-            self._buffer = {**current, **user_input}
+            self._buffer = {**current, **_flatten_sections(user_input)}
             self._pending = self._general_substeps(self._buffer)
             return await self._run_general_substeps()
         return self.async_show_form(
             step_id="general",
-            data_schema=vol.Schema(_general_main_fields(current, self.show_advanced_options)),
+            data_schema=vol.Schema(_general_main_fields(current)),
         )
 
     def _general_substeps(self, d: dict[str, Any]) -> list[str]:
@@ -610,7 +631,7 @@ class SolarBalanceOptionsFlow(OptionsFlow):
             return self.async_create_entry(title="", data=merged)
         return self.async_show_form(
             step_id=step_id,
-            data_schema=vol.Schema(fields_fn(current, self.show_advanced_options)),
+            data_schema=vol.Schema(fields_fn(current)),
         )
 
 

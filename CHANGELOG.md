@@ -37,7 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta18] — 2026-06-24
+## [2.0.8-beta19] — 2026-06-24
+
+### Changed
+
+- **Réglages avancés repliés dans une section (au lieu du Mode avancé global de
+  HA).** Les knobs experts (tick, gain ZI, hystérésis, rampe max, fenêtre nuit,
+  péremption cloud, dry-run) vivent maintenant dans une **section repliable
+  « Avancé »** du formulaire de régulation, **fermée par défaut**. On la déplie d'un
+  **clic, sur place** — plus besoin d'activer le « Mode avancé » global de HA dans
+  son profil ni de rouvrir les options. Le mode simple reste épuré.
+- **Fin de la dépréciation `show_advanced_options`** (que HA prévoit de supprimer en
+  Core 2027.6) : SolarBalance n'en dépend plus.
 
 ### Changed (config diet — advanced knobs)
 
@@ -1352,6 +1363,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta19]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta18...v2.0.8-beta19
 [2.0.8-beta18]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta17...v2.0.8-beta18
 [2.0.8-beta17]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta16...v2.0.8-beta17
 [2.0.8-beta16]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta15...v2.0.8-beta16
