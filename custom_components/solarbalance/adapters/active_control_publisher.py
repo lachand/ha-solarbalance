@@ -242,7 +242,11 @@ class ActiveControlPublisher:
             else:
                 # Re-assert 0 against the device's self-imposed base load.
                 await self._ensure_zero(opposite)
-        await self._write_mode(m.mode_entity, option, blocking=switching)
+        if switching:
+            await self._write_mode(m.mode_entity, option, blocking=True)
+        else:
+            # Re-assert the mode against a device that reverts it on its own.
+            await self._ensure_mode(m.mode_entity, option)
         if active_entity is not None:
             await self._write_power(active_entity, active_w, blocking=switching)
 
@@ -263,6 +267,22 @@ class ActiveControlPublisher:
             return
         if abs(current) > _WRITE_EPSILON_W:
             await self._write_power(entity_id, 0.0, force=True)
+
+    async def _ensure_mode(self, entity_id: str, option: str) -> None:
+        """Re-assert the mode select against a device that reverts it on its own.
+
+        The latch in ``_write_mode`` tracks what *we* last wrote, so if the device
+        silently drops back to its own default (a STREAM reverting ``energy_strategy``
+        to ``self_powered``) we would never correct it — and the active direction's
+        power setpoint (e.g. ``charging_power_limit``) is then **ignored by the box**
+        even though we keep writing it. This reads the actual select state and
+        re-writes the wanted option only when it has drifted, bypassing the latch.
+        """
+        state = self._hass.states.get(entity_id)
+        if state is None or state.state in ("unknown", "unavailable"):
+            return
+        if state.state != option:
+            await self._write_mode(entity_id, option, force=True)
 
     async def reset(self) -> None:
         """Command all managed power setpoints to 0 W (e.g. when suspended)."""
@@ -292,8 +312,10 @@ class ActiveControlPublisher:
         self._last_power[entity_id] = value_w
         _LOGGER.debug("Active control: %s <- %.0f W", entity_id, value_w)
 
-    async def _write_mode(self, entity_id: str, mode: str, *, blocking: bool = False) -> None:
-        if self._last_mode.get(entity_id) == mode:
+    async def _write_mode(
+        self, entity_id: str, mode: str, *, blocking: bool = False, force: bool = False
+    ) -> None:
+        if not force and self._last_mode.get(entity_id) == mode:
             return
         service_domain = "input_select" if entity_id.startswith("input_select.") else "select"
         try:

@@ -254,7 +254,13 @@ async def test_mode_battery_switch_to_discharge_zeroes_charge_first() -> None:
 
 
 async def test_mode_battery_no_reswitch_when_direction_unchanged() -> None:
+    from types import SimpleNamespace
+
     hass = _hass()
+    # The device correctly reports the strategy we set → no re-assert.
+    hass.states.get = lambda eid: (
+        SimpleNamespace(state="scheduled") if eid == "select.strat" else None
+    )
     pub = ActiveControlPublisher(hass, [_mode_device()])
     await pub.apply({"s": 600.0}, {"s": 50.0})  # switch to scheduled
     hass.services.async_call.reset_mock()
@@ -262,6 +268,26 @@ async def test_mode_battery_no_reswitch_when_direction_unchanged() -> None:
     # No opposite-zeroing, no strategy re-switch — only the charge power moves.
     assert _calls(hass) == [
         ("number", "set_value", {"entity_id": "number.chg", "value": 400.0}),
+    ]
+
+
+async def test_mode_reasserts_strategy_when_device_reverts() -> None:
+    # The STREAM drops energy_strategy back to self_powered on its own; SB must
+    # re-assert "scheduled" each tick, else charging_power_limit is ignored by the
+    # box (charge setpoint > PV yet the battery does nothing).
+    from types import SimpleNamespace
+
+    hass = _hass()
+    hass.states.get = lambda eid: (
+        SimpleNamespace(state="self_powered") if eid == "select.strat" else None
+    )
+    pub = ActiveControlPublisher(hass, [_mode_device()])
+    await pub.apply({"s": 600.0}, {"s": 50.0})  # initial switch to scheduled
+    hass.services.async_call.reset_mock()
+    await pub.apply({"s": 600.0}, {"s": 50.0})  # device reverted → re-assert scheduled
+    modes = [c for c in _calls(hass) if c[1] == "select_option"]
+    assert modes == [
+        ("select", "select_option", {"entity_id": "select.strat", "option": "scheduled"})
     ]
 
 

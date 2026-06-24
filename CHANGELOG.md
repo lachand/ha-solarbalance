@@ -37,6 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta7] — 2026-06-24
+
+### Fixed
+
+- **Batterie mode-switch (STREAM) : la consigne de charge était ignorée par la
+  box.** Le `select` de mode (`energy_strategy`) était **latché** : SB ne le
+  réécrivait que sur un *changement* de direction. Or une STREAM **repasse
+  `energy_strategy` en `self_powered` toute seule** (son défaut, après un temps ou
+  une reconnexion BLE). SB croyait être resté en `scheduled` et **ne réaffirmait
+  jamais** le mode → la box restait en `self_powered` → **`charging_power_limit`
+  était ignoré même quand il était bien supérieur à la production PV** (consigne
+  haute, batterie qui ne bouge pas). Nouveau `_ensure_mode` : à chaque tick, en
+  régime établi, SB **lit l'état réel du select** et réaffirme l'option voulue si
+  la box a dérivé — exactement comme `_ensure_zero` le fait déjà pour le
+  `base_load_power` (beta28). Combiné à beta6, la STREAM charge enfin le surplus.
+
 ## [2.0.8-beta6] — 2026-06-24
 
 ### Fixed
@@ -1166,6 +1182,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta6...v2.0.8-beta7
 [2.0.8-beta6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta5...v2.0.8-beta6
 [2.0.8-beta5]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta4...v2.0.8-beta5
 [2.0.8-beta4]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta3...v2.0.8-beta4
