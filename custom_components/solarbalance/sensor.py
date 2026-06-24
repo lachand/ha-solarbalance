@@ -1039,7 +1039,7 @@ class SolarBalanceConsumptionForecastErrorSensor(_SolarBalanceSensor):
 class SolarBalanceRegulationBindingSensor(_SolarBalanceSensor):
     """Which clamp set the fleet target this tick (diagnostic, text).
 
-    One of: base / equaliser / no_export / no_charge_floor / no_feed / stop_cloud /
+    One of: base / equaliser / no_export / no_charge_floor / no_feed /
     grid_import / grid_export. Makes a surprising target self-explanatory.
     """
 

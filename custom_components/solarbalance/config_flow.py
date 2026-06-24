@@ -17,7 +17,6 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
-    CONF_AUTOTUNE_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
@@ -49,7 +48,6 @@ from .const import (
     CONF_PV_FORECAST_ENTITY,
     CONF_PV_FORECAST_TOMORROW_ENTITY,
     CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
-    CONF_SOC_EQUALISER_BIDIRECTIONAL,
     CONF_SOC_EQUALISER_CADENCE_TICKS,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
@@ -59,7 +57,6 @@ from .const import (
     CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SPOT_MARKUP,
     CONF_SPOT_PRICE_ENTITY,
-    CONF_STOP_CLOUD_CHARGE,
     CONF_SUBSCRIBED_POWER_KVA,
     CONF_TARIFF_TYPE,
     CONF_TEMPO_COLOR_ENTITY,
@@ -68,7 +65,6 @@ from .const import (
     CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
     CONF_VACATION_SOC_MAX_PCT,
-    CONF_VOLATILITY_DAMPER_ENABLED,
     CONF_WEATHER_MIN_LEVEL,
     CONF_WEATHER_PHENOMENA,
     CONF_WEATHER_WARNING_ENTITY,
@@ -78,7 +74,6 @@ from .const import (
     CONF_ZERO_INJECTION_SETPOINT_W,
     CONF_ZI_SETTLE_MIN_DROP_W,
     CONF_ZI_SETTLE_TICKS,
-    DEFAULT_AUTOTUNE_ENABLED,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
@@ -102,7 +97,6 @@ from .const import (
     DEFAULT_PHASES,
     DEFAULT_PV_DROP_COMPENSATION_ENABLED,
     DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
-    DEFAULT_SOC_EQUALISER_BIDIRECTIONAL,
     DEFAULT_SOC_EQUALISER_CADENCE_TICKS,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
@@ -110,12 +104,10 @@ from .const import (
     DEFAULT_SOC_EQUALISER_MIN_PV_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_SPOT_MARKUP,
-    DEFAULT_STOP_CLOUD_CHARGE,
     DEFAULT_TARIFF_TYPE,
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_VACATION_SOC_MAX_PCT,
-    DEFAULT_VOLATILITY_DAMPER_ENABLED,
     DEFAULT_WEATHER_MIN_LEVEL,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
@@ -188,17 +180,9 @@ def _general_main_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, 
             default=d.get(CONF_NO_BATTERY_EXPORT, DEFAULT_NO_BATTERY_EXPORT),
         ): bool,
         vol.Optional(
-            CONF_STOP_CLOUD_CHARGE,
-            default=d.get(CONF_STOP_CLOUD_CHARGE, DEFAULT_STOP_CLOUD_CHARGE),
-        ): bool,
-        vol.Optional(
             CONF_LOCAL_AC_LOAD_ENTITIES,
             default=d.get(CONF_LOCAL_AC_LOAD_ENTITIES, []),
         ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", multiple=True)),
-        vol.Optional(
-            CONF_VOLATILITY_DAMPER_ENABLED,
-            default=d.get(CONF_VOLATILITY_DAMPER_ENABLED, DEFAULT_VOLATILITY_DAMPER_ENABLED),
-        ): bool,
         vol.Optional(
             CONF_PV_DROP_COMPENSATION_ENABLED,
             default=d.get(CONF_PV_DROP_COMPENSATION_ENABLED, DEFAULT_PV_DROP_COMPENSATION_ENABLED),
@@ -292,10 +276,6 @@ def _general_main_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, 
                 CONF_NONCONTROLLABLE_STALE_S,
                 default=d.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S),
             ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-            vol.Optional(
-                CONF_AUTOTUNE_ENABLED,
-                default=d.get(CONF_AUTOTUNE_ENABLED, DEFAULT_AUTOTUNE_ENABLED),
-            ): bool,
         }
     )
     return fields
@@ -336,10 +316,6 @@ def _eq_internal_fields(d: dict[str, Any]) -> dict[Any, Any]:
             default=d.get(
                 CONF_SOC_EQUALISER_ADAPTIVE_CADENCE, DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE
             ),
-        ): bool,
-        vol.Optional(
-            CONF_SOC_EQUALISER_BIDIRECTIONAL,
-            default=d.get(CONF_SOC_EQUALISER_BIDIRECTIONAL, DEFAULT_SOC_EQUALISER_BIDIRECTIONAL),
         ): bool,
     }
 

@@ -157,10 +157,8 @@ class RegulationInputs:
     controllable_mppt_w: float
     nc_charge_offset_w: float
     noncontrollable_charging: bool
-    noncontrollable_charge_w: float
     zi_hysteresis_w: float
     no_battery_export: bool
-    stop_cloud_charge: bool
     max_import_w: float | None
     max_export_w: float | None
     loop_base_w: float | None = None
@@ -228,17 +226,12 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
         ):
             pin(min(total_w, -inp.controllable_mppt_w), "no_charge_floor")
         # No-feed: don't discharge the fleet to feed a self-charging cloud battery
-        # (it draws from the grid instead). stop_cloud_charge additionally cuts the
-        # discharge to 0 to starve it — but only in a surplus context, never while a
-        # real load is importing (else it dumps the load on the grid and yoyos).
+        # (it draws from the grid instead -- a single conversion, not a round trip).
         if inp.nc_charge_offset_w > 0.0:
             pin(
                 max(total_w, inp.nc_charge_offset_w - inp.grid_filtered_w + inp.current_fleet_w),
                 "no_feed",
             )
-            real_load_w = natural_grid_w - inp.noncontrollable_charge_w
-            if inp.stop_cloud_charge and real_load_w <= inp.zi_hysteresis_w:
-                pin(max(total_w, 0.0), "stop_cloud")
     # Grid constraints (honour the breaker/contract regardless of the regulator).
     if inp.max_import_w is not None:
         pin(

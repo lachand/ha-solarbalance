@@ -30,9 +30,6 @@ CONF_SOC_EQUALISER_MIN_PV_W: Final = "soc_equaliser_min_pv_w"
 # cloud battery, may briefly import); unidirectional (default) only makes the
 # fleet discharge MORE when it is higher (spares the lower battery, no provoked
 # import).
-CONF_SOC_EQUALISER_BIDIRECTIONAL: Final = "soc_equaliser_bidirectional"
-DEFAULT_SOC_EQUALISER_BIDIRECTIONAL: Final = False
-CONF_AUTOTUNE_ENABLED: Final = "autotune_enabled"
 CONF_ACTIVE_CONTROL_ENABLED: Final = "active_control_enabled"
 CONF_MAX_RAMP_W: Final = "max_ramp_w"
 CONF_GRID_FILTER_SAMPLES: Final = "grid_filter_samples"
@@ -98,7 +95,6 @@ DEFAULT_SOC_EQUALISER_MIN_PV_W: Final = 200.0
 # Supervisory auto-tuner: damps the ZI kp and the equaliser step cap when they
 # oscillate, restores them toward the configured values when calm. Never more
 # aggressive than configured, hence safe on by default. Floors below.
-DEFAULT_AUTOTUNE_ENABLED: Final = True
 AUTOTUNE_ZI_KP_MIN: Final = 0.2
 AUTOTUNE_EQ_STEP_MIN_W: Final = 100.0
 # Max change of the aggregate battery target per tick (W). Caps regulation
@@ -186,8 +182,6 @@ DEFAULT_NO_BATTERY_EXPORT: Final = False
 # to 0 (the house draws from the grid instead), removing the local output the cloud
 # battery feeds on so it stops charging. Off by default (imports for the house
 # while active; relies on the cloud battery reacting). Inert without a cloud battery.
-CONF_STOP_CLOUD_CHARGE: Final = "stop_cloud_charge"
-DEFAULT_STOP_CLOUD_CHARGE: Final = False
 
 # Local AC-load entities behind the controllable fleet (e.g. EcoFlow STREAM AC
 # output sockets): served by the fleet but invisible to the grid meter. Declaring
@@ -199,8 +193,6 @@ CONF_LOCAL_AC_LOAD_ENTITIES: Final = "local_ac_load_entities"
 # Adaptive volatility damper: smooth the grid signal fed to the regulation loop
 # more when it is volatile (motor-type loads), so the battery tracks the slow
 # average and the grid absorbs the fast swings (no yoyo). Off by default.
-CONF_VOLATILITY_DAMPER_ENABLED: Final = "volatility_damper_enabled"
-DEFAULT_VOLATILITY_DAMPER_ENABLED: Final = False
 CONF_PV_DROP_COMPENSATION_ENABLED: Final = "pv_drop_compensation_enabled"
 DEFAULT_PV_DROP_COMPENSATION_ENABLED: Final = False
 

@@ -97,14 +97,10 @@
           "soc_equaliser_min_pv_w": "SoC equaliser: min PV to run / cap (W)",
           "soc_equaliser_cadence_ticks": "SoC equaliser: cadence (ticks between moves)",
           "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)",
-          "soc_equaliser_bidirectional": "SoC equaliser: bidirectional discharge share (also offload onto the cloud battery; may briefly import)",
-          "autotune_enabled": "Auto-tune: damp ZI/equaliser gains when they oscillate",
           "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
           "dry_run": "Dry-run (compute everything, never write to hardware)",
           "no_battery_export": "Strict self-consumption: never discharge the battery into the grid (blocks injection)",
-          "stop_cloud_charge": "Stop a self-charging cloud battery: cut the fleet discharge to 0 (imports for the house) so it stops charging",
           "local_ac_load_entities": "Local AC-load sensors behind the fleet (e.g. STREAM AC sockets) — excluded from the grid loop so their cycling doesn't disturb it",
-          "volatility_damper_enabled": "Adaptive volatility damper: smooth the grid more on motor-type loads (battery tracks the average, no yoyo)",
           "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables",
           "curtailment_deadband_w": "Curtailment: export deadband (W)",
           "curtailment_settle_ticks": "Curtailment: settle window (ticks held after each move)",
@@ -144,8 +140,7 @@
           "soc_equaliser_probe_step_w": "SoC equaliser: step per move (W)",
           "soc_equaliser_min_pv_w": "SoC equaliser: min PV to run / cap (W)",
           "soc_equaliser_cadence_ticks": "SoC equaliser: cadence (ticks between moves)",
-          "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)",
-          "soc_equaliser_bidirectional": "SoC equaliser: bidirectional discharge share (also offload onto the cloud battery; may briefly import)"
+          "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)"
         }
       },
       "general_tempo_red": {
@@ -810,9 +805,6 @@
       },
       "zi_hysteresis": {
         "name": "ZI Deadband"
-      },
-      "manual_charge_power": {
-        "name": "Manual charge power (test)"
       }
     },
     "switch": {

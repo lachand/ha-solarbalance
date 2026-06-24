@@ -17,7 +17,6 @@ from custom_components.solarbalance.const import (
     CONF_ACTIVE_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_NO_BATTERY_EXPORT,
-    CONF_STOP_CLOUD_CHARGE,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_SETPOINT_W,
     DOMAIN,
@@ -112,36 +111,3 @@ async def test_no_battery_export_caps_discharge_vs_default(hass: HomeAssistant) 
     default = await _run(hass, [_stream(soc=50)], states)
     capped = await _run(hass, [_stream(soc=50)], states, {CONF_NO_BATTERY_EXPORT: True})
     assert capped.diagnostics.fleet_target_w >= default.diagnostics.fleet_target_w
-
-
-@pytest.mark.asyncio
-async def test_stop_cloud_charge_surplus_vs_deficit(hass: HomeAssistant) -> None:
-    # Surplus context (import ≈ cloud charge): stop_cloud_charge cuts discharge ≥ 0.
-    surplus = await _run(
-        hass,
-        [_stream(soc=50), _jackery()],
-        {
-            "sensor.stream_soc": 50,
-            "sensor.stream_power": 0,
-            "sensor.jackery_soc": 60,
-            "sensor.jackery_power": 500,  # charging
-            "sensor.grid_power": 400,  # ≈ the cloud's charge import
-        },
-        {CONF_STOP_CLOUD_CHARGE: True},
-    )
-    assert surplus.diagnostics.fleet_target_w >= -1.0
-
-    # Real load present (deficit): the fleet must still discharge to cover it.
-    deficit = await _run(
-        hass,
-        [_stream(soc=50), _jackery()],
-        {
-            "sensor.stream_soc": 50,
-            "sensor.stream_power": 0,
-            "sensor.jackery_soc": 60,
-            "sensor.jackery_power": 500,  # charging
-            "sensor.grid_power": 1800,  # car + cloud charge
-        },
-        {CONF_STOP_CLOUD_CHARGE: True},
-    )
-    assert deficit.diagnostics.fleet_target_w < 0

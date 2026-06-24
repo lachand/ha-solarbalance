@@ -34,7 +34,6 @@ async def async_setup_entry(
         [
             ZeroInjectionSetpointNumber(coordinator, entry),
             ZeroInjectionHysteresisNumber(coordinator, entry),
-            ManualChargePowerNumber(coordinator, entry),
         ]
     )
 
@@ -71,49 +70,6 @@ class ZeroInjectionSetpointNumber(_SBNumber):
 
     async def async_set_native_value(self, value: float) -> None:
         self.coordinator._zi_setpoint_w = value
-        self.async_write_ha_state()
-
-
-class ManualChargePowerNumber(_SBNumber):
-    """Manual grid charge/discharge power for testing (W).
-
-    ``> 0`` charges the controllable fleet from the grid at that power, ``< 0``
-    discharges to the grid, ``0`` returns to normal. Drives the existing
-    ``MANUAL_OVERRIDE`` mode (zero-injection OFF), so you can see exactly how the
-    batteries respond to a forced setpoint — e.g. test a night-time grid charge.
-    The setpoint is still written through the normal active-control path (mode-switch
-    sequence included), so it tests the real write chain, not a raw bypass.
-    """
-
-    _attr_translation_key = "manual_charge_power"
-    _attr_native_unit_of_measurement = UnitOfPower.WATT
-    _attr_device_class = NumberDeviceClass.POWER
-    _attr_native_min_value = -3000.0
-    _attr_native_max_value = 3000.0
-    _attr_native_step = 10.0
-    _attr_icon = "mdi:hand-back-right"
-
-    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
-        super().__init__(coordinator, entry, "manual_charge_power")
-
-    @property
-    def native_value(self) -> float:
-        ovr = self.coordinator._battery_override
-        if ovr is None:
-            return 0.0
-        power = float(ovr.power_w or 0.0)
-        return power if ovr.kind == "charge" else -power
-
-    async def async_set_native_value(self, value: float) -> None:
-        if abs(value) < 1.0:
-            self.coordinator.clear_force_override()
-        elif value > 0:
-            # target_soc 100 % so it keeps charging for the whole test.
-            self.coordinator.set_force_override(kind="charge", target_soc_pct=100.0, power_w=value)
-        else:
-            self.coordinator.set_force_override(
-                kind="discharge", target_soc_pct=0.0, power_w=-value
-            )
         self.async_write_ha_state()
 
 

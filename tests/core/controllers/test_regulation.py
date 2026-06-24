@@ -23,10 +23,8 @@ def _inp(**kw: object) -> RegulationInputs:
         "controllable_mppt_w": 0.0,
         "nc_charge_offset_w": 0.0,
         "noncontrollable_charging": False,
-        "noncontrollable_charge_w": 0.0,
         "zi_hysteresis_w": 50.0,
         "no_battery_export": False,
-        "stop_cloud_charge": False,
         "max_import_w": None,
         "max_export_w": None,
     }
@@ -72,39 +70,10 @@ class TestResolveTotalPower:
                 grid_filtered_w=600.0,
                 zi_correction_w=-600.0,
                 nc_charge_offset_w=400.0,
-                noncontrollable_charge_w=400.0,
                 noncontrollable_charging=True,
             )
         )
         assert out.total_w == pytest.approx(-200.0)
-
-    def test_stop_cloud_charge_cuts_in_surplus(self) -> None:
-        # Import ~= the cloud charge (no real load) → discharge cut to >= 0.
-        out = resolve_total_power(
-            _inp(
-                grid_filtered_w=400.0,
-                zi_correction_w=-400.0,
-                nc_charge_offset_w=400.0,
-                noncontrollable_charge_w=400.0,
-                noncontrollable_charging=True,
-                stop_cloud_charge=True,
-            )
-        )
-        assert out.total_w == pytest.approx(0.0)
-
-    def test_stop_cloud_charge_does_not_cut_under_real_load(self) -> None:
-        # Big real load on top of the cloud charge → keep discharging to cover it.
-        out = resolve_total_power(
-            _inp(
-                grid_filtered_w=1800.0,
-                zi_correction_w=-1800.0,
-                nc_charge_offset_w=400.0,
-                noncontrollable_charge_w=400.0,
-                noncontrollable_charging=True,
-                stop_cloud_charge=True,
-            )
-        )
-        assert out.total_w < 0.0
 
     def test_binding_reports_the_clamp_that_set_the_target(self) -> None:
         out = resolve_total_power(
@@ -112,7 +81,6 @@ class TestResolveTotalPower:
                 grid_filtered_w=600.0,
                 zi_correction_w=-600.0,
                 nc_charge_offset_w=400.0,
-                noncontrollable_charge_w=400.0,
                 noncontrollable_charging=True,
             )
         )

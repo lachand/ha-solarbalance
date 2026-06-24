@@ -97,14 +97,10 @@
           "soc_equaliser_min_pv_w": "Équaliseur SoC : PV mini pour agir / plafond (W)",
           "soc_equaliser_cadence_ticks": "Équaliseur SoC : cadence (ticks entre mouvements)",
           "soc_equaliser_adaptive_cadence": "Équaliseur SoC : cadence adaptative (suit le retard mesuré)",
-          "soc_equaliser_bidirectional": "Équaliseur SoC : répartition de décharge bidirectionnelle (déleste aussi sur la batterie cloud ; peut importer brièvement)",
-          "autotune_enabled": "Auto-réglage : amortit les gains ZI/équaliseur en cas d'oscillation",
           "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)",
           "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
           "no_battery_export": "Autoconsommation stricte : ne jamais décharger la batterie vers le réseau (bloque l'injection)",
-          "stop_cloud_charge": "Stopper une batterie cloud qui se charge : couper la décharge du parc à 0 (importe pour la maison) pour qu'elle arrête de charger",
           "local_ac_load_entities": "Capteurs de conso prise AC locale (ex. prises du STREAM) — exclus de la boucle réseau pour que leurs cycles ne la perturbent pas",
-          "volatility_damper_enabled": "Amortisseur de volatilité adaptatif : lisse davantage le réseau sur les charges moteur (la batterie suit la moyenne, pas de yoyo)",
           "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive",
           "curtailment_deadband_w": "Bridage : bande morte d'injection (W)",
           "curtailment_settle_ticks": "Bridage : fenêtre de stabilisation (ticks tenus après chaque mouvement)",
@@ -144,8 +140,7 @@
           "soc_equaliser_probe_step_w": "Équaliseur SoC : pas par mouvement (W)",
           "soc_equaliser_min_pv_w": "Équaliseur SoC : PV mini pour agir / plafond (W)",
           "soc_equaliser_cadence_ticks": "Équaliseur SoC : cadence (ticks entre mouvements)",
-          "soc_equaliser_adaptive_cadence": "Équaliseur SoC : cadence adaptative (suit le retard mesuré)",
-          "soc_equaliser_bidirectional": "Équaliseur SoC : répartition de décharge bidirectionnelle (déleste aussi sur la batterie cloud ; peut importer brièvement)"
+          "soc_equaliser_adaptive_cadence": "Équaliseur SoC : cadence adaptative (suit le retard mesuré)"
         }
       },
       "general_tempo_red": {
@@ -810,9 +805,6 @@
       },
       "zi_hysteresis": {
         "name": "Hystérésis zéro injection"
-      },
-      "manual_charge_power": {
-        "name": "Puissance de charge manuelle (test)"
       }
     },
     "switch": {

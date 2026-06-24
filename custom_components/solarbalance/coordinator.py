@@ -24,7 +24,6 @@ from .const import (
     AUTOTUNE_EQ_STEP_MIN_W,
     AUTOTUNE_ZI_KP_MIN,
     CONF_ACTIVE_CONTROL_ENABLED,
-    CONF_AUTOTUNE_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
@@ -54,7 +53,6 @@ from .const import (
     CONF_PV_DROP_COMPENSATION_ENABLED,
     CONF_PV_FORECAST_TOMORROW_ENTITY,
     CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
-    CONF_SOC_EQUALISER_BIDIRECTIONAL,
     CONF_SOC_EQUALISER_CADENCE_TICKS,
     CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
@@ -64,7 +62,6 @@ from .const import (
     CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SPOT_MARKUP,
     CONF_SPOT_PRICE_ENTITY,
-    CONF_STOP_CLOUD_CHARGE,
     CONF_SUBSCRIBED_POWER_KVA,
     CONF_TARIFF_TYPE,
     CONF_TEMPO_COLOR_ENTITY,
@@ -73,7 +70,6 @@ from .const import (
     CONF_TEMPO_RED_PREP_SOC_PCT,
     CONF_TICK_INTERVAL_S,
     CONF_VACATION_SOC_MAX_PCT,
-    CONF_VOLATILITY_DAMPER_ENABLED,
     CONF_WEATHER_MIN_LEVEL,
     CONF_WEATHER_PHENOMENA,
     CONF_ZERO_INJECTION_ENABLED,
@@ -82,7 +78,6 @@ from .const import (
     CONF_ZERO_INJECTION_SETPOINT_W,
     CONF_ZI_SETTLE_MIN_DROP_W,
     CONF_ZI_SETTLE_TICKS,
-    DEFAULT_AUTOTUNE_ENABLED,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BALANCING_ALPHA,
     DEFAULT_BASELINE_WINDOW_END_H,
@@ -108,7 +103,6 @@ from .const import (
     DEFAULT_OVERLOAD_PROTECTION_ENABLED,
     DEFAULT_PV_DROP_COMPENSATION_ENABLED,
     DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
-    DEFAULT_SOC_EQUALISER_BIDIRECTIONAL,
     DEFAULT_SOC_EQUALISER_CADENCE_TICKS,
     DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
     DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
@@ -116,13 +110,11 @@ from .const import (
     DEFAULT_SOC_EQUALISER_MIN_PV_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_SPOT_MARKUP,
-    DEFAULT_STOP_CLOUD_CHARGE,
     DEFAULT_STORM_TARGET_SOC_PCT,
     DEFAULT_TARIFF_TYPE,
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
     DEFAULT_TICK_INTERVAL_S,
     DEFAULT_VACATION_SOC_MAX_PCT,
-    DEFAULT_VOLATILITY_DAMPER_ENABLED,
     DEFAULT_WEATHER_MIN_LEVEL,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
@@ -484,10 +476,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._predictive_control_enabled = bool(cfg.get(CONF_PREDICTIVE_CONTROL_ENABLED, False))
         self._dry_run = bool(cfg.get(CONF_DRY_RUN, DEFAULT_DRY_RUN))
         self._no_battery_export = bool(cfg.get(CONF_NO_BATTERY_EXPORT, DEFAULT_NO_BATTERY_EXPORT))
-        self._stop_cloud_charge = bool(cfg.get(CONF_STOP_CLOUD_CHARGE, DEFAULT_STOP_CLOUD_CHARGE))
-        self._eq_bidirectional = bool(
-            cfg.get(CONF_SOC_EQUALISER_BIDIRECTIONAL, DEFAULT_SOC_EQUALISER_BIDIRECTIONAL)
-        )
         # Integration version, set by async_setup_entry from the manifest; shown as
         # the device sw_version (no manual bump needed).
         self.version: str | None = None
@@ -629,15 +617,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._zi_setpoint_w = float(cfg.get(CONF_ZERO_INJECTION_SETPOINT_W, 0))
         self._tick_s = tick
 
-        # Supervisory auto-tuner (on by default): damps the ZI kp and the equaliser
-        # step cap when they oscillate, restores them when calm. Bounded to the
-        # configured values, so it can only make a loop gentler, never harsher.
-        self._autotune = bool(cfg.get(CONF_AUTOTUNE_ENABLED, DEFAULT_AUTOTUNE_ENABLED))
+        # Supervisory auto-tuner (always on): damps the ZI kp and the equaliser step
+        # cap when they oscillate, restores them when calm. Bounded to the configured
+        # values, so it can only make a loop gentler, never harsher -- there is no
+        # reason to expose a toggle that, when off, just lets the loops oscillate.
         self._zi_tuner: RegulationAutoTuner | None = None
         self._eq_tuner: RegulationAutoTuner | None = None
-        if self._autotune and zi_kp > AUTOTUNE_ZI_KP_MIN:
+        if zi_kp > AUTOTUNE_ZI_KP_MIN:
             self._zi_tuner = RegulationAutoTuner(default=zi_kp, min_value=AUTOTUNE_ZI_KP_MIN)
-        if self._autotune and self._soc_equaliser is not None:
+        if self._soc_equaliser is not None:
             eq_step = float(
                 cfg.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W)
             )
@@ -667,17 +655,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Filter the controllable-fleet power (the regulator's base) with the same
         # window, so grid and base are time-aligned despite async cloud sensors.
         self._fleet_filter = RollingMedian(grid_samples)
-        # Optional adaptive volatility damper: when the grid is agitated (motor
+        # Adaptive volatility damper (always on): when the grid is agitated (motor
         # loads), smooth it more so the battery tracks the slow average instead of
-        # chasing the swings (which yoyos).
-        _damper_on = bool(
-            cfg.get(CONF_VOLATILITY_DAMPER_ENABLED, DEFAULT_VOLATILITY_DAMPER_ENABLED)
-        )
-        self._grid_damper = AdaptiveVolatilityDamper() if _damper_on else None
+        # chasing the swings (which yoyos). It self-disengages when the grid is calm,
+        # so there is no reason to expose a toggle.
+        self._grid_damper = AdaptiveVolatilityDamper()
         # Same damper on the fleet base: a noisy MPPT (morning, clouds) enters
         # current_fleet (= battery - mppt) and would otherwise jitter the ZI target
         # even with the grid smoothed.
-        self._fleet_damper = AdaptiveVolatilityDamper() if _damper_on else None
+        self._fleet_damper = AdaptiveVolatilityDamper()
 
         # Daily energy integration (fallback when no vendor daily_energy_entity),
         # persisted across restarts via the HA Store.
@@ -1702,11 +1688,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             is_deficit = natural_grid_w > self._zi_hysteresis_w
             eq_bias_w = self._equaliser_bias(snapshot, grid_filtered_w, deficit=is_deficit)
             # In a deficit the offer steers the discharge share to converge SoC
-            # (higher-SoC battery carries more). Unidirectional (default) only lets
-            # the fleet discharge MORE when it is higher (offer >= 0), sparing the
-            # lower battery without provoking import; bidirectional also lets it
-            # discharge less (offer < 0) so the cloud battery carries more.
-            if is_deficit and not self._eq_bidirectional:
+            # (higher-SoC battery carries more): only let the fleet discharge MORE
+            # when it is higher (offer >= 0), sparing the lower battery without
+            # provoking grid import (no bidirectional mode -- offloading onto a cloud
+            # battery could briefly import, which is never wanted).
+            if is_deficit:
                 eq_bias_w = max(0.0, eq_bias_w)
             if self._eq_tuner is not None and self._soc_equaliser is not None:
                 # Damp the equaliser step cap if the offer is oscillating.
@@ -1832,10 +1818,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 controllable_mppt_w=controllable_mppt_w,
                 nc_charge_offset_w=nc_charge_offset_w,
                 noncontrollable_charging=noncontrollable_charge_w > self._zi_hysteresis_w,
-                noncontrollable_charge_w=noncontrollable_charge_w,
                 zi_hysteresis_w=self._zi_hysteresis_w,
                 no_battery_export=self._no_battery_export,
-                stop_cloud_charge=self._stop_cloud_charge,
                 max_import_w=gc.max_import_w,
                 max_export_w=gc.max_export_w,
             )

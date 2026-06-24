@@ -37,7 +37,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta16] — 2026-06-24
+## [2.0.8-beta17] — 2026-06-24
+
+### Removed (config simplification)
+
+- **`stop_cloud_charge`** retiré : option niche et agressive (coupait la décharge du
+  parc à 0 pour affamer une batterie cloud → forçait l'import maison), redondante
+  avec l'anti-transfert désormais toujours actif (beta16).
+- **`soc_equaliser_bidirectional`** retiré : pouvait provoquer un import bref
+  (« déleste aussi sur la batterie cloud »). L'équaliseur reste unidirectionnel
+  (ne décharge le parc que quand il est plus haut, jamais d'import provoqué).
+- **`autotune_enabled`** retiré → l'auto-réglage des gains ZI/équaliseur est
+  **toujours actif** (le désactiver ne faisait que laisser les boucles osciller).
+- **`volatility_damper_enabled`** retiré → l'amortisseur de volatilité est
+  **toujours actif** (anti-yoyo ; il se désengage seul quand le réseau est calme).
+- **Contrôle manuel de charge** (entité `number` « Puissance de charge manuelle »)
+  retiré : c'était un outil de diagnostic ponctuel (beta14), le comportement est
+  compris, on n'encombre plus l'UI.
+
+Quatre réglages et une entité de moins : config plus simple, moins de pièges.
 
 ### Changed
 
@@ -1319,6 +1337,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta17]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta16...v2.0.8-beta17
 [2.0.8-beta16]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta15...v2.0.8-beta16
 [2.0.8-beta15]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta14...v2.0.8-beta15
 [2.0.8-beta14]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta13...v2.0.8-beta14
