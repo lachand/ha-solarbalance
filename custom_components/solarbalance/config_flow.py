@@ -839,6 +839,7 @@ def _battery_subentry_schema(d: dict[str, Any]) -> vol.Schema:
                 "discharge_mode_option", default=d.get("discharge_mode_option", "discharge")
             ): str,
             vol.Optional("idle_mode_option", default=d.get("idle_mode_option", "")): str,
+            vol.Optional("battery_count", default=d.get("battery_count", 1)): _num(1, step=1),
             vol.Optional(
                 "reserve_soc_setpoint_entity",
                 default=d.get("reserve_soc_setpoint_entity", ""),
@@ -874,6 +875,7 @@ _BATTERY_ROLE_KEYS = (
     "charge_mode_option",
     "discharge_mode_option",
     "idle_mode_option",
+    "battery_count",
     "reserve_soc_setpoint_entity",
     "ac_charge_limit_w",
 )

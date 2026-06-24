@@ -37,7 +37,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta10] — 2026-06-24
+## [2.0.8-beta11] — 2026-06-24
+
+### Changed
+
+- **Consigne de charge = `(solaire batterie + surplus autres onduleurs) / nombre de
+  batteries`.** La box plafonne la **charge totale des cellules** (PV inclus), donc
+  la consigne doit couvrir le PV que la batterie absorbe elle-même **plus** le
+  surplus AC à récupérer des autres onduleurs. Toujours arrondie à 10 W. La consigne
+  de décharge est elle aussi divisée par le nombre de batteries.
+
+### Added
+
+- **Réglage « nombre de batteries par entité » (`battery_count`, défaut 1).** Quand
+  plusieurs batteries (ex. 2 EcoFlow STREAM) partagent un même jeu d'entités, la box
+  applique la consigne **par batterie** ; SB divise donc la consigne écrite par ce
+  nombre pour atteindre la cible du parc. Réglable dans le sous-formulaire batterie
+  (UI) ou en YAML (`battery_count`).
 
 ### Changed
 
@@ -1228,6 +1244,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta11]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta10...v2.0.8-beta11
 [2.0.8-beta10]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta9...v2.0.8-beta10
 [2.0.8-beta9]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta8...v2.0.8-beta9
 [2.0.8-beta8]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta7...v2.0.8-beta8

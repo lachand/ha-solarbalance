@@ -227,6 +227,7 @@
             "charge_mode_option": "Charge mode option (e.g. scheduled)",
             "discharge_mode_option": "Discharge mode option (e.g. self_powered)",
             "idle_mode_option": "Idle mode option (optional)",
+            "battery_count": "Batteries per entity (1 unless several batteries share these entities)",
             "reserve_soc_setpoint_entity": "Device reserve / min-SoC (number %)",
             "ac_charge_limit_w": "AC charge limit (W)"
           },
@@ -269,6 +270,7 @@
             "charge_mode_option": "Charge mode option (e.g. scheduled)",
             "discharge_mode_option": "Discharge mode option (e.g. self_powered)",
             "idle_mode_option": "Idle mode option (optional)",
+            "battery_count": "Batteries per entity (1 unless several batteries share these entities)",
             "reserve_soc_setpoint_entity": "Device reserve / min-SoC (number %)",
             "ac_charge_limit_w": "AC charge limit (W)"
           },
@@ -504,6 +506,7 @@
             "charge_mode_option": "Charge mode option (e.g. scheduled)",
             "discharge_mode_option": "Discharge mode option (e.g. self_powered)",
             "idle_mode_option": "Idle mode option (optional)",
+            "battery_count": "Batteries per entity (1 unless several batteries share these entities)",
             "reserve_soc_setpoint_entity": "Reserve / min-SoC (number %)",
             "ac_charge_limit_w": "AC charge limit (W)",
             "mppt_peak_power_w": "MPPT: peak power (W)",
@@ -546,6 +549,7 @@
             "charge_mode_option": "Charge mode option (e.g. scheduled)",
             "discharge_mode_option": "Discharge mode option (e.g. self_powered)",
             "idle_mode_option": "Idle mode option (optional)",
+            "battery_count": "Batteries per entity (1 unless several batteries share these entities)",
             "reserve_soc_setpoint_entity": "Reserve / min-SoC (number %)",
             "ac_charge_limit_w": "AC charge limit (W)",
             "mppt_peak_power_w": "MPPT: peak power (W)",

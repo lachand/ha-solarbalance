@@ -1924,7 +1924,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         self._publisher.publish(result, balancing_result=balancing_result)
         soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}
-        await self._apply_active_control(balancing_result.per_battery_w, soc_by_device, pv_limits)
+        # Own PV of each controllable battery (its mppt on the same device): the
+        # charge setpoint includes it (the box caps the total cell charge — see
+        # ActiveControlPublisher.apply).
+        mppt_by_device = {
+            m.device_name: m.power_w
+            for m in snapshot.mppts
+            if m.available and m.device_name in self._controllable_battery_names
+        }
+        await self._apply_active_control(
+            balancing_result.per_battery_w, soc_by_device, pv_limits, mppt_by_device
+        )
         self._check_alerts(snapshot)
         self._fire_edge_events(snapshot)
         return snapshot
@@ -2691,6 +2701,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         per_battery_w: Mapping[str, float],
         soc_by_device: Mapping[str, float],
         pv_limits: Mapping[str, float],
+        mppt_by_device: Mapping[str, float],
     ) -> None:
         """Write setpoints to equipment when active control is enabled.
 
@@ -2715,7 +2726,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 self._active_control_suspended = True
             return
         self._active_control_suspended = False
-        await self._active_control.apply(per_battery_w, soc_by_device)
+        await self._active_control.apply(per_battery_w, soc_by_device, mppt_by_device)
         await self._active_control.apply_pv_limits(pv_limits)
         await self._active_control.apply_reserve(self._reserve_setpoints())
 

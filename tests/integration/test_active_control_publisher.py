@@ -18,6 +18,7 @@ def _device(
     controllable: bool = True,
     soc_min_pct: int = 10,
     soc_max_pct: int = 95,
+    battery_count: int = 1,
 ) -> Device:
     return Device(
         name=name,
@@ -34,6 +35,7 @@ def _device(
             discharge_power_setpoint_entity=entity if active else None,
             charge_power_setpoint_entity=charge_entity,
             mode_setpoint_entity=mode_entity,
+            battery_count=battery_count,
         ),
     )
 
@@ -359,14 +361,30 @@ async def test_mode_charge_reasserts_zero_on_self_imposed_base_load() -> None:
     assert zeroed
 
 
-async def test_charge_setpoint_is_the_grid_charge_only() -> None:
-    # charging_power_limit is the grid/AC charge (the box charges its own PV on the
-    # DC side by itself), so the regulator's surplus target is written as-is — no PV
-    # is added (that would over-pull from the grid).
+async def test_charge_setpoint_adds_own_pv() -> None:
+    # The charge setpoint covers the battery's own PV + the surplus to absorb (the
+    # box caps the total cell charge), written as (PV + surplus) / battery_count.
     hass = _hass()
     pub = ActiveControlPublisher(hass, [_device("a", entity=None, charge_entity="number.chg_a")])
-    await pub.apply({"a": 200.0}, {"a": 50.0})  # 200 W surplus to absorb from the grid
-    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 200.0})]
+    await pub.apply({"a": 200.0}, {"a": 50.0}, {"a": 800.0})  # (200 + 800) / 1
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 1000.0})]
+
+
+async def test_charge_setpoint_pv_plus_surplus_divided_by_count() -> None:
+    # Two batteries behind one entity: (solar + surplus) / 2.
+    hass = _hass()
+    pub = ActiveControlPublisher(
+        hass, [_device("a", entity=None, charge_entity="number.chg_a", battery_count=2)]
+    )
+    await pub.apply({"a": 200.0}, {"a": 50.0}, {"a": 800.0})  # (200 + 800) / 2
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 500.0})]
+
+
+async def test_discharge_setpoint_divided_by_count() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_device("a", entity="number.dis_a", battery_count=2)])
+    await pub.apply({"a": -800.0}, {"a": 50.0})  # 800 / 2 per battery
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.dis_a", "value": 400.0})]
 
 
 async def test_charge_setpoint_quantised_to_step() -> None:
@@ -374,5 +392,12 @@ async def test_charge_setpoint_quantised_to_step() -> None:
     # not spammed with sub-step PI ripple.
     hass = _hass()
     pub = ActiveControlPublisher(hass, [_device("a", entity=None, charge_entity="number.chg_a")])
-    await pub.apply({"a": 217.0}, {"a": 50.0})  # 217 → 220
+    await pub.apply({"a": 217.0}, {"a": 50.0})  # 217 → 220 (no PV)
     assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 220.0})]
+
+
+async def test_charge_setpoint_clamped_to_max_charge() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_device("a", entity=None, charge_entity="number.chg_a")])
+    await pub.apply({"a": 1500.0}, {"a": 50.0}, {"a": 1500.0})  # 3000 → clamp 2000
+    assert _calls(hass)[-1][2]["value"] == 2000.0
