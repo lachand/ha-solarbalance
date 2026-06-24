@@ -811,6 +811,9 @@
       },
       "zi_hysteresis": {
         "name": "ZI Deadband"
+      },
+      "manual_charge_power": {
+        "name": "Manual charge power (test)"
       }
     },
     "switch": {

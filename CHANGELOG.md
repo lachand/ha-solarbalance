@@ -37,7 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta13] — 2026-06-24
+## [2.0.8-beta14] — 2026-06-24
+
+### Added
+
+- **Entité « Puissance de charge manuelle (test) » (`number`).** Pour diagnostiquer
+  le hardware : `> 0` force une **charge depuis le réseau** à cette puissance, `< 0`
+  une décharge, `0` revient en normal. Pilote le mode `MANUAL_OVERRIDE` existant
+  (**zéro-injection désactivée**) — la consigne est écrite par le **chemin de
+  contrôle normal** (séquence mode-switch incluse), donc on teste la vraie chaîne
+  d'écriture et on observe si/combien les batteries chargent. La cible SoC est 100 %
+  (charge) / 0 % (décharge) pour ne pas s'arrêter pendant l'essai ; remettre à 0 pour
+  rendre la main à la régulation.
 
 ### Fixed
 
@@ -1287,6 +1298,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta14]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta13...v2.0.8-beta14
 [2.0.8-beta13]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta12...v2.0.8-beta13
 [2.0.8-beta12]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta11...v2.0.8-beta12
 [2.0.8-beta11]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta10...v2.0.8-beta11

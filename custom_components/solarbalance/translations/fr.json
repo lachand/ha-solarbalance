@@ -811,6 +811,9 @@
       },
       "zi_hysteresis": {
         "name": "Hystérésis zéro injection"
+      },
+      "manual_charge_power": {
+        "name": "Puissance de charge manuelle (test)"
       }
     },
     "switch": {
