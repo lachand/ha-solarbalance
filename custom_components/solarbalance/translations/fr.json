@@ -108,7 +108,8 @@
           "volatility_damper_enabled": "Amortisseur de volatilité adaptatif : lisse davantage le réseau sur les charges moteur (la batterie suit la moyenne, pas de yoyo)",
           "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive",
           "curtailment_deadband_w": "Bridage : bande morte d'injection (W)",
-          "curtailment_settle_ticks": "Bridage : fenêtre de stabilisation (ticks tenus après chaque mouvement)"
+          "curtailment_settle_ticks": "Bridage : fenêtre de stabilisation (ticks tenus après chaque mouvement)",
+          "pv_drop_compensation_enabled": "Compensation chute PV : sur une chute soudaine (nuage), décharger la perte tout de suite (plus rapide que la boucle)"
         }
       },
       "forecast": {

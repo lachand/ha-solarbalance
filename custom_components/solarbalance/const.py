@@ -203,6 +203,8 @@ CONF_LOCAL_AC_LOAD_ENTITIES: Final = "local_ac_load_entities"
 # average and the grid absorbs the fast swings (no yoyo). Off by default.
 CONF_VOLATILITY_DAMPER_ENABLED: Final = "volatility_damper_enabled"
 DEFAULT_VOLATILITY_DAMPER_ENABLED: Final = False
+CONF_PV_DROP_COMPENSATION_ENABLED: Final = "pv_drop_compensation_enabled"
+DEFAULT_PV_DROP_COMPENSATION_ENABLED: Final = False
 
 # Staleness limit (s) for a non-controllable battery's data: beyond this its power
 # is considered untrustworthy (e.g. a cloud battery lagging) and the power-based

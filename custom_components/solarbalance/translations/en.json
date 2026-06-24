@@ -108,7 +108,8 @@
           "volatility_damper_enabled": "Adaptive volatility damper: smooth the grid more on motor-type loads (battery tracks the average, no yoyo)",
           "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables",
           "curtailment_deadband_w": "Curtailment: export deadband (W)",
-          "curtailment_settle_ticks": "Curtailment: settle window (ticks held after each move)"
+          "curtailment_settle_ticks": "Curtailment: settle window (ticks held after each move)",
+          "pv_drop_compensation_enabled": "PV-drop compensation: on a sudden PV drop (cloud), discharge the lost PV immediately (faster than the loop)"
         }
       },
       "forecast": {

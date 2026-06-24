@@ -52,6 +52,7 @@ from .const import (
     CONF_OVERLOAD_PROTECTION_ENABLED,
     CONF_PREDICTIVE_CONTROL_ENABLED,
     CONF_PRIORITIES,
+    CONF_PV_DROP_COMPENSATION_ENABLED,
     CONF_PV_FORECAST_TOMORROW_ENTITY,
     CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
     CONF_SOC_EQUALISER_BIDIRECTIONAL,
@@ -107,6 +108,7 @@ from .const import (
     DEFAULT_NO_BATTERY_EXPORT,
     DEFAULT_NONCONTROLLABLE_STALE_S,
     DEFAULT_OVERLOAD_PROTECTION_ENABLED,
+    DEFAULT_PV_DROP_COMPENSATION_ENABLED,
     DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
     DEFAULT_SOC_EQUALISER_BIDIRECTIONAL,
     DEFAULT_SOC_EQUALISER_CADENCE_TICKS,
@@ -708,8 +710,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # replaces the flat night-talon in the planner so it anticipates the
         # morning/evening peaks. Learned online, persisted, restored on start.
         self._consumption_profile = ConsumptionProfile()
-        # Real-time PV-drop detector (passing cloud) — exposed for observability.
+        # Real-time PV-drop detector (passing cloud) — exposed for observability,
+        # and (opt-in) feeds a fast discharge feed-forward via the settle window.
         self._pv_drop = PvDropDetector()
+        self._pv_drop_compensation = bool(
+            cfg.get(CONF_PV_DROP_COMPENSATION_ENABLED, DEFAULT_PV_DROP_COMPENSATION_ENABLED)
+        )
         self._baseline_ema_w: float | None = None
 
         # Watchdog — entity lists built from config
@@ -1621,8 +1627,21 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # and the cloud-charge guards (the raw grid sits at ~0 once the fleet covers
         # the house). Computed once and reused.
         natural_grid_w = grid_filtered_w - current_fleet_w
-        # Real-time PV-drop detection (passing cloud) — observability for now.
+        # Real-time PV-drop detection (passing cloud).
         pv_drop_w = self._pv_drop.update(snapshot.pv_total_w)
+        # Opt-in fast reaction: arm the settle with a negative feed-forward (discharge
+        # the lost PV's worth) so the fleet covers a sudden drop immediately instead
+        # of waiting for the PI. Reuses the proven settle (freezes the PI → no
+        # double-count); skipped if a settle is already active or it is disabled.
+        if (
+            self._pv_drop_compensation
+            and pv_drop_w > 0.0
+            and self._zi_settle_ticks > 0
+            and not self._settle_state.active
+        ):
+            self._settle_state = SettleState(
+                ticks_remaining=self._zi_settle_ticks, feedforward_w=-pv_drop_w
+            )
         # Smoothed non-controllable (cloud) battery charge. A dumb cloud battery
         # (Jackery) charges in short bursts (0↔~110 W, ~30 s); reacting tick-by-tick
         # made the cloud guards (no-feed / stop-cloud) chop the fleet discharge

@@ -17,6 +17,7 @@ from custom_components.solarbalance.const import (
     CONF_ACTIVE_CONTROL_ENABLED,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
+    CONF_PV_DROP_COMPENSATION_ENABLED,
     CONF_STOP_CLOUD_CHARGE,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_SETPOINT_W,
@@ -289,6 +290,53 @@ async def test_stop_cloud_charge_does_not_cut_discharge_under_real_load(
         if c.data.get("entity_id") == "number.stream_discharge"
     ]
     assert discharge_writes and discharge_writes[-1] > 0
+
+
+@pytest.mark.asyncio
+async def test_pv_drop_detected_and_compensated(hass: HomeAssistant) -> None:
+    """A sudden PV drop sets the diagnostic and (opt-in) makes the fleet discharge."""
+    devices = [
+        Device(
+            name="stream",
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=2300,
+                max_discharge_power_w=2300,
+                soc_entity="sensor.stream_soc",
+                power_entity="sensor.stream_power",
+                controllable=True,
+                active_control_enabled=True,
+                charge_power_setpoint_entity="number.stream_charge",
+                discharge_power_setpoint_entity="number.stream_discharge",
+            ),
+            mppt=MpptRole(peak_power_w=3000, power_entity="sensor.stream_pv"),
+        ),
+    ]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid_power")]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+    # PV covering the house: grid ~0, fleet idle.
+    hass.states.async_set("sensor.grid_power", "0")
+    hass.states.async_set("sensor.stream_pv", "2000")
+    hass.states.async_set("sensor.stream_soc", "50")
+    hass.states.async_set("sensor.stream_power", "0")
+
+    async_mock_service(hass, "number", "set_value")
+    entry = MockConfigEntry(
+        domain=DOMAIN, data={**_ENTRY_DATA, CONF_PV_DROP_COMPENSATION_ENABLED: True}
+    )
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    assert coordinator.diagnostics.pv_drop_w == 0.0  # steady → no drop
+
+    # Cloud: PV collapses, the house now imports.
+    hass.states.async_set("sensor.stream_pv", "200")
+    hass.states.async_set("sensor.grid_power", "1800")
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert coordinator.diagnostics.pv_drop_w > 0.0  # drop detected
+    assert coordinator.diagnostics.fleet_target_w < 0.0  # fleet told to discharge
 
 
 @pytest.mark.asyncio
