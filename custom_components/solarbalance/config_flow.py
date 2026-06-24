@@ -20,15 +20,11 @@ from .const import (
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
-    CONF_CURTAILMENT_DEADBAND_W,
-    CONF_CURTAILMENT_RAMP_W,
-    CONF_CURTAILMENT_SETTLE_TICKS,
     CONF_DRY_RUN,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
     CONF_EXPORT_PRICE,
     CONF_FORECAST_SAFETY_FACTOR,
-    CONF_GRID_FILTER_SAMPLES,
     CONF_HC_END,
     CONF_HC_PRICE,
     CONF_HC_START,
@@ -47,14 +43,8 @@ from .const import (
     CONF_PV_DROP_COMPENSATION_ENABLED,
     CONF_PV_FORECAST_ENTITY,
     CONF_PV_FORECAST_TOMORROW_ENTITY,
-    CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
-    CONF_SOC_EQUALISER_CADENCE_TICKS,
-    CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
-    CONF_SOC_EQUALISER_KP_W_PER_PCT,
     CONF_SOC_EQUALISER_MAX_W,
-    CONF_SOC_EQUALISER_MIN_PV_W,
-    CONF_SOC_EQUALISER_PROBE_STEP_W,
     CONF_SPOT_MARKUP,
     CONF_SPOT_PRICE_ENTITY,
     CONF_SUBSCRIBED_POWER_KVA,
@@ -72,19 +62,13 @@ from .const import (
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_KP,
     CONF_ZERO_INJECTION_SETPOINT_W,
-    CONF_ZI_SETTLE_MIN_DROP_W,
-    CONF_ZI_SETTLE_TICKS,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
-    DEFAULT_CURTAILMENT_DEADBAND_W,
-    DEFAULT_CURTAILMENT_RAMP_W,
-    DEFAULT_CURTAILMENT_SETTLE_TICKS,
     DEFAULT_DRY_RUN,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FORECAST_SAFETY_FACTOR,
-    DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_HC_END,
     DEFAULT_HC_PRICE,
     DEFAULT_HC_START,
@@ -96,13 +80,7 @@ from .const import (
     DEFAULT_OVERLOAD_PROTECTION_ENABLED,
     DEFAULT_PHASES,
     DEFAULT_PV_DROP_COMPENSATION_ENABLED,
-    DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE,
-    DEFAULT_SOC_EQUALISER_CADENCE_TICKS,
-    DEFAULT_SOC_EQUALISER_DEADBAND_PCT,
-    DEFAULT_SOC_EQUALISER_KP_W_PER_PCT,
     DEFAULT_SOC_EQUALISER_MAX_W,
-    DEFAULT_SOC_EQUALISER_MIN_PV_W,
-    DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
     DEFAULT_SPOT_MARKUP,
     DEFAULT_TARIFF_TYPE,
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
@@ -111,8 +89,6 @@ from .const import (
     DEFAULT_WEATHER_MIN_LEVEL,
     DEFAULT_ZERO_INJECTION_HYSTERESIS_W,
     DEFAULT_ZERO_INJECTION_KP,
-    DEFAULT_ZI_SETTLE_MIN_DROP_W,
-    DEFAULT_ZI_SETTLE_TICKS,
     DOMAIN,
 )
 from .core.models import StrategyKind
@@ -171,7 +147,6 @@ def _general_main_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, 
         vol.Optional(
             CONF_LOAD_CONTROL_ENABLED, default=d.get(CONF_LOAD_CONTROL_ENABLED, False)
         ): bool,
-        vol.Optional(CONF_DRY_RUN, default=d.get(CONF_DRY_RUN, DEFAULT_DRY_RUN)): bool,
         vol.Optional(
             CONF_NOTIFICATIONS_ENABLED, default=d.get(CONF_NOTIFICATIONS_ENABLED, True)
         ): bool,
@@ -241,29 +216,7 @@ def _general_main_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, 
             vol.Optional(
                 CONF_MAX_RAMP_W, default=d.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W)
             ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-            vol.Optional(
-                CONF_GRID_FILTER_SAMPLES,
-                default=d.get(CONF_GRID_FILTER_SAMPLES, DEFAULT_GRID_FILTER_SAMPLES),
-            ): vol.All(vol.Coerce(int), vol.Range(min=1)),
-            vol.Optional(
-                CONF_ZI_SETTLE_TICKS, default=d.get(CONF_ZI_SETTLE_TICKS, DEFAULT_ZI_SETTLE_TICKS)
-            ): vol.All(vol.Coerce(int), vol.Range(min=0, max=10)),
-            vol.Optional(
-                CONF_ZI_SETTLE_MIN_DROP_W,
-                default=d.get(CONF_ZI_SETTLE_MIN_DROP_W, DEFAULT_ZI_SETTLE_MIN_DROP_W),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-            vol.Optional(
-                CONF_CURTAILMENT_RAMP_W,
-                default=d.get(CONF_CURTAILMENT_RAMP_W, DEFAULT_CURTAILMENT_RAMP_W),
-            ): vol.All(vol.Coerce(int), vol.Range(min=1)),
-            vol.Optional(
-                CONF_CURTAILMENT_DEADBAND_W,
-                default=d.get(CONF_CURTAILMENT_DEADBAND_W, DEFAULT_CURTAILMENT_DEADBAND_W),
-            ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-            vol.Optional(
-                CONF_CURTAILMENT_SETTLE_TICKS,
-                default=d.get(CONF_CURTAILMENT_SETTLE_TICKS, DEFAULT_CURTAILMENT_SETTLE_TICKS),
-            ): vol.All(vol.Coerce(int), vol.Range(min=1, max=20)),
+            vol.Optional(CONF_DRY_RUN, default=d.get(CONF_DRY_RUN, DEFAULT_DRY_RUN)): bool,
             vol.Optional(
                 CONF_BASELINE_WINDOW_START_H,
                 default=d.get(CONF_BASELINE_WINDOW_START_H, DEFAULT_BASELINE_WINDOW_START_H),
@@ -285,38 +238,17 @@ def _general_main_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, 
 
 
 def _eq_internal_fields(d: dict[str, Any]) -> dict[Any, Any]:
-    """SoC-equaliser tuning — shown only when the equaliser is enabled."""
+    """SoC-equaliser cap — shown only when the equaliser is enabled.
+
+    The fine tuning (gain, deadband, probe step, min-PV, cadence) is fixed at sensible
+    defaults and adapted live by the always-on auto-tuner; only the max offer is
+    exposed.
+    """
     return {
         vol.Optional(
             CONF_SOC_EQUALISER_MAX_W,
             default=d.get(CONF_SOC_EQUALISER_MAX_W, DEFAULT_SOC_EQUALISER_MAX_W),
         ): vol.All(vol.Coerce(int), vol.Range(min=0)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_KP_W_PER_PCT,
-            default=d.get(CONF_SOC_EQUALISER_KP_W_PER_PCT, DEFAULT_SOC_EQUALISER_KP_W_PER_PCT),
-        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_DEADBAND_PCT,
-            default=d.get(CONF_SOC_EQUALISER_DEADBAND_PCT, DEFAULT_SOC_EQUALISER_DEADBAND_PCT),
-        ): vol.All(vol.Coerce(float), vol.Range(min=0, max=100)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_PROBE_STEP_W,
-            default=d.get(CONF_SOC_EQUALISER_PROBE_STEP_W, DEFAULT_SOC_EQUALISER_PROBE_STEP_W),
-        ): vol.All(vol.Coerce(float), vol.Range(min=1)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_MIN_PV_W,
-            default=d.get(CONF_SOC_EQUALISER_MIN_PV_W, DEFAULT_SOC_EQUALISER_MIN_PV_W),
-        ): vol.All(vol.Coerce(float), vol.Range(min=0)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_CADENCE_TICKS,
-            default=d.get(CONF_SOC_EQUALISER_CADENCE_TICKS, DEFAULT_SOC_EQUALISER_CADENCE_TICKS),
-        ): vol.All(vol.Coerce(int), vol.Range(min=1)),
-        vol.Optional(
-            CONF_SOC_EQUALISER_ADAPTIVE_CADENCE,
-            default=d.get(
-                CONF_SOC_EQUALISER_ADAPTIVE_CADENCE, DEFAULT_SOC_EQUALISER_ADAPTIVE_CADENCE
-            ),
-        ): bool,
     }
 
 

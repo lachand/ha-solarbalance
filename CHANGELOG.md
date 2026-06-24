@@ -37,7 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta17] — 2026-06-24
+## [2.0.8-beta18] — 2026-06-24
+
+### Changed (config diet — advanced knobs)
+
+- **~12 réglages de tuning fin retirés du formulaire** (figés sur de bons défauts ;
+  l'auto-réglage, toujours actif, les adapte en direct) :
+  - **Équaliseur SoC** — ne reste que `on/off` + `offre max (W)` ; figés : gain,
+    bande morte, pas de sonde, PV mini, cadence, cadence adaptative.
+  - **Curtailment** — figés : pas de rampe, bande morte, settle ticks.
+  - **ZI / anti-yoyo** — figés : filtre médian, settle ticks, seuil de settle
+    (on garde `kp`, hystérésis, rampe max).
+- **`dry_run` déplacé en mode avancé** (footgun : oublié sur ON, SB n'écrit jamais).
+
+Les valeurs restent celles par défaut pour tout le monde ; le moteur les lit
+toujours via leur défaut, seul le formulaire est allégé. Mode simple inchangé
+(à part `dry_run` qui en sort), mode avancé nettement plus court.
 
 ### Removed (config simplification)
 
@@ -1337,6 +1352,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta18]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta17...v2.0.8-beta18
 [2.0.8-beta17]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta16...v2.0.8-beta17
 [2.0.8-beta16]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta15...v2.0.8-beta16
 [2.0.8-beta15]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta14...v2.0.8-beta15

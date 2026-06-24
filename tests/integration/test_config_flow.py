@@ -9,8 +9,8 @@ from homeassistant.data_entry_flow import FlowResultType
 from custom_components.solarbalance.const import (
     CONF_PHASES,
     CONF_PV_FORECAST_ENTITY,
-    CONF_SOC_EQUALISER_DEADBAND_PCT,
     CONF_SOC_EQUALISER_ENABLED,
+    CONF_SOC_EQUALISER_MAX_W,
     CONF_SUBSCRIBED_POWER_KVA,
     CONF_TARIFF_TYPE,
     CONF_TEMPO_COLOR_ENTITY,
@@ -134,11 +134,11 @@ async def test_options_general_wizard_shows_equaliser_substep(hass: HomeAssistan
     assert result["step_id"] == "general_eq"
 
     result = await hass.config_entries.options.async_configure(
-        result["flow_id"], user_input={CONF_SOC_EQUALISER_DEADBAND_PCT: 3.0}
+        result["flow_id"], user_input={CONF_SOC_EQUALISER_MAX_W: 1200}
     )
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert entry.options[CONF_SOC_EQUALISER_ENABLED] is True
-    assert entry.options[CONF_SOC_EQUALISER_DEADBAND_PCT] == 3.0
+    assert entry.options[CONF_SOC_EQUALISER_MAX_W] == 1200
 
 
 @pytest.mark.asyncio

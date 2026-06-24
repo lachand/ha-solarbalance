@@ -66,9 +66,6 @@
           "zero_injection_enabled": "Activer la régulation zéro injection",
           "zero_injection_setpoint_w": "Consigne zéro injection (W)",
           "zero_injection_hysteresis_w": "Hystérésis zéro injection (W)",
-          "zi_settle_ticks": "Anti-yoyo : ticks de gel ZI après coupure d'un load",
-          "zi_settle_min_drop_w": "Anti-yoyo : seuil de puissance coupée (W)",
-          "curtailment_ramp_w": "Bridage : pas max de la limite par mouvement (W)",
           "phases": "Nombre de phases",
           "subscribed_power_kva": "Puissance souscrite (kVA)",
           "backup_reserve_soc_pct": "Réserve backup (SoC %)",
@@ -86,24 +83,15 @@
           "vacation_soc_max_pct": "Vacances : SoC max (plafond charge, %)",
           "evening_shed_min_power_w": "Délestage : puissance mini d'un « gros » consommateur (W)",
           "active_control_enabled": "Pilotage actif des batteries/onduleurs",
-          "grid_filter_samples": "Filtre médian réseau (échantillons)",
           "max_ramp_w": "Variation max de la consigne parc par tick (W)",
           "zero_injection_kp": "Gain proportionnel zéro injection (Kp)",
           "soc_equaliser_enabled": "Activer l'équaliseur de SoC",
           "soc_equaliser_max_w": "Équaliseur SoC : offre max (W)",
-          "soc_equaliser_kp_w_per_pct": "Équaliseur SoC : gain (W/%)",
-          "soc_equaliser_deadband_pct": "Équaliseur SoC : bande morte (%)",
-          "soc_equaliser_probe_step_w": "Équaliseur SoC : pas par mouvement (W)",
-          "soc_equaliser_min_pv_w": "Équaliseur SoC : PV mini pour agir / plafond (W)",
-          "soc_equaliser_cadence_ticks": "Équaliseur SoC : cadence (ticks entre mouvements)",
-          "soc_equaliser_adaptive_cadence": "Équaliseur SoC : cadence adaptative (suit le retard mesuré)",
           "overload_protection_enabled": "Protection active de la puissance souscrite (déleste avant disjonction)",
           "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
           "no_battery_export": "Autoconsommation stricte : ne jamais décharger la batterie vers le réseau (bloque l'injection)",
           "local_ac_load_entities": "Capteurs de conso prise AC locale (ex. prises du STREAM) — exclus de la boucle réseau pour que leurs cycles ne la perturbent pas",
           "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive",
-          "curtailment_deadband_w": "Bridage : bande morte d'injection (W)",
-          "curtailment_settle_ticks": "Bridage : fenêtre de stabilisation (ticks tenus après chaque mouvement)",
           "pv_drop_compensation_enabled": "Compensation chute PV : sur une chute soudaine (nuage), décharger la perte tout de suite (plus rapide que la boucle)"
         }
       },
@@ -134,13 +122,7 @@
       "general_eq": {
         "title": "Équaliseur SoC — réglages",
         "data": {
-          "soc_equaliser_max_w": "Équaliseur SoC : offre max (W)",
-          "soc_equaliser_kp_w_per_pct": "Équaliseur SoC : gain (W/%)",
-          "soc_equaliser_deadband_pct": "Équaliseur SoC : bande morte (%)",
-          "soc_equaliser_probe_step_w": "Équaliseur SoC : pas par mouvement (W)",
-          "soc_equaliser_min_pv_w": "Équaliseur SoC : PV mini pour agir / plafond (W)",
-          "soc_equaliser_cadence_ticks": "Équaliseur SoC : cadence (ticks entre mouvements)",
-          "soc_equaliser_adaptive_cadence": "Équaliseur SoC : cadence adaptative (suit le retard mesuré)"
+          "soc_equaliser_max_w": "Équaliseur SoC : offre max (W)"
         }
       },
       "general_tempo_red": {

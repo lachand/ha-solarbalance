@@ -66,9 +66,6 @@
           "zero_injection_enabled": "Enable zero-injection regulation",
           "zero_injection_setpoint_w": "Zero-injection setpoint (W)",
           "zero_injection_hysteresis_w": "Zero-injection deadband (W)",
-          "zi_settle_ticks": "Anti-yoyo: ZI freeze ticks after a load drop",
-          "zi_settle_min_drop_w": "Anti-yoyo: dropped-power threshold (W)",
-          "curtailment_ramp_w": "Curtailment: max output-limit step per move (W)",
           "phases": "Electrical phases",
           "subscribed_power_kva": "Subscribed power (kVA)",
           "backup_reserve_soc_pct": "Backup reserve (SoC %)",
@@ -86,24 +83,15 @@
           "vacation_soc_max_pct": "Vacation: max SoC (charge ceiling, %)",
           "evening_shed_min_power_w": "Shedding: min power of a \"big\" load (W)",
           "active_control_enabled": "Active battery/inverter control",
-          "grid_filter_samples": "Grid median filter (samples)",
           "max_ramp_w": "Max fleet-target change per tick (W)",
           "zero_injection_kp": "Zero-injection proportional gain (Kp)",
           "soc_equaliser_enabled": "Enable SoC equaliser",
           "soc_equaliser_max_w": "SoC equaliser: max offer (W)",
-          "soc_equaliser_kp_w_per_pct": "SoC equaliser: gain (W/%)",
-          "soc_equaliser_deadband_pct": "SoC equaliser: deadband (%)",
-          "soc_equaliser_probe_step_w": "SoC equaliser: step per move (W)",
-          "soc_equaliser_min_pv_w": "SoC equaliser: min PV to run / cap (W)",
-          "soc_equaliser_cadence_ticks": "SoC equaliser: cadence (ticks between moves)",
-          "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)",
           "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
           "dry_run": "Dry-run (compute everything, never write to hardware)",
           "no_battery_export": "Strict self-consumption: never discharge the battery into the grid (blocks injection)",
           "local_ac_load_entities": "Local AC-load sensors behind the fleet (e.g. STREAM AC sockets) — excluded from the grid loop so their cycling doesn't disturb it",
           "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables",
-          "curtailment_deadband_w": "Curtailment: export deadband (W)",
-          "curtailment_settle_ticks": "Curtailment: settle window (ticks held after each move)",
           "pv_drop_compensation_enabled": "PV-drop compensation: on a sudden PV drop (cloud), discharge the lost PV immediately (faster than the loop)"
         }
       },
@@ -134,13 +122,7 @@
       "general_eq": {
         "title": "SoC equaliser — tuning",
         "data": {
-          "soc_equaliser_max_w": "SoC equaliser: max offer (W)",
-          "soc_equaliser_kp_w_per_pct": "SoC equaliser: gain (W/%)",
-          "soc_equaliser_deadband_pct": "SoC equaliser: deadband (%)",
-          "soc_equaliser_probe_step_w": "SoC equaliser: step per move (W)",
-          "soc_equaliser_min_pv_w": "SoC equaliser: min PV to run / cap (W)",
-          "soc_equaliser_cadence_ticks": "SoC equaliser: cadence (ticks between moves)",
-          "soc_equaliser_adaptive_cadence": "SoC equaliser: adaptive cadence (tracks measured lag)"
+          "soc_equaliser_max_w": "SoC equaliser: max offer (W)"
         }
       },
       "general_tempo_red": {
