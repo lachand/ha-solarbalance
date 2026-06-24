@@ -174,8 +174,6 @@ DEFAULT_DRY_RUN: Final = False
 # Don't discharge the controllable fleet to feed a self-charging non-controllable
 # (cloud) battery: raise the ZI setpoint by that battery's charge power so the
 # loop tolerates it (it draws from the grid) instead of draining the fleet.
-CONF_EXCLUDE_NONCONTROLLABLE_CHARGE: Final = "exclude_noncontrollable_charge"
-DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE: Final = True
 
 # Strict self-consumption: never let the controllable fleet discharge into the
 # grid (cap the discharge so the grid never exports). Off by default so injection

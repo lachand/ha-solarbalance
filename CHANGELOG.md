@@ -37,7 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta15] — 2026-06-24
+## [2.0.8-beta16] — 2026-06-24
+
+### Changed
+
+- **Anti-transfert batterie→batterie : toujours actif, réglage supprimé.** « Ne pas
+  décharger le parc pour alimenter une batterie cloud qui se recharge seule »
+  (`exclude_noncontrollable_charge`) est **retiré de la config** et le comportement
+  est désormais **toujours appliqué**. C'était un piège : désactivé, le parc se
+  vidait pour couvrir la charge d'une batterie cloud (transfert parc→réseau→cloud,
+  ~30 % de pertes la nuit). La protection est **PV-safe** — nulle dès qu'il y a un
+  surplus PV (n'a jamais bloqué l'injection PV vers la batterie cloud), elle n'agit
+  que sur un import réseau réel. Un réglage de moins, zéro perte involontaire.
 
 ### Fixed
 
@@ -1308,6 +1319,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta16]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta15...v2.0.8-beta16
 [2.0.8-beta15]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta14...v2.0.8-beta15
 [2.0.8-beta14]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta13...v2.0.8-beta14
 [2.0.8-beta13]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta12...v2.0.8-beta13

@@ -15,7 +15,6 @@ from pytest_homeassistant_custom_component.common import MockConfigEntry, async_
 from custom_components.solarbalance import COORDINATOR_KEY, YAML_CONFIG_KEY
 from custom_components.solarbalance.const import (
     CONF_ACTIVE_CONTROL_ENABLED,
-    CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
     CONF_MAX_RAMP_W,
     CONF_NO_BATTERY_EXPORT,
     CONF_STOP_CLOUD_CHARGE,
@@ -128,7 +127,7 @@ async def test_stop_cloud_charge_surplus_vs_deficit(hass: HomeAssistant) -> None
             "sensor.jackery_power": 500,  # charging
             "sensor.grid_power": 400,  # ≈ the cloud's charge import
         },
-        {CONF_STOP_CLOUD_CHARGE: True, CONF_EXCLUDE_NONCONTROLLABLE_CHARGE: True},
+        {CONF_STOP_CLOUD_CHARGE: True},
     )
     assert surplus.diagnostics.fleet_target_w >= -1.0
 
@@ -143,6 +142,6 @@ async def test_stop_cloud_charge_surplus_vs_deficit(hass: HomeAssistant) -> None
             "sensor.jackery_power": 500,  # charging
             "sensor.grid_power": 1800,  # car + cloud charge
         },
-        {CONF_STOP_CLOUD_CHARGE: True, CONF_EXCLUDE_NONCONTROLLABLE_CHARGE: True},
+        {CONF_STOP_CLOUD_CHARGE: True},
     )
     assert deficit.diagnostics.fleet_target_w < 0

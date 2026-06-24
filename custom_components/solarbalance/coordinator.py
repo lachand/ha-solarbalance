@@ -34,7 +34,6 @@ from .const import (
     CONF_DRY_RUN,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
-    CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
     CONF_EXPORT_PRICE,
     CONF_FORECAST_SAFETY_FACTOR,
     CONF_GRID_FILTER_SAMPLES,
@@ -95,7 +94,6 @@ from .const import (
     DEFAULT_CURTAILMENT_SETTLE_TICKS,
     DEFAULT_DRY_RUN,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
-    DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FORECAST_SAFETY_FACTOR,
     DEFAULT_GRID_FILTER_SAMPLES,
@@ -485,12 +483,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         self._predictive_control_enabled = bool(cfg.get(CONF_PREDICTIVE_CONTROL_ENABLED, False))
         self._dry_run = bool(cfg.get(CONF_DRY_RUN, DEFAULT_DRY_RUN))
-        self._exclude_noncontrollable_charge = bool(
-            cfg.get(
-                CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
-                DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
-            )
-        )
         self._no_battery_export = bool(cfg.get(CONF_NO_BATTERY_EXPORT, DEFAULT_NO_BATTERY_EXPORT))
         self._stop_cloud_charge = bool(cfg.get(CONF_STOP_CLOUD_CHARGE, DEFAULT_STOP_CLOUD_CHARGE))
         self._eq_bidirectional = bool(
@@ -2499,9 +2491,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         raw grid reads ~0 and the guard would never engage (marginal stability).
         Capped at that natural import (after the force-charge feed-forward) so it
         never makes the fleet charge from the grid during a PV surplus.
+
+        **Always applied** (no longer behind a setting): the offset is itself
+        PV-safe -- it is 0 during a PV surplus (the natural grid exports, so the cap
+        is 0) and so never blocks feeding the cloud battery from PV; it only engages
+        on a real grid import (e.g. at night), where draining the fleet to feed a
+        cloud battery is pure round-trip loss -- never something a user would want.
         """
-        if not self._exclude_noncontrollable_charge:
-            return 0.0
         return noncontrollable_charge_offset_w(charge_w, natural_grid_w, force_offset_w)
 
     def _load_floor_w(self, load: Load) -> tuple[float, bool]:

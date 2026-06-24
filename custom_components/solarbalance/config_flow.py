@@ -27,7 +27,6 @@ from .const import (
     CONF_DRY_RUN,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
-    CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
     CONF_EXPORT_PRICE,
     CONF_FORECAST_SAFETY_FACTOR,
     CONF_GRID_FILTER_SAMPLES,
@@ -88,7 +87,6 @@ from .const import (
     DEFAULT_CURTAILMENT_SETTLE_TICKS,
     DEFAULT_DRY_RUN,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
-    DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FORECAST_SAFETY_FACTOR,
     DEFAULT_GRID_FILTER_SAMPLES,
@@ -184,13 +182,6 @@ def _general_main_fields(d: dict[str, Any], advanced: bool = True) -> dict[Any, 
         vol.Optional(CONF_DRY_RUN, default=d.get(CONF_DRY_RUN, DEFAULT_DRY_RUN)): bool,
         vol.Optional(
             CONF_NOTIFICATIONS_ENABLED, default=d.get(CONF_NOTIFICATIONS_ENABLED, True)
-        ): bool,
-        vol.Optional(
-            CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
-            default=d.get(
-                CONF_EXCLUDE_NONCONTROLLABLE_CHARGE,
-                DEFAULT_EXCLUDE_NONCONTROLLABLE_CHARGE,
-            ),
         ): bool,
         vol.Optional(
             CONF_NO_BATTERY_EXPORT,

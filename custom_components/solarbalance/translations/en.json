@@ -101,7 +101,6 @@
           "autotune_enabled": "Auto-tune: damp ZI/equaliser gains when they oscillate",
           "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
           "dry_run": "Dry-run (compute everything, never write to hardware)",
-          "exclude_noncontrollable_charge": "Don't discharge the fleet to feed a self-charging non-controllable (cloud) battery",
           "no_battery_export": "Strict self-consumption: never discharge the battery into the grid (blocks injection)",
           "stop_cloud_charge": "Stop a self-charging cloud battery: cut the fleet discharge to 0 (imports for the house) so it stops charging",
           "local_ac_load_entities": "Local AC-load sensors behind the fleet (e.g. STREAM AC sockets) — excluded from the grid loop so their cycling doesn't disturb it",
