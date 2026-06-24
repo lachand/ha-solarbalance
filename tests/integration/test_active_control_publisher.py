@@ -370,21 +370,23 @@ async def test_charge_setpoint_adds_own_pv() -> None:
     assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 1000.0})]
 
 
-async def test_charge_setpoint_pv_plus_surplus_divided_by_count() -> None:
-    # Two batteries behind one entity: (solar + surplus) / 2.
+async def test_charge_setpoint_surplus_plus_pv_share() -> None:
+    # Two batteries, one controllable: charge = surplus + own_PV / count (only the PV
+    # is divided; the whole surplus is absorbed by the single controllable battery).
     hass = _hass()
     pub = ActiveControlPublisher(
         hass, [_device("a", entity=None, charge_entity="number.chg_a", battery_count=2)]
     )
-    await pub.apply({"a": 200.0}, {"a": 50.0}, {"a": 800.0})  # (200 + 800) / 2
-    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 500.0})]
+    await pub.apply({"a": 200.0}, {"a": 50.0}, {"a": 800.0})  # 200 + 800/2 = 600
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 600.0})]
 
 
-async def test_discharge_setpoint_divided_by_count() -> None:
+async def test_discharge_setpoint_not_divided_by_count() -> None:
+    # Only one battery is controllable, so it carries the full discharge target.
     hass = _hass()
     pub = ActiveControlPublisher(hass, [_device("a", entity="number.dis_a", battery_count=2)])
-    await pub.apply({"a": -800.0}, {"a": 50.0})  # 800 / 2 per battery
-    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.dis_a", "value": 400.0})]
+    await pub.apply({"a": -800.0}, {"a": 50.0})  # full 800, not divided
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.dis_a", "value": 800.0})]
 
 
 async def test_charge_setpoint_quantised_to_step() -> None:

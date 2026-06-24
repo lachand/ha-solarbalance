@@ -173,18 +173,21 @@ class ActiveControlPublisher:
     ) -> None:
         """Write charge/discharge/mode setpoints from a balancing allocation.
 
-        The charge setpoint is ``(own battery PV + the surplus from the other
-        inverters) / battery_count``, quantised to ``_CHARGE_STEP_W``: the box caps
-        the total cell charge, so it must cover the PV the battery itself absorbs
-        **plus** the AC surplus to soak up, and when several physical batteries share
-        one entity (``battery_count``) the setpoint is applied per battery. The
-        discharge setpoint (AC output) is likewise divided by the count. Quantising
-        avoids spamming a slow BLE box with sub-step PI ripple.
+        The charge setpoint is ``surplus + own PV / battery_count``, quantised to
+        ``_CHARGE_STEP_W``. The box caps the **total cell charge**, so the setpoint
+        must cover the PV the controllable battery absorbs itself **plus** the AC
+        surplus to soak up. When several batteries sit behind one entity but only
+        **one** is controllable (``battery_count``), only that battery's share of the
+        PV (``own PV / count``) is added — the others charge their own PV themselves —
+        while the **whole** surplus is taken by the single controllable battery (not
+        divided). The discharge setpoint (AC output) is the full target, also handled
+        by the one controllable battery. Quantising avoids spamming a slow BLE box.
 
         Args:
             per_battery_w: Per-battery signed power (positive = charge).
             soc_by_device: Current SoC (%) per device, for the floor/ceiling cuts.
-            mppt_by_device: Per-device own PV power (W), added to the charge setpoint.
+            mppt_by_device: Per-device own PV power (W); its ``/count`` share is added
+                to the charge setpoint.
         """
         for name, m in self._managed.items():
             allocated = per_battery_w.get(name, 0.0)
@@ -196,12 +199,21 @@ class ActiveControlPublisher:
                     discharge_w = 0.0
                 if soc >= m.soc_ceiling:
                     charge_w = 0.0
+            own_pv = max(0.0, mppt_by_device.get(name, 0.0)) if mppt_by_device else 0.0
             if charge_w > _WRITE_EPSILON_W:
-                own_pv = max(0.0, mppt_by_device.get(name, 0.0)) if mppt_by_device else 0.0
-                charge_w = min((charge_w + own_pv) / m.battery_count, m.max_charge_w)
-            if discharge_w > _WRITE_EPSILON_W:
-                discharge_w = discharge_w / m.battery_count
+                charge_w = min(charge_w + own_pv / m.battery_count, m.max_charge_w)
             charge_w = round(charge_w / _CHARGE_STEP_W) * _CHARGE_STEP_W
+            _LOGGER.debug(
+                "active-control %s: alloc=%+.0fW own_pv=%.0fW count=%d soc=%s "
+                "-> charge=%.0fW discharge=%.0fW",
+                name,
+                allocated,
+                own_pv,
+                m.battery_count,
+                f"{soc:.0f}" if soc is not None else "?",
+                charge_w,
+                discharge_w,
+            )
             if m.mode_entity is not None:
                 await self._apply_mode_battery(m, charge_w, discharge_w)
             else:
@@ -251,16 +263,31 @@ class ActiveControlPublisher:
                 await self._write_mode(m.mode_entity, m.idle_option)
             return
 
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            mode_state = self._hass.states.get(m.mode_entity)
+            opp_state = self._hass.states.get(opposite) if opposite else None
+            _LOGGER.debug(
+                "mode-battery (%s): want %s %.0fW | actual mode=%s opposite(%s)=%s",
+                active_entity,
+                option,
+                active_w,
+                mode_state.state if mode_state else "?",
+                opposite,
+                opp_state.state if opp_state else "-",
+            )
         # 1. Zero the opposite direction first; stop until it actually reads 0.
         if m.mode_zeroes_opposite and opposite is not None and self._reads_nonzero(opposite):
+            _LOGGER.debug("mode-battery: step 1 — zero opposite %s", opposite)
             await self._write_power(opposite, 0.0, force=True, blocking=True)
             return
         # 2. Switch the strategy; stop until the box reports it (it may revert alone).
         if not self._mode_is(m.mode_entity, option):
+            _LOGGER.debug("mode-battery: step 2 — switch %s -> %s", m.mode_entity, option)
             await self._write_mode(m.mode_entity, option, blocking=True, force=True)
             return
         # 3. Opposite is 0 and the strategy is in place → set the active power.
         if active_entity is not None:
+            _LOGGER.debug("mode-battery: step 3 — set %s = %.0fW", active_entity, active_w)
             await self._write_power(active_entity, active_w)
 
     async def _ensure_zero(self, entity_id: str) -> None:

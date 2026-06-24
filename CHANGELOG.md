@@ -37,7 +37,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta11] — 2026-06-24
+## [2.0.8-beta12] — 2026-06-24
+
+### Fixed
+
+- **Consigne de charge = `surplus + PV / nombre de batteries`** (et non
+  `(PV + surplus) / N`). Quand plusieurs batteries partagent une entité mais qu'**une
+  seule est pilotable** (un seul `charging_power_limit`), cette batterie doit charger
+  **sa part de PV** (`PV_total / N`, les autres chargent leur PV elles-mêmes) **plus
+  la TOTALITÉ du surplus AC** à récupérer. beta11 divisait aussi le surplus → la
+  batterie n'en absorbait que la moitié. La consigne de **décharge** n'est plus
+  divisée non plus (la seule batterie pilotable porte toute la cible). `battery_count`
+  garde le même sens (nombre de batteries derrière l'entité).
+
+### Added
+
+- **Log de debug par tick** (`custom_components.solarbalance: debug`) : la couche de
+  contrôle imprime `alloc / PV / count / soc → charge / décharge` par batterie, et la
+  séquence mode-switch (état réel du `select`, puissance opposée réelle, étape 1/2/3)
+  — pour diagnostiquer pas à pas ce que SB écrit vs ce que la box applique.
 
 ### Changed
 
@@ -1244,6 +1262,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta12]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta11...v2.0.8-beta12
 [2.0.8-beta11]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta10...v2.0.8-beta11
 [2.0.8-beta10]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta9...v2.0.8-beta10
 [2.0.8-beta9]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta8...v2.0.8-beta9

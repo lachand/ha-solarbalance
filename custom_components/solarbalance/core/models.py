@@ -147,10 +147,11 @@ class BatteryRole:
     """When mode-based, zero the opposite-direction power before switching mode
     (one-direction-at-a-time devices like the STREAM need a clean switch)."""
     battery_count: int = 1
-    """Number of physical batteries grouped behind this single entity. Some stacks
-    (e.g. two EcoFlow STREAMs sharing one set of entities) apply a written power
-    setpoint **per battery**, so a command of W actually moves ``count * W``. The
-    publisher divides the written setpoint by this so the fleet target is met."""
+    """Number of physical batteries grouped behind this single entity, of which only
+    one is controllable (e.g. two EcoFlow STREAMs sharing one set of entities, a
+    single ``charging_power_limit``). The PV reading covers all of them, so the
+    controllable battery's own PV ≈ ``mppt / count``; the charge setpoint adds only
+    that share (the others charge their own PV themselves) plus the full surplus."""
     reserve_soc_setpoint_entity: str | None = None
     """HA entity (number/input_number) receiving the battery's backup-reserve /
     minimum-SoC setpoint (%). SolarBalance raises it to the storm target during
