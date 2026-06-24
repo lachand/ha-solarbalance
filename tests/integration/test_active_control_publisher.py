@@ -375,3 +375,25 @@ async def test_charge_setpoint_quantised_to_step() -> None:
     pub = ActiveControlPublisher(hass, [_device("a", entity=None, charge_entity="number.chg_a")])
     await pub.apply({"a": 217.0}, {"a": 50.0})  # 217 → 220
     assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 220.0})]
+
+
+async def test_skips_write_to_unavailable_entity() -> None:
+    # A BLE device that dropped off the bus (entity "unavailable") must not be
+    # written to — it just spams "missing or not currently available" otherwise.
+    from types import SimpleNamespace
+
+    hass = _hass()
+    hass.states.get = lambda eid: SimpleNamespace(state="unavailable")
+    pub = ActiveControlPublisher(hass, [_device("a", entity="number.dis_a")])
+    await pub.apply({"a": -800.0}, {"a": 50.0})
+    assert _calls(hass) == []
+
+
+async def test_skips_pv_limit_write_to_unavailable_entity() -> None:
+    from types import SimpleNamespace
+
+    hass = _hass()
+    hass.states.get = lambda eid: SimpleNamespace(state="unavailable")
+    pub = ActiveControlPublisher(hass, [_mppt_device("pv", entity="number.pv_limit")])
+    await pub.apply_pv_limits({"pv": 650.0})
+    assert _calls(hass) == []

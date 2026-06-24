@@ -320,6 +320,18 @@ class ActiveControlPublisher:
             return self._last_mode.get(entity_id) == option
         return state.state == option
 
+    def _entity_available(self, entity_id: str) -> bool:
+        """False when the target entity is explicitly unavailable/unknown.
+
+        A BLE device (a STREAM inverter) drops off the bus at night and its entities
+        go ``unavailable``: writing to them then just logs "missing or not currently
+        available" and does nothing, so skip it (no log spam, no pretend-action). A
+        ``None`` state (entity not in the state machine yet) is treated as writable —
+        let the service call surface a genuine misconfiguration.
+        """
+        state = self._hass.states.get(entity_id)
+        return state is None or state.state not in ("unknown", "unavailable")
+
     async def reset(self) -> None:
         """Command all managed power setpoints to 0 W (e.g. when suspended)."""
         for m in self._managed.values():
@@ -333,6 +345,11 @@ class ActiveControlPublisher:
     ) -> None:
         last = self._last_power.get(entity_id)
         if not force and last is not None and abs(last - value_w) < _WRITE_EPSILON_W:
+            return
+        if not self._entity_available(entity_id):
+            _LOGGER.debug(
+                "Active control: skip %s = %.0f W (entity unavailable)", entity_id, value_w
+            )
             return
         service_domain = "input_number" if entity_id.startswith("input_number.") else "number"
         try:
@@ -352,6 +369,9 @@ class ActiveControlPublisher:
         self, entity_id: str, mode: str, *, blocking: bool = False, force: bool = False
     ) -> None:
         if not force and self._last_mode.get(entity_id) == mode:
+            return
+        if not self._entity_available(entity_id):
+            _LOGGER.debug("Active control: skip %s mode %s (entity unavailable)", entity_id, mode)
             return
         service_domain = "input_select" if entity_id.startswith("input_select.") else "select"
         try:

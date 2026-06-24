@@ -37,7 +37,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta14] — 2026-06-24
+## [2.0.8-beta15] — 2026-06-24
+
+### Fixed
+
+- **Ne plus écrire de consigne sur une entité indisponible.** La nuit, l'onduleur
+  STREAM (BLE) décroche et ses entités passent en `unavailable` ; SB tentait quand
+  même d'y écrire (consigne de charge / bridage de l'onduleur) → log spammé de
+  « Referenced entities … are missing or not currently available » et écritures sans
+  effet. `_write_power` / `_write_mode` sautent désormais une entité explicitement
+  `unavailable` / `unknown` (une entité non encore chargée reste écrite, pour
+  remonter une vraie erreur de config).
 
 ### Added
 
@@ -1298,6 +1308,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta15]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta14...v2.0.8-beta15
 [2.0.8-beta14]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta13...v2.0.8-beta14
 [2.0.8-beta13]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta12...v2.0.8-beta13
 [2.0.8-beta12]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta11...v2.0.8-beta12
