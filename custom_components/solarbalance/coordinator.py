@@ -142,7 +142,7 @@ from .const import (
 from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.autotuner import RegulationAutoTuner
 from .core.baseline import NightBaselineEstimator
-from .core.consumption_profile import ConsumptionProfile
+from .core.consumption_profile import ConsumptionProfile, segment_for
 from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
 from .core.controllers.deadline import DeadlineDecision, evaluate_deadline
@@ -765,8 +765,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
     @property
     def predicted_consumption_now_w(self) -> float | None:
-        """Learned typical background consumption for the current hour (W), if any."""
-        return self._consumption_profile.predict(dt_util.now().hour)
+        """Learned typical background consumption for the current segment/hour (W)."""
+        now = dt_util.now()
+        return self._consumption_profile.predict(segment_for(now.weekday()), now.hour)
+
+    @property
+    def consumption_forecast_error_w(self) -> float | None:
+        """Forecast minus actual background consumption (W): >0 over-predicted."""
+        predicted = self.predicted_consumption_now_w
+        snap = self.data
+        if predicted is None or snap is None:
+            return None
+        return predicted - snap.baseline_consumption_w
 
     @property
     def is_degraded(self) -> bool:
@@ -1930,10 +1940,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         ``forecast`` block (hourly entities); without it, a flat estimate is used.
         """
         baseline = snapshot.baseline_consumption_w
-        # Learn the hour-of-day consumption profile every tick (even without a
+        # Learn the (segment, hour) consumption profile every tick (even without a
         # planner — it is also a diagnostic and a seed for predictive control).
+        local_now = dt_util.as_local(snapshot.timestamp)
         self._consumption_profile.observe(
-            dt_util.as_local(snapshot.timestamp).hour, max(0.0, baseline)
+            segment_for(local_now.weekday()), local_now.hour, max(0.0, baseline)
         )
         if self._scheduler is None:
             return
@@ -1952,13 +1963,24 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if avg_soc is None:
             return
         baseline_w = max(0.0, self._baseline_ema_w)
+        start = dt_util.as_local(snapshot.timestamp)
+        # Per-slot predicted consumption: each future slot uses its own day-segment
+        # (weekday/weekend) and hour, falling back to the flat baseline when unlearned.
+        consumption_by_slot = [
+            self._consumption_profile.predict(
+                segment_for((start + timedelta(hours=h)).weekday()),
+                (start + timedelta(hours=h)).hour,
+            )
+            or baseline_w
+            for h in range(24)
+        ]
         slots = build_forecast_slots(
-            start=dt_util.as_local(snapshot.timestamp),
+            start=start,
             n_hours=24,
             pv_w_by_hour=self._forecast_pv_by_hour(snapshot),
             baseline_w=baseline_w,
             tariff=self._tariff,
-            consumption_by_hour=self._consumption_profile.by_hour(baseline_w),
+            consumption_by_slot=consumption_by_slot,
         )
         self._plan = self._scheduler.plan(slots, avg_soc)
 

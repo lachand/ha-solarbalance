@@ -13,7 +13,7 @@ from datetime import timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
-from ..core.consumption_profile import ConsumptionProfile, mean_by_hour
+from ..core.consumption_profile import ConsumptionProfile, mean_by_hour, segment_for
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,7 +53,7 @@ async def seed_consumption_from_statistics(
         return 0
 
     rows = stats.get(statistic_id) or []
-    pairs: list[tuple[int, float]] = []
+    by_segment: dict[str, list[tuple[int, float]]] = {}
     for row in rows:
         mean = row.get("mean")
         raw_start = row.get("start")
@@ -64,10 +64,13 @@ async def seed_consumption_from_statistics(
             if isinstance(raw_start, int | float)
             else raw_start
         )
-        pairs.append((dt_util.as_local(when).hour, max(0.0, float(mean))))
-    if not pairs:
-        return 0
-    seeded = profile.seed_missing(mean_by_hour(pairs))
+        local = dt_util.as_local(when)
+        by_segment.setdefault(segment_for(local.weekday()), []).append(
+            (local.hour, max(0.0, float(mean)))
+        )
+    seeded = sum(
+        profile.seed_missing(segment, mean_by_hour(pairs)) for segment, pairs in by_segment.items()
+    )
     if seeded:
         _LOGGER.info("Consumption profile: seeded %d hour(s) from %s history", seeded, statistic_id)
     return seeded

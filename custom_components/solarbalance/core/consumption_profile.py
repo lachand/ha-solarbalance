@@ -1,13 +1,13 @@
-"""Learned hour-of-day background-consumption profile (predictive planning input).
+"""Learned consumption profile (predictive planning input), by segment & hour.
 
-24 hourly buckets, each a **cross-day EMA** of that hour's mean background
-consumption. Intra-hour samples are averaged, then folded into the bucket at the
-hour boundary, so each bucket is a multi-day-smoothed estimate of "typical
-consumption at hour H". It replaces the planner's single flat night-talon so the
-schedule anticipates the morning/evening peaks.
+Two day-segments — **weekday** and **weekend** — each with 24 hourly buckets that
+are a **cross-day EMA** of that hour's mean background consumption. Weekends often
+differ (home all day), so splitting them sharpens the plan. Intra-hour samples are
+averaged, then folded into the bucket when the (segment, hour) rolls over.
 
-Pure module — no Home Assistant imports; persist via ``to_dict`` / ``from_dict``,
-seed from history via ``seed``.
+Pure module — no Home Assistant imports; persist via ``to_dict`` / ``from_dict``
+(old flat 24-bucket payloads are migrated into both segments), seed from history
+via ``seed_missing``.
 """
 
 from collections.abc import Iterable, Mapping
@@ -15,6 +15,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 _HOURS = 24
+_WEEKDAY = "weekday"
+_WEEKEND = "weekend"
+_SEGMENTS = (_WEEKDAY, _WEEKEND)
+
+
+def segment_for(weekday: int) -> str:
+    """Map a Python weekday (Mon=0 … Sun=6) to a profile segment."""
+    return _WEEKEND if weekday >= 5 else _WEEKDAY
 
 
 def mean_by_hour(samples: Iterable[tuple[int, float]]) -> dict[int, float]:
@@ -28,81 +36,86 @@ def mean_by_hour(samples: Iterable[tuple[int, float]]) -> dict[int, float]:
     return {h: sums[h] / counts[h] for h in counts}
 
 
+def _empty_buckets() -> dict[str, list[float | None]]:
+    return {seg: [None] * _HOURS for seg in _SEGMENTS}
+
+
 @dataclass(slots=True)
 class ConsumptionProfile:
-    """Hour-of-day background consumption (W), learned online and/or seeded."""
+    """Background consumption (W) by day-segment and hour, learned and/or seeded."""
 
     day_alpha: float = 0.3  # cross-day EMA weight (~3 effective days of memory)
-    buckets: list[float | None] = field(default_factory=lambda: [None] * _HOURS)
-    _cur_hour: int | None = None
+    buckets: dict[str, list[float | None]] = field(default_factory=_empty_buckets)
+    _cur: tuple[str, int] | None = None
     _sum_w: float = 0.0
     _count: int = 0
 
-    def observe(self, hour: int, value_w: float) -> None:
-        """Add one background-consumption sample for ``hour`` (0-23).
-
-        Samples accumulate within an hour; the hour's mean is folded into its
-        bucket (cross-day EMA) when the hour rolls over.
-        """
-        hour %= _HOURS
-        if self._cur_hour is None:
-            self._cur_hour = hour
-        elif hour != self._cur_hour:
+    def observe(self, segment: str, hour: int, value_w: float) -> None:
+        """Add one sample for ``(segment, hour)``; folds the previous on rollover."""
+        key = (segment, hour % _HOURS)
+        if self._cur is None:
+            self._cur = key
+        elif key != self._cur:
             self._commit()
-            self._cur_hour = hour
+            self._cur = key
         self._sum_w += value_w
         self._count += 1
 
     def _commit(self) -> None:
-        if self._count == 0 or self._cur_hour is None:
+        if self._count == 0 or self._cur is None:
             return
+        seg, hour = self._cur
+        prev = self.buckets[seg][hour]
         mean = self._sum_w / self._count
-        prev = self.buckets[self._cur_hour]
-        self.buckets[self._cur_hour] = (
-            mean if prev is None else prev + self.day_alpha * (mean - prev)
-        )
+        self.buckets[seg][hour] = mean if prev is None else prev + self.day_alpha * (mean - prev)
         self._sum_w = 0.0
         self._count = 0
 
-    def predict(self, hour: int) -> float | None:
-        """Typical consumption (W) at ``hour`` (0-23), or None if never learned."""
-        return self.buckets[hour % _HOURS]
+    def predict(self, segment: str, hour: int) -> float | None:
+        """Typical consumption (W) for ``(segment, hour)``, or None if unlearned."""
+        return self.buckets[segment][hour % _HOURS]
 
-    def by_hour(self, fallback_w: float) -> list[float]:
-        """24 hour-of-day values; unknown hours filled with ``fallback_w``."""
-        return [fallback_w if b is None else b for b in self.buckets]
+    def by_hour(self, segment: str, fallback_w: float) -> list[float]:
+        """24 hour-of-day values for ``segment``; unknown hours → ``fallback_w``."""
+        return [fallback_w if b is None else b for b in self.buckets[segment]]
 
-    def seed(self, hour: int, value_w: float) -> None:
+    def seed(self, segment: str, hour: int, value_w: float) -> None:
         """Set a bucket directly (e.g. from recorder history)."""
-        self.buckets[hour % _HOURS] = value_w
+        self.buckets[segment][hour % _HOURS] = value_w
 
-    def seed_missing(self, means: Mapping[int, float]) -> int:
-        """Fill only the still-unlearned hours from ``means``; return how many.
-
-        Used to bootstrap from history without clobbering buckets already learned
-        online (the persisted profile wins).
-        """
+    def seed_missing(self, segment: str, means: Mapping[int, float]) -> int:
+        """Fill only the still-unlearned hours of ``segment``; return how many."""
         seeded = 0
         for hour, value in means.items():
-            if self.buckets[hour % _HOURS] is None:
-                self.buckets[hour % _HOURS] = value
+            if self.buckets[segment][hour % _HOURS] is None:
+                self.buckets[segment][hour % _HOURS] = value
                 seeded += 1
         return seeded
 
     @property
     def learned_hours(self) -> int:
-        """How many of the 24 hourly buckets have data (diagnostic)."""
-        return sum(1 for b in self.buckets if b is not None)
+        """Total learned buckets across all segments (diagnostic)."""
+        return sum(1 for seg in _SEGMENTS for b in self.buckets[seg] if b is not None)
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialise for the Store (only the buckets + alpha need persisting)."""
-        return {"day_alpha": self.day_alpha, "buckets": list(self.buckets)}
+        """Serialise for the Store."""
+        return {
+            "day_alpha": self.day_alpha,
+            "buckets": {s: list(self.buckets[s]) for s in _SEGMENTS},
+        }
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> "ConsumptionProfile":
-        """Rebuild from a persisted dict; tolerates missing/garbage fields."""
+        """Rebuild from a persisted dict; migrate the old flat 24-bucket format."""
         prof = cls(day_alpha=float(data.get("day_alpha", 0.3)))
-        buckets = data.get("buckets")
-        if isinstance(buckets, list) and len(buckets) == _HOURS:
-            prof.buckets = [None if b is None else float(b) for b in buckets]
+        raw = data.get("buckets")
+        if isinstance(raw, dict):
+            for seg in _SEGMENTS:
+                col = raw.get(seg)
+                if isinstance(col, list) and len(col) == _HOURS:
+                    prof.buckets[seg] = [None if b is None else float(b) for b in col]
+        elif isinstance(raw, list) and len(raw) == _HOURS:
+            # Old single-segment payload → seed both weekday and weekend with it.
+            migrated = [None if b is None else float(b) for b in raw]
+            prof.buckets = {seg: list(migrated) for seg in _SEGMENTS}
         return prof

@@ -787,6 +787,9 @@
       },
       "consumption_forecast_now": {
         "name": "Conso prévue (heure courante)"
+      },
+      "consumption_forecast_error": {
+        "name": "Écart prévu/réel (conso)"
       }
     },
     "select": {

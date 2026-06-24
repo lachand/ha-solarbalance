@@ -37,6 +37,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta5] — 2026-06-24
+
+### Added
+
+- **Prévision de conso par segment de jour (semaine / week-end).** Le profil n'est
+  plus seulement « heure-de-la-journée » : il distingue **semaine** et **week-end**
+  (souvent très différents — maison occupée la journée), pour chacun 24 cases
+  horaires. Appris en ligne et **pré-chargé depuis l'historique par segment** ; le
+  planner choisit le bon segment pour **chaque créneau** de l'horizon (y compris le
+  passage à demain). L'ancien profil persisté (plat) est **migré** dans les deux
+  segments.
+- **Capteur d'écart prévu/réel** *« Écart prévu/réel (conso) »* (diagnostic) =
+  conso **prévue − réelle** de l'heure courante → tu vois en un coup d'œil si le
+  profil colle à la réalité (≈ 0 = bon).
+
 ## [2.0.8-beta4] — 2026-06-24
 
 ### Added
@@ -1136,6 +1151,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta5]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta4...v2.0.8-beta5
 [2.0.8-beta4]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta3...v2.0.8-beta4
 [2.0.8-beta3]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta2...v2.0.8-beta3
 [2.0.8-beta2]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta1...v2.0.8-beta2

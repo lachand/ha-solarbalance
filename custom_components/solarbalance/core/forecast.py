@@ -86,7 +86,7 @@ def build_forecast_slots(
     baseline_w: float,
     tariff: TariffConfig,
     slot_s: float = 3600.0,
-    consumption_by_hour: Sequence[float] | None = None,
+    consumption_by_slot: Sequence[float] | None = None,
 ) -> tuple[ForecastSlot, ...]:
     """Build hourly forecast slots for the planner.
 
@@ -99,10 +99,10 @@ def build_forecast_slots(
             learned hour-of-day profile is supplied.
         tariff: Tariff used to price each slot (evaluated at the slot start).
         slot_s: Slot duration in seconds.
-        consumption_by_hour: Optional 24-length hour-of-day consumption profile (W)
-            from the learned consumption profile. When given, each slot uses the
-            value for its wall-clock hour instead of the flat ``baseline_w`` — so
-            the plan anticipates the morning/evening peaks.
+        consumption_by_slot: Optional per-slot consumption (W), one value per slot
+            (index ``h``) from the learned profile — the caller resolves each slot's
+            segment (weekday/weekend) and hour. When given, each slot uses it instead
+            of the flat ``baseline_w`` so the plan anticipates the daily peaks.
     """
     slots: list[ForecastSlot] = []
     for h in range(n_hours):
@@ -111,8 +111,8 @@ def build_forecast_slots(
             pv_w = pv_w_by_hour[h] if h < len(pv_w_by_hour) else pv_w_by_hour[-1]
         else:
             pv_w = 0.0
-        if consumption_by_hour and slot_start.hour < len(consumption_by_hour):
-            load_w = consumption_by_hour[slot_start.hour]
+        if consumption_by_slot and h < len(consumption_by_slot):
+            load_w = consumption_by_slot[h]
         else:
             load_w = baseline_w
         import_price = tariff.current_import_price(slot_start)

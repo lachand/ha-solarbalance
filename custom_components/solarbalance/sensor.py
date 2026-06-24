@@ -98,6 +98,7 @@ async def async_setup_entry(
         ),
         SolarBalanceRegulationBindingSensor(coordinator, entry),
         SolarBalanceConsumptionForecastSensor(coordinator, entry),
+        SolarBalanceConsumptionForecastErrorSensor(coordinator, entry),
     ]
     if coordinator._curtailment is not None:
         entities.append(
@@ -1009,6 +1010,29 @@ class SolarBalanceConsumptionForecastSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float | None:
         value = self.coordinator.predicted_consumption_now_w
+        return round(value, 1) if value is not None else None
+
+
+class SolarBalanceConsumptionForecastErrorSensor(_SolarBalanceSensor):
+    """Forecast minus actual background consumption (W, diagnostic).
+
+    Positive = the profile over-predicted, negative = under-predicted; near 0 means
+    the learned profile tracks reality. Unavailable until the current hour is learned.
+    """
+
+    _attr_translation_key = "consumption_forecast_error"
+    _attr_native_unit_of_measurement = UnitOfPower.WATT
+    _attr_device_class = SensorDeviceClass.POWER
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:scale-unbalanced"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "diag_consumption_forecast_error")
+
+    @property
+    def native_value(self) -> float | None:
+        value = self.coordinator.consumption_forecast_error_w
         return round(value, 1) if value is not None else None
 
 

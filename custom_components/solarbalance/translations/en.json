@@ -787,6 +787,9 @@
       },
       "consumption_forecast_now": {
         "name": "Forecast consumption (now)"
+      },
+      "consumption_forecast_error": {
+        "name": "Forecast error (consumption)"
       }
     },
     "select": {
