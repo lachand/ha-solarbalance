@@ -32,6 +32,9 @@ _WRITE_EPSILON_W = 5.0
 # SoC margin around the floor/ceiling at which discharge/charge is cut, covering
 # a one-tick SoC lag on cloud batteries.
 _SOC_MARGIN_PCT = 0.5
+# Quantise the charge setpoint to this step (W): a STREAM is slow over BLE and the
+# fine PI ripple is meaningless to it, so round to 10 W and skip the in-between writes.
+_CHARGE_STEP_W = 10.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -168,8 +171,10 @@ class ActiveControlPublisher:
         ``per_battery_w`` is the regulator's per-battery signed target (positive =
         charge). For a STREAM the charge setpoint is the **grid/AC charge** power
         (the box charges its own PV on the DC side autonomously), so the regulator's
-        surplus target is written as-is — it pulls only the surplus from the grid,
-        not its PV.
+        surplus target — the surplus from the other inverters to soak up — is written
+        as-is: it pulls only that surplus from the grid, not its own PV. The charge is
+        quantised to ``_CHARGE_STEP_W`` (the box is slow over BLE; fine PI ripple is
+        meaningless to it).
 
         Args:
             per_battery_w: Per-battery signed power (positive = charge).
@@ -185,6 +190,7 @@ class ActiveControlPublisher:
                     discharge_w = 0.0
                 if soc >= m.soc_ceiling:
                     charge_w = 0.0
+            charge_w = round(charge_w / _CHARGE_STEP_W) * _CHARGE_STEP_W
             if m.mode_entity is not None:
                 await self._apply_mode_battery(m, charge_w, discharge_w)
             else:

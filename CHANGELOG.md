@@ -37,6 +37,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta10] — 2026-06-24
+
+### Changed
+
+- **Consigne de charge quantifiée par pas de 10 W.** La consigne de charge reste
+  le surplus à absorber (le surplus des autres onduleurs, repère AC), écrit **tel
+  quel** (ni `+ PV propre`, ni divisé par le nombre de batteries), mais elle est
+  désormais **arrondie à 10 W** : une box STREAM est lente en BLE et le micro-bruit
+  du PI ne lui sert à rien — on évite ainsi de la spammer d'écritures inutiles.
+
 ## [2.0.8-beta9] — 2026-06-24
 
 ### Fixed
@@ -1218,6 +1228,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta10]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta9...v2.0.8-beta10
 [2.0.8-beta9]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta8...v2.0.8-beta9
 [2.0.8-beta8]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta7...v2.0.8-beta8
 [2.0.8-beta7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta6...v2.0.8-beta7

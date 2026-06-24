@@ -367,3 +367,12 @@ async def test_charge_setpoint_is_the_grid_charge_only() -> None:
     pub = ActiveControlPublisher(hass, [_device("a", entity=None, charge_entity="number.chg_a")])
     await pub.apply({"a": 200.0}, {"a": 50.0})  # 200 W surplus to absorb from the grid
     assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 200.0})]
+
+
+async def test_charge_setpoint_quantised_to_step() -> None:
+    # The charge setpoint is rounded to _CHARGE_STEP_W (10 W) so a slow BLE box is
+    # not spammed with sub-step PI ripple.
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_device("a", entity=None, charge_entity="number.chg_a")])
+    await pub.apply({"a": 217.0}, {"a": 50.0})  # 217 → 220
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 220.0})]
