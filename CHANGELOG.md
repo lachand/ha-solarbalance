@@ -37,7 +37,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta8] — 2026-06-24
+## [2.0.8-beta9] — 2026-06-24
+
+### Fixed
+
+- **Revert de beta6 : la consigne de charge ne doit PAS ajouter le PV propre.** Sur
+  une STREAM, `charging_power_limit` est la **charge depuis le réseau (AC)** — la
+  box charge son PV toute seule côté DC. Ajouter le PV (beta6) faisait tirer
+  `surplus + PV` **du réseau** → sur-import. La consigne de charge est de nouveau la
+  **cible de régulation telle quelle** (le surplus à absorber depuis l'AC), donc on
+  ne tire **que le surplus**, pas le PV. Suppression du paramètre `mppt_by_device`.
+
+### Known limitation
+
+- **Plusieurs batteries STREAM sur une seule entité** : la box applique
+  `charging_power_limit` **par batterie**, donc écrire `S` tire `N·S` du réseau (ex.
+  2 batteries : `100 W` → `200 W`). En attendant un réglage « nombre de batteries
+  par entité », baisser le `max_charge` de l'entité (~`max/N`) pour éviter le
+  sur-import pendant les tests.
 
 ### Fixed
 
@@ -1201,6 +1218,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta9]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta8...v2.0.8-beta9
 [2.0.8-beta8]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta7...v2.0.8-beta8
 [2.0.8-beta7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta6...v2.0.8-beta7
 [2.0.8-beta6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta5...v2.0.8-beta6
