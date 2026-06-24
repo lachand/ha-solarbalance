@@ -844,6 +844,9 @@
       },
       "config_health": {
         "name": "Problème de configuration"
+      },
+      "pv_drop": {
+        "name": "Chute PV"
       }
     }
   },

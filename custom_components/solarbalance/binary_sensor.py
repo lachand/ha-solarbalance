@@ -37,6 +37,7 @@ async def async_setup_entry(
             DegradedBinarySensor(coordinator, entry),
             EveningShedBinarySensor(coordinator, entry),
             EvFastChargeBinarySensor(coordinator, entry),
+            PvDropBinarySensor(coordinator, entry),
             ConfigHealthBinarySensor(coordinator, entry),
         ]
     )
@@ -122,6 +123,26 @@ class EveningShedBinarySensor(_SBBinarySensor):
             "pv_for_charge_kwh": round(shed.pv_for_charge_kwh, 2),
             "reason": shed.reason,
         }
+
+
+class PvDropBinarySensor(_SBBinarySensor):
+    """True during a detected sudden PV drop (a passing cloud)."""
+
+    _attr_translation_key = "pv_drop"
+    _attr_icon = "mdi:weather-cloudy"
+    _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "pv_drop")
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.diagnostics.pv_drop_w > 0.0
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return {"drop_w": round(self.coordinator.diagnostics.pv_drop_w, 1)}
 
 
 class EvFastChargeBinarySensor(_SBBinarySensor):

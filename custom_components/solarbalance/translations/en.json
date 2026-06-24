@@ -844,6 +844,9 @@
       },
       "config_health": {
         "name": "Configuration problem"
+      },
+      "pv_drop": {
+        "name": "PV drop"
       }
     }
   },

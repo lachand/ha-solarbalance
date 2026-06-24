@@ -37,7 +37,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta2] — 2026-06-24
+## [2.0.8-beta3] — 2026-06-24
+
+### Added
+
+- **Détection de chute PV temps réel (passage nuageux) — observabilité.** Un
+  détecteur compare la production PV au **pic des dernières mesures** : une **chute
+  soudaine** (bord de nuage) ressort comme un grand écart `pic − actuel`, tandis
+  qu'un **déclin graduel** (coucher de soleil) n'en déclenche pas. Exposé via un
+  **binary sensor « Chute PV »** (catégorie diagnostic, attribut `drop_w`) pour
+  voir quand/combien ça chute. La **réaction rapide** (couvrir la perte depuis la
+  batterie sans attendre la boucle) sera ajoutée ensuite, calibrée sur ces mesures.
 
 ### Added
 
@@ -1114,6 +1124,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta3]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta2...v2.0.8-beta3
 [2.0.8-beta2]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta1...v2.0.8-beta2
 [2.0.8-beta1]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7...v2.0.8-beta1
 [2.0.7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.6...v2.0.7

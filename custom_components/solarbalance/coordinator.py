@@ -153,6 +153,7 @@ from .core.controllers.evening_shed import (
 from .core.controllers.load_dispatch import LoadCommand, LoadDispatchController
 from .core.controllers.load_settle import SettleState, advance_settle, arm_settle
 from .core.controllers.overload import SheddableLoad, relieve_overload
+from .core.controllers.pv_drop import PvDropDetector
 from .core.controllers.regulation import (
     RegulationInputs,
     apply_slew_limit,
@@ -308,6 +309,8 @@ class RegulationDiagnostics:
     autotune_equaliser_step_w: float = 0.0
     # Which clamp set the fleet target this tick ("base" when nothing clamped).
     regulation_binding: str = "base"
+    # Detected sudden PV drop (W, a passing cloud); 0 when none.
+    pv_drop_w: float = 0.0
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -705,6 +708,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # replaces the flat night-talon in the planner so it anticipates the
         # morning/evening peaks. Learned online, persisted, restored on start.
         self._consumption_profile = ConsumptionProfile()
+        # Real-time PV-drop detector (passing cloud) — exposed for observability.
+        self._pv_drop = PvDropDetector()
         self._baseline_ema_w: float | None = None
 
         # Watchdog — entity lists built from config
@@ -1616,6 +1621,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # and the cloud-charge guards (the raw grid sits at ~0 once the fleet covers
         # the house). Computed once and reused.
         natural_grid_w = grid_filtered_w - current_fleet_w
+        # Real-time PV-drop detection (passing cloud) — observability for now.
+        pv_drop_w = self._pv_drop.update(snapshot.pv_total_w)
         # Smoothed non-controllable (cloud) battery charge. A dumb cloud battery
         # (Jackery) charges in short bursts (0↔~110 W, ~30 s); reacting tick-by-tick
         # made the cloud guards (no-feed / stop-cloud) chop the fleet discharge
@@ -1832,6 +1839,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             pv_limit_w=pv_limit_total,
             natural_grid_w=natural_grid_w,
             regulation_binding=regulation_result.binding,
+            pv_drop_w=pv_drop_w,
             autotune_zi_kp=self._zi_tuner.value if self._zi_tuner else 0.0,
             autotune_equaliser_step_w=self._eq_tuner.value if self._eq_tuner else 0.0,
         )
