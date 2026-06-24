@@ -10,11 +10,22 @@ Pure module — no Home Assistant imports; persist via ``to_dict`` / ``from_dict
 seed from history via ``seed``.
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 _HOURS = 24
+
+
+def mean_by_hour(samples: Iterable[tuple[int, float]]) -> dict[int, float]:
+    """Mean value per hour-of-day (0-23) from ``(hour, value)`` samples."""
+    sums: dict[int, float] = {}
+    counts: dict[int, int] = {}
+    for hour, value in samples:
+        h = hour % _HOURS
+        sums[h] = sums.get(h, 0.0) + value
+        counts[h] = counts.get(h, 0) + 1
+    return {h: sums[h] / counts[h] for h in counts}
 
 
 @dataclass(slots=True)
@@ -64,6 +75,19 @@ class ConsumptionProfile:
     def seed(self, hour: int, value_w: float) -> None:
         """Set a bucket directly (e.g. from recorder history)."""
         self.buckets[hour % _HOURS] = value_w
+
+    def seed_missing(self, means: Mapping[int, float]) -> int:
+        """Fill only the still-unlearned hours from ``means``; return how many.
+
+        Used to bootstrap from history without clobbering buckets already learned
+        online (the persisted profile wins).
+        """
+        seeded = 0
+        for hour, value in means.items():
+            if self.buckets[hour % _HOURS] is None:
+                self.buckets[hour % _HOURS] = value
+                seeded += 1
+        return seeded
 
     @property
     def learned_hours(self) -> int:

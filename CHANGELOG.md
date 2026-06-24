@@ -37,6 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta2] — 2026-06-24
+
+### Added
+
+- **Prévision de conso — pré-chargement depuis l'historique (recorder).** Au
+  démarrage, le profil de conso est **amorcé depuis les statistiques long-terme**
+  (moyenne horaire) du capteur *consommation de fond* → **précis dès le 1ᵉʳ jour**
+  pour qui a déjà des semaines de données, au lieu d'attendre l'apprentissage en
+  ligne. Ne remplit que les **heures encore inconnues** (le profil appris/persisté
+  prime) ; tout échec recorder est un **no-op** (l'apprentissage en ligne prend le
+  relais). Complète la beta1 (« les deux » : historique **+** en ligne).
+
 ## [2.0.8-beta1] — 2026-06-24
 
 ### Added
@@ -1102,6 +1114,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta2]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta1...v2.0.8-beta2
 [2.0.8-beta1]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7...v2.0.8-beta1
 [2.0.7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.6...v2.0.7
 [2.0.7-beta29]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta28...v2.0.7-beta29

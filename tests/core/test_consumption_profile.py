@@ -1,6 +1,9 @@
 """Tests for the learned hour-of-day consumption profile."""
 
-from custom_components.solarbalance.core.consumption_profile import ConsumptionProfile
+from custom_components.solarbalance.core.consumption_profile import (
+    ConsumptionProfile,
+    mean_by_hour,
+)
 
 
 def test_unlearned_hour_predicts_none() -> None:
@@ -60,3 +63,18 @@ def test_roundtrip_serialisation() -> None:
 def test_from_dict_tolerates_garbage() -> None:
     assert ConsumptionProfile.from_dict({}).learned_hours == 0
     assert ConsumptionProfile.from_dict({"buckets": "nope"}).learned_hours == 0
+
+
+def test_mean_by_hour_averages_per_hour() -> None:
+    means = mean_by_hour([(8, 200.0), (8, 400.0), (20, 1000.0)])
+    assert means == {8: 300.0, 20: 1000.0}
+
+
+def test_seed_missing_only_fills_unlearned_hours() -> None:
+    p = ConsumptionProfile()
+    p.seed(8, 999.0)  # already learned
+    seeded = p.seed_missing({8: 100.0, 9: 250.0, 10: 300.0})
+    assert seeded == 2  # 9 and 10 filled, 8 untouched
+    assert p.predict(8) == 999.0
+    assert p.predict(9) == 250.0
+    assert p.predict(10) == 300.0

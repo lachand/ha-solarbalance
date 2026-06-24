@@ -18,6 +18,7 @@ from .adapters.active_control_publisher import ActiveControlPublisher
 from .adapters.decision_publisher import DecisionPublisher
 from .adapters.entity_reader import EntityReader
 from .adapters.load_publisher import LoadPublisher
+from .adapters.recorder_seed import seed_consumption_from_statistics
 from .adapters.watchdog import EntityWatchdog
 from .const import (
     AUTOTUNE_EQ_STEP_MIN_W,
@@ -812,6 +813,23 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # mid-day more accurately than the periodic Store snapshot). Falls back
         # silently to the Store value above when no history is available.
         await self._recompute_daily_from_recorder()
+        # Bootstrap the consumption profile from history (accurate from day one for
+        # returning users); online learning fills the rest.
+        await self._seed_consumption_profile()
+
+    async def _seed_consumption_profile(self) -> None:
+        """Seed unlearned consumption-profile hours from the baseline sensor history."""
+        if self._consumption_profile.learned_hours >= 24:
+            return
+        from homeassistant.helpers import entity_registry as er
+
+        reg = er.async_get(self.hass)
+        statistic_id = reg.async_get_entity_id(
+            "sensor", DOMAIN, f"{self._entry.entry_id}_baseline_consumption"
+        )
+        if statistic_id is None:
+            return
+        await seed_consumption_from_statistics(self.hass, statistic_id, self._consumption_profile)
 
     async def _recompute_daily_from_recorder(self) -> None:
         """Rebuild today's daily totals by replaying recorder history since midnight.
