@@ -37,7 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta5] — 2026-06-24
+## [2.0.8-beta6] — 2026-06-24
+
+### Fixed
+
+- **Batterie avec ses propres panneaux : ne chargeait pas le surplus (export
+  stable).** Pour une batterie qui a un **rôle MPPT sur le même appareil** (ex.
+  STREAM avec son entrée solaire), la consigne de charge écrite était la cible de
+  régulation en repère « sortie-AC » (`current_fleet = batterie − MPPT`), **sans
+  rajouter le PV** que la batterie absorbe déjà toute seule. La **commande** était
+  donc **déconnectée du réel** → la boucle ne montait jamais la charge AC pour
+  avaler le surplus d'un autre producteur → **export stable** alors que la batterie
+  avait de la place. Désormais la consigne de charge = **allocation + PV propre de
+  l'appareil** (plafonnée à `max_charge_power_w`) : la batterie absorbe son PV **et**
+  tire le surplus de l'AC, le repère redevient cohérent et la boucle **converge
+  vers réseau = 0**. Sans effet pour une batterie sans panneaux propres, ni sur la
+  décharge.
 
 ### Added
 
@@ -1151,6 +1166,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta5...v2.0.8-beta6
 [2.0.8-beta5]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta4...v2.0.8-beta5
 [2.0.8-beta4]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta3...v2.0.8-beta4
 [2.0.8-beta3]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta2...v2.0.8-beta3

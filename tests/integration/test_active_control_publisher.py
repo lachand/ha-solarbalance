@@ -305,3 +305,26 @@ async def test_mode_charge_reasserts_zero_on_self_imposed_base_load() -> None:
         if c[2].get("entity_id") == "number.dis" and c[2].get("value") == 0.0
     ]
     assert zeroed
+
+
+async def test_charge_setpoint_adds_own_pv_for_battery_with_mppt() -> None:
+    # A battery with its own panels must charge its PV + the net AC import, so the
+    # charge setpoint = allocation + own PV (else the surplus exports).
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_device("a", entity=None, charge_entity="number.chg_a")])
+    await pub.apply({"a": 200.0}, {"a": 50.0}, {"a": 800.0})  # 200 AC + 800 PV
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 1000.0})]
+
+
+async def test_charge_setpoint_clamped_to_max_charge() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_device("a", entity=None, charge_entity="number.chg_a")])
+    await pub.apply({"a": 500.0}, {"a": 50.0}, {"a": 2000.0})  # 2500 → clamp to 2000
+    assert _calls(hass)[-1][2]["value"] == 2000.0
+
+
+async def test_discharge_setpoint_ignores_own_pv() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_device("a", entity="number.dis_a")])
+    await pub.apply({"a": -800.0}, {"a": 50.0}, {"a": 600.0})  # discharge: PV not added
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.dis_a", "value": 800.0})]

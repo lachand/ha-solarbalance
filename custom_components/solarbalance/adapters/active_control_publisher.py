@@ -47,6 +47,7 @@ class _Managed:
     mode_zeroes_opposite: bool
     soc_floor: float
     soc_ceiling: float
+    max_charge_w: float
 
 
 class ActiveControlPublisher:
@@ -69,6 +70,7 @@ class ActiveControlPublisher:
                 mode_zeroes_opposite=battery.mode_switch_zeroes_opposite,
                 soc_floor=float(battery.soc_min_pct) + _SOC_MARGIN_PCT,
                 soc_ceiling=float(battery.soc_max_pct) - _SOC_MARGIN_PCT,
+                max_charge_w=float(battery.max_charge_power_w),
             )
         self._managed = managed
         # device_name -> PV output-limit entity (curtailable micro-inverters)
@@ -162,12 +164,20 @@ class ActiveControlPublisher:
         self,
         per_battery_w: Mapping[str, float],
         soc_by_device: Mapping[str, float],
+        mppt_by_device: Mapping[str, float] | None = None,
     ) -> None:
         """Write charge/discharge/mode setpoints from a balancing allocation.
 
         Args:
-            per_battery_w: Per-battery signed power (positive = charge).
+            per_battery_w: Per-battery signed power (positive = charge), in the
+                AC-contribution frame (the regulator's ``current_fleet = battery -
+                mppt``).
             soc_by_device: Current SoC (%) per device, for the floor/ceiling cuts.
+            mppt_by_device: Per-device own PV power (W). For a battery with its own
+                panels, the **charge** setpoint must be ``allocation + own PV`` so it
+                absorbs its PV *and* pulls the net AC import — else it only charges
+                its own solar and the surplus exports (the regulator's frame would
+                stay decoupled from the command and never converge).
         """
         for name, m in self._managed.items():
             allocated = per_battery_w.get(name, 0.0)
@@ -179,6 +189,8 @@ class ActiveControlPublisher:
                     discharge_w = 0.0
                 if soc >= m.soc_ceiling:
                     charge_w = 0.0
+            if charge_w > _WRITE_EPSILON_W and mppt_by_device:
+                charge_w = min(charge_w + max(0.0, mppt_by_device.get(name, 0.0)), m.max_charge_w)
             if m.mode_entity is not None:
                 await self._apply_mode_battery(m, charge_w, discharge_w)
             else:
