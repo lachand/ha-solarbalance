@@ -50,8 +50,6 @@ class _Managed:
     mode_zeroes_opposite: bool
     soc_floor: float
     soc_ceiling: float
-    max_charge_w: float
-    battery_count: int
 
 
 class ActiveControlPublisher:
@@ -74,8 +72,6 @@ class ActiveControlPublisher:
                 mode_zeroes_opposite=battery.mode_switch_zeroes_opposite,
                 soc_floor=float(battery.soc_min_pct) + _SOC_MARGIN_PCT,
                 soc_ceiling=float(battery.soc_max_pct) - _SOC_MARGIN_PCT,
-                max_charge_w=float(battery.max_charge_power_w),
-                battery_count=max(1, battery.battery_count),
             )
         self._managed = managed
         # device_name -> PV output-limit entity (curtailable micro-inverters)
@@ -169,25 +165,20 @@ class ActiveControlPublisher:
         self,
         per_battery_w: Mapping[str, float],
         soc_by_device: Mapping[str, float],
-        mppt_by_device: Mapping[str, float] | None = None,
     ) -> None:
         """Write charge/discharge/mode setpoints from a balancing allocation.
 
-        The charge setpoint is ``surplus + own PV / battery_count``, quantised to
-        ``_CHARGE_STEP_W``. The box caps the **total cell charge**, so the setpoint
-        must cover the PV the controllable battery absorbs itself **plus** the AC
-        surplus to soak up. When several batteries sit behind one entity but only
-        **one** is controllable (``battery_count``), only that battery's share of the
-        PV (``own PV / count``) is added — the others charge their own PV themselves —
-        while the **whole** surplus is taken by the single controllable battery (not
-        divided). The discharge setpoint (AC output) is the full target, also handled
-        by the one controllable battery. Quantising avoids spamming a slow BLE box.
+        The per-battery target is written **as-is** (charge setpoint = the allocation,
+        quantised to ``_CHARGE_STEP_W``) — no PV is added and nothing is divided by a
+        battery count. The regulator drives this in *velocity form* (it integrates on
+        the last commanded value and re-reads it), so the setpoint self-discovers the
+        right magnitude — including the battery's own PV and any per-battery scaling —
+        from the grid error alone (mirrors the community EcoFlow STREAM PI controller).
+        Quantising avoids spamming a slow BLE box with sub-step PI ripple.
 
         Args:
             per_battery_w: Per-battery signed power (positive = charge).
             soc_by_device: Current SoC (%) per device, for the floor/ceiling cuts.
-            mppt_by_device: Per-device own PV power (W); its ``/count`` share is added
-                to the charge setpoint.
         """
         for name, m in self._managed.items():
             allocated = per_battery_w.get(name, 0.0)
@@ -199,17 +190,11 @@ class ActiveControlPublisher:
                     discharge_w = 0.0
                 if soc >= m.soc_ceiling:
                     charge_w = 0.0
-            own_pv = max(0.0, mppt_by_device.get(name, 0.0)) if mppt_by_device else 0.0
-            if charge_w > _WRITE_EPSILON_W:
-                charge_w = min(charge_w + own_pv / m.battery_count, m.max_charge_w)
             charge_w = round(charge_w / _CHARGE_STEP_W) * _CHARGE_STEP_W
             _LOGGER.debug(
-                "active-control %s: alloc=%+.0fW own_pv=%.0fW count=%d soc=%s "
-                "-> charge=%.0fW discharge=%.0fW",
+                "active-control %s: alloc=%+.0fW soc=%s -> charge=%.0fW discharge=%.0fW",
                 name,
                 allocated,
-                own_pv,
-                m.battery_count,
                 f"{soc:.0f}" if soc is not None else "?",
                 charge_w,
                 discharge_w,

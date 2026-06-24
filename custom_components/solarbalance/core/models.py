@@ -146,12 +146,6 @@ class BatteryRole:
     mode_switch_zeroes_opposite: bool = True
     """When mode-based, zero the opposite-direction power before switching mode
     (one-direction-at-a-time devices like the STREAM need a clean switch)."""
-    battery_count: int = 1
-    """Number of physical batteries grouped behind this single entity, of which only
-    one is controllable (e.g. two EcoFlow STREAMs sharing one set of entities, a
-    single ``charging_power_limit``). The PV reading covers all of them, so the
-    controllable battery's own PV ≈ ``mppt / count``; the charge setpoint adds only
-    that share (the others charge their own PV themselves) plus the full surplus."""
     reserve_soc_setpoint_entity: str | None = None
     """HA entity (number/input_number) receiving the battery's backup-reserve /
     minimum-SoC setpoint (%). SolarBalance raises it to the storm target during
@@ -166,8 +160,6 @@ class BatteryRole:
                 "BatteryRole requires either power_entity or both "
                 "charge_power_entity and discharge_power_entity"
             )
-        if self.battery_count < 1:
-            raise ValueError("battery_count must be >= 1")
         if self.active_control_enabled:
             if not self.controllable:
                 raise ValueError("active_control_enabled requires controllable=true")

@@ -37,7 +37,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta12] — 2026-06-24
+## [2.0.8-beta13] — 2026-06-24
+
+### Fixed
+
+- **Charge STREAM : la boucle zéro-injection passe en « forme vitesse » (intègre sur
+  la dernière CONSIGNE, pas sur la puissance mesurée).** En s'appuyant sur le
+  contrôleur PI EcoFlow STREAM communautaire (qui charge correctement), le constat
+  est qu'il intègre sur `current_unified` (la consigne précédemment écrite), sans
+  modéliser le PV ni diviser par quoi que ce soit : la consigne **converge toute
+  seule** vers la valeur qui annule le réseau, peu importe ce qu'elle représente
+  (PV + AC, total cellules…) ou un éventuel facteur d'échelle. SB se basait sur
+  `current_fleet = batterie_mesurée − mppt`, **découplé de la commande** pour une
+  STREAM (le PV charge en DC tout seul) → la boucle dérivait et ne montait jamais la
+  charge. Désormais, **quand une batterie mode-switch en contrôle actif est
+  présente**, la boucle intègre sur la **dernière consigne** (`_last_total_power_w`).
+  Les batteries normales gardent la forme mesurée (éprouvée, auto-limitée). Le
+  `réseau naturel` et les garde-fous continuent d'utiliser la puissance mesurée.
+
+### Removed
+
+- **Bricolages de consigne de charge abandonnés** (`+ PV propre`, division par
+  `battery_count`, réglage `battery_count`) : la forme vitesse les rend **inutiles**
+  (la boucle découvre la bonne valeur d'elle-même). La consigne de charge est de
+  nouveau écrite **telle quelle** (arrondie à 10 W). Le séquençage mode-switch « une
+  mutation par tick sur l'état réel » (beta8) et le log de debug par tick (beta12)
+  sont conservés.
 
 ### Fixed
 
@@ -1262,6 +1287,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta13]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta12...v2.0.8-beta13
 [2.0.8-beta12]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta11...v2.0.8-beta12
 [2.0.8-beta11]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta10...v2.0.8-beta11
 [2.0.8-beta10]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta9...v2.0.8-beta10

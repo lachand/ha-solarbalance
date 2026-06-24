@@ -25,19 +25,29 @@ def resolve_fleet_target_w(
     zi_correction_w: float,
     absolute_target_w: float,
     steering_w: float,
+    loop_base_w: float | None = None,
 ) -> float:
     """Return the aggregate fleet power target (W, positive = charge).
 
     Args:
         zi_regulating: True when zero-injection owns grid regulation this tick.
-        current_fleet_w: Current aggregate power of the controllable fleet
-            (positive = charging), the base the PI delta is applied to.
-        zi_correction_w: Zero-injection PI delta to add to the current power.
+        current_fleet_w: Current aggregate *measured* power of the controllable fleet
+            (positive = charging). Used only as the bootstrap base when there is no
+            prior command yet.
+        zi_correction_w: Zero-injection PI delta to add to the base.
         absolute_target_w: Strategies' absolute target, used when zero-injection
             is not regulating (e.g. storm, override, or ZI disabled).
         steering_w: Indirect SoC-equaliser bias (0 when inactive).
+        loop_base_w: Velocity-form base for the ZI integrator -- the last *commanded*
+            fleet target. The loop nudges the previous command by the PI delta and
+            re-reads it next tick, so it integrates on the actuator (model-free): it
+            self-discovers the right setpoint and self-corrects when the setpoint's
+            physical effect is decoupled from the measured fleet power (a STREAM
+            charging its own PV on the DC side) or scaled (several batteries sharing
+            one setpoint). Falls back to ``current_fleet_w`` when ``None`` (first tick).
     """
-    base = current_fleet_w + zi_correction_w if zi_regulating else absolute_target_w
+    zi_base = current_fleet_w if loop_base_w is None else loop_base_w
+    base = zi_base + zi_correction_w if zi_regulating else absolute_target_w
     return base + steering_w
 
 
@@ -153,6 +163,7 @@ class RegulationInputs:
     stop_cloud_charge: bool
     max_import_w: float | None
     max_export_w: float | None
+    loop_base_w: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +197,7 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
         zi_correction_w=inp.zi_correction_w,
         absolute_target_w=inp.absolute_target_w,
         steering_w=inp.steering_w,
+        loop_base_w=inp.loop_base_w,
     )
     natural_grid_w = inp.grid_filtered_w - inp.current_fleet_w
     total_w = base_w

@@ -173,6 +173,30 @@ class TestResolveFleetTarget:
         )
         assert target == pytest.approx(-150.0)
 
+    def test_velocity_form_integrates_on_last_command(self) -> None:
+        # With loop_base_w given, the ZI integrates on the last *command* (500), not
+        # on the measured fleet (0) — so the decoupled-actuator (STREAM) case converges.
+        target = resolve_fleet_target_w(
+            zi_regulating=True,
+            current_fleet_w=0.0,  # measured fleet (ignored when loop_base given)
+            zi_correction_w=100.0,
+            absolute_target_w=0.0,
+            steering_w=0.0,
+            loop_base_w=500.0,
+        )
+        assert target == pytest.approx(600.0)
+
+    def test_measured_form_when_no_loop_base(self) -> None:
+        # Default (loop_base_w None) keeps the measured-form base, unchanged behaviour.
+        target = resolve_fleet_target_w(
+            zi_regulating=True,
+            current_fleet_w=0.0,
+            zi_correction_w=100.0,
+            absolute_target_w=0.0,
+            steering_w=0.0,
+        )
+        assert target == pytest.approx(100.0)
+
 
 class TestSlewLimit:
     def test_no_previous_command_passes_through(self) -> None:

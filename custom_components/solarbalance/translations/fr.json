@@ -227,7 +227,6 @@
             "charge_mode_option": "Option de mode charge (ex. scheduled)",
             "discharge_mode_option": "Option de mode décharge (ex. self_powered)",
             "idle_mode_option": "Option de mode repos (optionnel)",
-            "battery_count": "Nombre de batteries par entité (1 sauf si plusieurs batteries partagent ces entités)",
             "reserve_soc_setpoint_entity": "Réserve / SoC mini du device (number %)",
             "ac_charge_limit_w": "Limite de charge AC (W)"
           },
@@ -270,7 +269,6 @@
             "charge_mode_option": "Option de mode charge (ex. scheduled)",
             "discharge_mode_option": "Option de mode décharge (ex. self_powered)",
             "idle_mode_option": "Option de mode repos (optionnel)",
-            "battery_count": "Nombre de batteries par entité (1 sauf si plusieurs batteries partagent ces entités)",
             "reserve_soc_setpoint_entity": "Réserve / SoC mini du device (number %)",
             "ac_charge_limit_w": "Limite de charge AC (W)"
           },
@@ -506,7 +504,6 @@
             "charge_mode_option": "Option de mode charge (ex. scheduled)",
             "discharge_mode_option": "Option de mode décharge (ex. self_powered)",
             "idle_mode_option": "Option de mode repos (optionnel)",
-            "battery_count": "Nombre de batteries par entité (1 sauf si plusieurs batteries partagent ces entités)",
             "reserve_soc_setpoint_entity": "Réserve / SoC mini (number %)",
             "ac_charge_limit_w": "Limite de charge AC (W)",
             "mppt_peak_power_w": "MPPT : puissance crête (W)",
@@ -549,7 +546,6 @@
             "charge_mode_option": "Option de mode charge (ex. scheduled)",
             "discharge_mode_option": "Option de mode décharge (ex. self_powered)",
             "idle_mode_option": "Option de mode repos (optionnel)",
-            "battery_count": "Nombre de batteries par entité (1 sauf si plusieurs batteries partagent ces entités)",
             "reserve_soc_setpoint_entity": "Réserve / SoC mini (number %)",
             "ac_charge_limit_w": "Limite de charge AC (W)",
             "mppt_peak_power_w": "MPPT : puissance crête (W)",

@@ -528,6 +528,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._controllable_battery_names = frozenset(
             d.name for d in devices if d.battery is not None and d.battery.controllable
         )
+        # Velocity-form ZI base (integrate on the last command, not the measured fleet)
+        # only when an actively-controlled mode-switch battery is present: those (a
+        # STREAM) charge their own PV on the DC side, so the measured fleet power is
+        # decoupled from the written setpoint and a measured-base loop can't converge.
+        # Normal batteries keep the battle-tested measured-form (self-limiting, no
+        # wind-up if the plant can't follow). See resolve_fleet_target_w.
+        self._velocity_form_zi = any(
+            d.battery is not None
+            and d.battery.active_control_enabled
+            and d.battery.mode_setpoint_entity is not None
+            for d in devices
+        )
         # Usable capacity (kWh) per battery device, for capacity-weighted SoC means
         # and energy sensors. Chemistry-adjusted effective usable capacity (a 2 kWh
         # @ 75 % and a 4 kWh @ 25 % pack do not average to 50 %).
@@ -1812,6 +1824,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             RegulationInputs(
                 zi_regulating=zi_regulating,
                 current_fleet_w=current_fleet_w,
+                # Velocity-form base (mode-switch active-control batteries only):
+                # integrate on the last *commanded* target, not the measured fleet
+                # power, so the loop self-discovers the right setpoint even when the
+                # actuator is decoupled from the measurement (a STREAM charging its own
+                # PV on the DC side). natural_grid + the clamps still use the measured
+                # current_fleet_w. None elsewhere → measured-form. See
+                # resolve_fleet_target_w.
+                loop_base_w=self._last_total_power_w if self._velocity_form_zi else None,
                 zi_correction_w=zi_correction_w,
                 absolute_target_w=absolute_target_w,
                 steering_w=steering_w,
@@ -1924,17 +1944,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         self._publisher.publish(result, balancing_result=balancing_result)
         soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}
-        # Own PV of each controllable battery (its mppt on the same device): the
-        # charge setpoint includes it (the box caps the total cell charge — see
-        # ActiveControlPublisher.apply).
-        mppt_by_device = {
-            m.device_name: m.power_w
-            for m in snapshot.mppts
-            if m.available and m.device_name in self._controllable_battery_names
-        }
-        await self._apply_active_control(
-            balancing_result.per_battery_w, soc_by_device, pv_limits, mppt_by_device
-        )
+        await self._apply_active_control(balancing_result.per_battery_w, soc_by_device, pv_limits)
         self._check_alerts(snapshot)
         self._fire_edge_events(snapshot)
         return snapshot
@@ -2701,7 +2711,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         per_battery_w: Mapping[str, float],
         soc_by_device: Mapping[str, float],
         pv_limits: Mapping[str, float],
-        mppt_by_device: Mapping[str, float],
     ) -> None:
         """Write setpoints to equipment when active control is enabled.
 
@@ -2726,7 +2735,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 self._active_control_suspended = True
             return
         self._active_control_suspended = False
-        await self._active_control.apply(per_battery_w, soc_by_device, mppt_by_device)
+        await self._active_control.apply(per_battery_w, soc_by_device)
         await self._active_control.apply_pv_limits(pv_limits)
         await self._active_control.apply_reserve(self._reserve_setpoints())
 
