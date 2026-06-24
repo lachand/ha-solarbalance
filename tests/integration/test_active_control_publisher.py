@@ -228,29 +228,55 @@ def _mode_device(name: str = "s") -> Device:
     )
 
 
-async def test_mode_battery_charge_switch_is_ordered() -> None:
-    hass = _hass()
-    pub = ActiveControlPublisher(hass, [_mode_device()])
-    await pub.apply({"s": 600.0}, {"s": 50.0})
-    # Zero the opposite direction, switch the strategy, THEN set the charge power.
-    assert _calls(hass) == [
-        ("number", "set_value", {"entity_id": "number.dis", "value": 0.0}),
-        ("select", "select_option", {"entity_id": "select.strat", "option": "scheduled"}),
-        ("number", "set_value", {"entity_id": "number.chg", "value": 600.0}),
-    ]
+async def test_mode_battery_charge_switch_is_ordered_over_ticks() -> None:
+    # One mutation per tick, gated on the device's ACTUAL state: zero base load →
+    # switch strategy → set charge power. The box only honours the charge limit once
+    # it actually reports "scheduled", so each step waits a tick for the prior to land.
+    from types import SimpleNamespace
 
-
-async def test_mode_battery_switch_to_discharge_zeroes_charge_first() -> None:
     hass = _hass()
+    st = {"number.dis": 399.0, "select.strat": "self_powered", "number.chg": 0.0}
+    hass.states.get = lambda eid: SimpleNamespace(state=str(st[eid])) if eid in st else None
     pub = ActiveControlPublisher(hass, [_mode_device()])
-    await pub.apply({"s": 600.0}, {"s": 50.0})  # now in scheduled/charge
+
+    await pub.apply({"s": 600.0}, {"s": 50.0})  # tick 1: base load non-zero → zero it
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.dis", "value": 0.0})]
+    st["number.dis"] = 0.0
+
     hass.services.async_call.reset_mock()
-    await pub.apply({"s": -400.0}, {"s": 50.0})
+    await pub.apply({"s": 600.0}, {"s": 50.0})  # tick 2: strategy wrong → switch
     assert _calls(hass) == [
-        ("number", "set_value", {"entity_id": "number.chg", "value": 0.0}),
-        ("select", "select_option", {"entity_id": "select.strat", "option": "self_powered"}),
-        ("number", "set_value", {"entity_id": "number.dis", "value": 400.0}),
+        ("select", "select_option", {"entity_id": "select.strat", "option": "scheduled"})
     ]
+    st["select.strat"] = "scheduled"
+
+    hass.services.async_call.reset_mock()
+    await pub.apply({"s": 600.0}, {"s": 50.0})  # tick 3: ready → set charge power
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg", "value": 600.0})]
+
+
+async def test_mode_battery_switch_to_discharge_is_ordered_over_ticks() -> None:
+    from types import SimpleNamespace
+
+    hass = _hass()
+    st = {"number.chg": 600.0, "select.strat": "scheduled", "number.dis": 0.0}
+    hass.states.get = lambda eid: SimpleNamespace(state=str(st[eid])) if eid in st else None
+    pub = ActiveControlPublisher(hass, [_mode_device()])
+
+    await pub.apply({"s": -400.0}, {"s": 50.0})  # tick 1: charge power non-zero → zero it
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg", "value": 0.0})]
+    st["number.chg"] = 0.0
+
+    hass.services.async_call.reset_mock()
+    await pub.apply({"s": -400.0}, {"s": 50.0})  # tick 2: strategy wrong → switch
+    assert _calls(hass) == [
+        ("select", "select_option", {"entity_id": "select.strat", "option": "self_powered"})
+    ]
+    st["select.strat"] = "self_powered"
+
+    hass.services.async_call.reset_mock()
+    await pub.apply({"s": -400.0}, {"s": 50.0})  # tick 3: ready → set discharge power
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.dis", "value": 400.0})]
 
 
 async def test_mode_battery_no_reswitch_when_direction_unchanged() -> None:

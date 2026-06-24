@@ -37,6 +37,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta8] — 2026-06-24
+
+### Fixed
+
+- **Batterie mode-switch (STREAM) : la séquence de charge est désormais étalée sur
+  plusieurs ticks (une mutation par tick), gardée sur l'état RÉEL.** Suite de
+  beta7 : réaffirmer le mode ne suffisait pas, car SB écrivait le mode **et** la
+  puissance dans le **même tick**. La box (BLE, lente) applique ses actionneurs
+  **un à la fois** et n'honore `charging_power_limit` **qu'une fois réellement en
+  `scheduled`** — écrit trop tôt, il est ignoré. `_apply_mode_battery` exécute
+  maintenant **une seule mutation par tick, dans l'ordre, en lisant l'état réel de
+  l'appareil et en s'arrêtant tant qu'elle n'a pas "pris"** : (1) `base_load_power`
+  → 0, (2) `energy_strategy` → `scheduled`, (3) `charging_power_limit` → cible. En
+  régime établi les deux premières étapes passent et seule la puissance est mise à
+  jour ; un base load que la box se réimpose, ou une stratégie qu'elle repasse en
+  `self_powered` toute seule, sont réaffirmés (puissance retenue) jusqu'à ce que ça
+  tienne. Calqué sur le contrôleur PI EcoFlow STREAM communautaire (chaque étape
+  suivie d'un `stop`).
+
 ## [2.0.8-beta7] — 2026-06-24
 
 ### Fixed
@@ -1182,6 +1201,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta8]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta7...v2.0.8-beta8
 [2.0.8-beta7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta6...v2.0.8-beta7
 [2.0.8-beta6]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta5...v2.0.8-beta6
 [2.0.8-beta5]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta4...v2.0.8-beta5

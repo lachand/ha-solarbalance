@@ -202,14 +202,19 @@ class ActiveControlPublisher:
     async def _apply_mode_battery(self, m: _Managed, charge_w: float, discharge_w: float) -> None:
         """Drive a mode-based battery (e.g. STREAM): one direction at a time.
 
-        On a mode change the opposite-direction power is zeroed and the mode is
-        switched **before** the new direction's power is set, in order, blocking —
-        a one-direction-at-a-time inverter ignores a power written in the wrong
-        mode. The opposite direction is **re-asserted to 0 every tick** (not only on
-        the switch): a STREAM re-imposes its own base load, so without this it would
-        charge and discharge at once (e.g. charging 1000 W while still outputting
-        399 W). In steady state these writes are cheap (latched / skipped when the
-        device already reads 0).
+        The box (BLE, slow) applies its actuators one at a time and only honours a
+        power setpoint once it is *actually* in the matching strategy. So the switch
+        is performed as **one mutation per tick, in order, each gated on the device's
+        ACTUAL state and stopping until it lands**: (1) zero the opposite direction,
+        (2) switch the strategy, (3) set the active power. Cramming the three writes
+        into one pass (even blocking) leaves ``charging_power_limit`` ignored — it is
+        written while the box is still in ``self_powered``. This mirrors the
+        community EcoFlow STREAM PI controller, which stops after each step.
+
+        In steady state the first two gates pass through (opposite already 0, strategy
+        already set) and only the power is updated. A base load the box re-imposes on
+        its own, or a strategy it silently reverts to ``self_powered``, is re-asserted
+        — and the active power held back — until it sticks.
         """
         assert m.mode_entity is not None
         if charge_w > _WRITE_EPSILON_W:
@@ -235,20 +240,17 @@ class ActiveControlPublisher:
                 await self._write_mode(m.mode_entity, m.idle_option)
             return
 
-        switching = self._last_mode.get(m.mode_entity) != option
-        if m.mode_zeroes_opposite and opposite is not None:
-            if switching:
-                await self._write_power(opposite, 0.0, blocking=True)
-            else:
-                # Re-assert 0 against the device's self-imposed base load.
-                await self._ensure_zero(opposite)
-        if switching:
-            await self._write_mode(m.mode_entity, option, blocking=True)
-        else:
-            # Re-assert the mode against a device that reverts it on its own.
-            await self._ensure_mode(m.mode_entity, option)
+        # 1. Zero the opposite direction first; stop until it actually reads 0.
+        if m.mode_zeroes_opposite and opposite is not None and self._reads_nonzero(opposite):
+            await self._write_power(opposite, 0.0, force=True, blocking=True)
+            return
+        # 2. Switch the strategy; stop until the box reports it (it may revert alone).
+        if not self._mode_is(m.mode_entity, option):
+            await self._write_mode(m.mode_entity, option, blocking=True, force=True)
+            return
+        # 3. Opposite is 0 and the strategy is in place → set the active power.
         if active_entity is not None:
-            await self._write_power(active_entity, active_w, blocking=switching)
+            await self._write_power(active_entity, active_w)
 
     async def _ensure_zero(self, entity_id: str) -> None:
         """Force the power setpoint back to 0 when the device reads non-zero.
@@ -268,21 +270,32 @@ class ActiveControlPublisher:
         if abs(current) > _WRITE_EPSILON_W:
             await self._write_power(entity_id, 0.0, force=True)
 
-    async def _ensure_mode(self, entity_id: str, option: str) -> None:
-        """Re-assert the mode select against a device that reverts it on its own.
+    def _reads_nonzero(self, entity_id: str) -> bool:
+        """True when the entity reports a non-zero power (so it still needs zeroing).
 
-        The latch in ``_write_mode`` tracks what *we* last wrote, so if the device
-        silently drops back to its own default (a STREAM reverting ``energy_strategy``
-        to ``self_powered``) we would never correct it — and the active direction's
-        power setpoint (e.g. ``charging_power_limit``) is then **ignored by the box**
-        even though we keep writing it. This reads the actual select state and
-        re-writes the wanted option only when it has drifted, bypassing the latch.
+        Reads the device's ACTUAL state, not the write latch, so a base load the box
+        re-imposes on its own is detected. Unknown/unavailable → ``False`` (cannot
+        confirm, so do not block the sequence on it).
         """
         state = self._hass.states.get(entity_id)
         if state is None or state.state in ("unknown", "unavailable"):
-            return
-        if state.state != option:
-            await self._write_mode(entity_id, option, force=True)
+            return False
+        try:
+            return abs(float(state.state)) > _WRITE_EPSILON_W
+        except (TypeError, ValueError):
+            return False
+
+    def _mode_is(self, entity_id: str, option: str) -> bool:
+        """True when the select is already on ``option``.
+
+        Uses the device's ACTUAL state so a strategy the box silently reverts (a
+        STREAM dropping back to ``self_powered``) is detected; falls back to the
+        write latch only when the state is unreadable.
+        """
+        state = self._hass.states.get(entity_id)
+        if state is None or state.state in ("unknown", "unavailable"):
+            return self._last_mode.get(entity_id) == option
+        return state.state == option
 
     async def reset(self) -> None:
         """Command all managed power setpoints to 0 W (e.g. when suspended)."""
