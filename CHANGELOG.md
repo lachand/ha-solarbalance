@@ -37,6 +37,44 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.7] — 2026-06-24
+
+Stable release consolidating the `2.0.7-beta1…29` line (full per-beta detail
+below). Headline changes since **2.0.6**:
+
+### Added
+
+- **Active control of mode-switch batteries (EcoFlow STREAM).** Drive **charge and
+  discharge** of a battery that exposes an operating-mode select instead of a signed
+  setpoint, via configurable `mode_setpoint_entity` + `charge/discharge_mode_option`
+  (e.g. `scheduled` / `self_powered`); generic, the STREAM is the first consumer.
+- **Device-preset add wizard** — picking a model (EcoFlow STREAM / inverter,
+  generic) pre-fills the form and **auto-detects matching entities** from the
+  device prefix. Plus a **two-mode config** (simple / HA Advanced) and a
+  **dependent-field wizard** (tariff & regulation details shown only when relevant).
+- **MPPT/inverter temperature** sensor and mapping.
+- **Observability — “Active clamp” diagnostic**: which guard set the fleet target
+  each tick (`base` / `no_feed` / `stop_cloud` / `no_charge_floor` / `grid_*`).
+
+### Fixed / hardened (regulation)
+
+- Morning oscillation damping (fleet base + adaptive volatility damper) and a
+  **smoothed cloud-charge signal** so a dumb cloud battery’s bursts no longer chop
+  the fleet.
+- **Gradual + settle PV curtailment** (no more 0↔peak sawtooth) and **near-full
+  curtailment** when the fleet can no longer absorb a surplus.
+- **Cloud-charge guards**: don’t drain the fleet to feed a self-charging cloud
+  battery; *stop-cloud* acts in **surplus only**, never under a real load (EV).
+- Local AC-load compensation, non-controllable-battery staleness handling, and
+  keeping a mode-switch battery’s opposite direction at 0 every tick (no
+  simultaneous charge+discharge).
+
+### Internal
+
+- The whole aggregate-target clamp pipeline extracted to a **pure
+  `resolve_total_power`** with an option-combination test matrix. **501 tests**,
+  mypy `--strict` clean on `core/`, `core/` import-pure.
+
 ## [2.0.7-beta29] — 2026-06-23
 
 ### Tests
@@ -1050,6 +1088,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.7]: https://github.com/lachand/ha-solarbalance/compare/v2.0.6...v2.0.7
 [2.0.7-beta29]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta28...v2.0.7-beta29
 [2.0.7-beta28]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta27...v2.0.7-beta28
 [2.0.7-beta27]: https://github.com/lachand/ha-solarbalance/compare/v2.0.7-beta26...v2.0.7-beta27
