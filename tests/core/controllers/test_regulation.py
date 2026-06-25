@@ -90,6 +90,23 @@ class TestResolveTotalPower:
         relaxed = resolve_total_power(_inp(**states, eq_discharge_floor_w=-703.0))
         assert relaxed.total_w == pytest.approx(-703.0)  # outputs all its PV
 
+    def test_eq_discharge_floor_overrides_no_feed_when_cloud_charging(self) -> None:
+        # Cloud battery charging (nc_charge_offset > 0) would normally cap the discharge
+        # at ~0 (no_feed). With the equaliser routing PV, the fleet may still output its
+        # PV down to -mppt to charge the lower-SoC cloud battery.
+        base: dict[str, object] = {
+            "grid_filtered_w": 1.0,
+            "current_fleet_w": -7.0,
+            "eq_bias_w": 817.0,
+            "controllable_mppt_w": 817.0,
+            "nc_charge_offset_w": 8.0,
+            "noncontrollable_charging": True,
+        }
+        blocked = resolve_total_power(_inp(**base))
+        assert blocked.total_w == pytest.approx(0.0)  # no_feed caps at 0
+        routed = resolve_total_power(_inp(**base, eq_discharge_floor_w=-817.0))
+        assert routed.total_w == pytest.approx(-817.0)  # PV routed to the cloud
+
     def test_eq_discharge_floor_never_drains_battery_below_mppt(self) -> None:
         # The floor is -mppt: the equaliser can output the PV but not drain the cells.
         out = resolve_total_power(

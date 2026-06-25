@@ -37,7 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta20] — 2026-06-25
+## [2.0.8-beta21] — 2026-06-25
+
+### Fixed
+
+- **Le routing PV de l'équaliseur était encore bloqué par l'anti-transfert
+  (`no_feed`).** beta20 relaxait `no_export` et `grid_export` mais **pas** le garde-fou
+  `no_feed` (anti-transfert batterie→cloud de beta16). Quand la batterie cloud
+  **charge**, `no_feed` remontait la cible à ~0 (« ne décharge pas le parc pour
+  alimenter une cloud qui se charge ») — exactement ce que l'équaliseur veut faire
+  pour rééquilibrer. Désormais, quand l'équaliseur route du PV (`eq_discharge_floor_w`),
+  `no_feed` autorise aussi la sortie jusqu'à `-mppt` : le parc peut router son **PV**
+  (jamais sa batterie) vers la cloud plus basse. La STREAM va enfin sortir son PV dans
+  la Jackery au lieu de se charger elle-même.
 
 ### Added
 
@@ -1380,6 +1392,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta21]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta20...v2.0.8-beta21
 [2.0.8-beta20]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta19...v2.0.8-beta20
 [2.0.8-beta19]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta18...v2.0.8-beta19
 [2.0.8-beta18]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta17...v2.0.8-beta18

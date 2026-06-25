@@ -247,13 +247,16 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
             and not inp.noncontrollable_charging
         ):
             pin(min(total_w, -inp.controllable_mppt_w), "no_charge_floor")
-        # No-feed: don't discharge the fleet to feed a self-charging cloud battery
+        # No-feed: don't *drain the battery* to feed a self-charging cloud battery
         # (it draws from the grid instead -- a single conversion, not a round trip).
+        # Exception: when the SoC equaliser is routing PV (eq_discharge_floor_w), let
+        # the fleet output its PV down to that floor to charge the lower-SoC cloud
+        # battery -- that is PV (not battery drain), and exactly the intent here.
         if inp.nc_charge_offset_w > 0.0:
-            pin(
-                max(total_w, inp.nc_charge_offset_w - inp.grid_filtered_w + inp.current_fleet_w),
-                "no_feed",
-            )
+            no_feed_floor = inp.nc_charge_offset_w - inp.grid_filtered_w + inp.current_fleet_w
+            if inp.eq_discharge_floor_w is not None:
+                no_feed_floor = min(no_feed_floor, inp.eq_discharge_floor_w)
+            pin(max(total_w, no_feed_floor), "no_feed")
     # Grid constraints (honour the breaker/contract regardless of the regulator).
     if inp.max_import_w is not None:
         pin(
