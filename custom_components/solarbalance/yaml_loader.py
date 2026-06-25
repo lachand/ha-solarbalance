@@ -87,6 +87,7 @@ _MPPT_SCHEMA = vol.Schema(
     {
         vol.Required("peak_power_w"): vol.Coerce(int),
         vol.Required("power_entity"): str,
+        vol.Optional("extra_power_entities", default=[]): [str],
         vol.Optional("daily_energy_entity"): str,
         vol.Optional("voltage_entity"): str,
         vol.Optional("current_entity"): str,
@@ -125,6 +126,7 @@ _METER_SCHEMA = vol.Schema(
         vol.Required("name"): str,
         vol.Required("kind"): _METER_KIND,
         vol.Required("power_entity"): str,
+        vol.Optional("invert_sign", default=False): bool,
         vol.Optional("phases", default=1): vol.All(vol.Coerce(int), vol.In([1, 3])),
         vol.Optional("per_phase_zi", default=False): bool,
         vol.Optional("power_l1_entity"): str,
@@ -284,6 +286,7 @@ def _build_mppt_role(raw: Mapping[str, Any]) -> MpptRole:
     return MpptRole(
         peak_power_w=raw["peak_power_w"],
         power_entity=raw["power_entity"],
+        extra_power_entities=tuple(raw.get("extra_power_entities", [])),
         daily_energy_entity=raw.get("daily_energy_entity"),
         voltage_entity=raw.get("voltage_entity"),
         current_entity=raw.get("current_entity"),
@@ -321,6 +324,7 @@ def _build_meter(raw: Mapping[str, Any]) -> Meter:
         name=raw["name"],
         kind=MeterKind(raw["kind"]),
         power_entity=raw["power_entity"],
+        invert_sign=raw.get("invert_sign", False),
         phases=raw.get("phases", 1),
         per_phase_zi=raw.get("per_phase_zi", False),
         power_l1_entity=raw.get("power_l1_entity"),

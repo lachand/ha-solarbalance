@@ -188,6 +188,9 @@ class MpptRole:
 
     peak_power_w: int
     power_entity: str
+    extra_power_entities: tuple[str, ...] = ()
+    """Additional production sensors summed with ``power_entity`` for inverters that
+    expose one entity per string instead of a single total (e.g. Indevolt)."""
     daily_energy_entity: str | None = None
     voltage_entity: str | None = None
     current_entity: str | None = None
@@ -203,6 +206,12 @@ class MpptRole:
     def __post_init__(self) -> None:
         if self.active_control_enabled and self.power_limit_setpoint_entity is None:
             raise ValueError("MpptRole active_control_enabled requires power_limit_setpoint_entity")
+
+    @property
+    def power_entities(self) -> tuple[str, ...]:
+        """All production sensors to sum: the primary then any extras, de-duplicated."""
+        ordered = dict.fromkeys(e for e in (self.power_entity, *self.extra_power_entities) if e)
+        return tuple(ordered)
 
 
 @dataclass(slots=True, frozen=True)
@@ -244,6 +253,10 @@ class Meter:
     name: str
     kind: MeterKind
     power_entity: str
+    invert_sign: bool = False
+    """Set when the meter reports export as positive and import as negative (e.g.
+    Huawei), the opposite of SolarBalance's import-positive convention. The reader
+    negates every reading, so no template helper entity is needed."""
     phases: int = 1
     per_phase_zi: bool = False
     power_l1_entity: str | None = None

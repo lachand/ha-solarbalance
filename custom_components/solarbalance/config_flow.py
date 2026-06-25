@@ -689,6 +689,13 @@ def _entity(*domains):
     return _OptionalEntitySelector(selector.EntitySelectorConfig(domain=list(domains)))
 
 
+def _entity_multi(*domains):
+    """Pick several entities at once (returns a list), for inverters with one sensor per string."""
+    return selector.EntitySelector(
+        selector.EntitySelectorConfig(domain=list(domains), multiple=True)
+    )
+
+
 def _battery_subentry_schema(d: dict[str, Any]) -> vol.Schema:
     from .core.models import Chemistry, PowerSignConvention
 
@@ -1220,6 +1227,9 @@ def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Required("name", default=d.get("name", "")): selector.TextSelector(),
             vol.Required("peak_power_w", default=m.get("peak_power_w")): _num(0, step=50, unit="W"),
             vol.Required("power_entity", default=m.get("power_entity")): _entity("sensor"),
+            vol.Optional(
+                "extra_power_entities", default=m.get("extra_power_entities", [])
+            ): _entity_multi("sensor"),
             vol.Optional("daily_energy_entity", default=m.get("daily_energy_entity", "")): _entity(
                 "sensor"
             ),
@@ -1239,6 +1249,7 @@ def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
 _MPPT_ROLE_KEYS = (
     "peak_power_w",
     "power_entity",
+    "extra_power_entities",
     "daily_energy_entity",
     "temperature_entity",
     "active_control_enabled",
@@ -1250,7 +1261,7 @@ def _mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
     mppt: dict[str, Any] = {}
     for key in _MPPT_ROLE_KEYS:
         val = user_input.get(key)
-        if val in (None, ""):
+        if val in (None, "", []):
             continue
         mppt[key] = val
     return {"name": user_input["name"], "roles": {"mppt": mppt}}
@@ -1282,6 +1293,9 @@ def _meter_subentry_schema(d: dict[str, Any]) -> vol.Schema:
                 )
             ),
             vol.Required("power_entity", default=d.get("power_entity")): _entity("sensor"),
+            vol.Optional(
+                "invert_sign", default=d.get("invert_sign", False)
+            ): selector.BooleanSelector(),
             vol.Optional("phases", default=str(d.get("phases", 1))): selector.SelectSelector(
                 selector.SelectSelectorConfig(options=["1", "3"])
             ),
@@ -1311,6 +1325,7 @@ _METER_KEYS = (
     "name",
     "kind",
     "power_entity",
+    "invert_sign",
     "per_phase_zi",
     "power_l1_entity",
     "power_l2_entity",
@@ -1368,6 +1383,9 @@ def _battery_mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             ),
             vol.Required("mppt_power_entity", default=m.get("power_entity")): _entity("sensor"),
             vol.Optional(
+                "mppt_extra_power_entities", default=m.get("extra_power_entities", [])
+            ): _entity_multi("sensor"),
+            vol.Optional(
                 "mppt_daily_energy_entity", default=m.get("daily_energy_entity", "")
             ): _entity("sensor"),
             vol.Optional(
@@ -1388,6 +1406,7 @@ def _battery_mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
 _MPPT_PREFIXED = {
     "mppt_peak_power_w": "peak_power_w",
     "mppt_power_entity": "power_entity",
+    "mppt_extra_power_entities": "extra_power_entities",
     "mppt_daily_energy_entity": "daily_energy_entity",
     "mppt_temperature_entity": "temperature_entity",
     "mppt_active_control_enabled": "active_control_enabled",
@@ -1400,7 +1419,7 @@ def _battery_mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
     mppt: dict[str, Any] = {}
     for src, dst in _MPPT_PREFIXED.items():
         val = user_input.get(src)
-        if val in (None, ""):
+        if val in (None, "", []):
             continue
         mppt[dst] = val
     device["roles"]["mppt"] = mppt

@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta26] — 2026-06-25
+
+### Added
+
+- **Compteur à convention inversée (ex. Huawei).** Nouvelle case **« inverser le
+  signe »** sur le compteur : pour un compteur qui compte **+ = injection / − =
+  soutirage** (Huawei), SB **négative la lecture** (agrégat *et* par phase) pour
+  retrouver sa convention + import / − export — **plus besoin d'entité template**.
+- **Onduleurs sans capteur MPPT total (ex. Indevolt).** Nouveau **sélecteur
+  multi-entités** « capteurs de production supplémentaires » sur l'onduleur : SB
+  **additionne plusieurs capteurs** (un par string) en une production unique. Le
+  watchdog surveille chacune des entités ; en YAML : `extra_power_entities: [...]`.
+
 ## [2.0.8-beta25] — 2026-06-25
 
 ### Added
@@ -1460,6 +1473,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta26]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta25...v2.0.8-beta26
 [2.0.8-beta25]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta24...v2.0.8-beta25
 [2.0.8-beta24]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta23...v2.0.8-beta24
 [2.0.8-beta23]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta22...v2.0.8-beta23

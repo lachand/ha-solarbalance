@@ -96,21 +96,30 @@ class EntityReader:
         if pdl is None:
             _LOGGER.warning("No PDL meter declared — grid power defaulting to 0")
             return 0.0
-        return self._read_float(pdl.power_entity, default=0.0)
+        raw = self._read_float(pdl.power_entity, default=0.0) or 0.0
+        return -raw if pdl.invert_sign else raw
 
     def _read_grid_power_per_phase(self) -> dict[str, float | None]:
         """Return per-phase grid power dict for Snapshot keyword args.
 
         Only populated when the PDL meter declares L1/L2/L3 power entities.
-        Returns a dict with None values when entities are absent.
+        Returns a dict with None values when entities are absent. Negated together
+        with the aggregate when the meter uses the export-positive convention.
         """
         pdl = next((m for m in self._meters if m.kind is MeterKind.PDL), None)
         if pdl is None:
             return {"grid_power_l1_w": None, "grid_power_l2_w": None, "grid_power_l3_w": None}
+
+        def _phase(entity: str | None) -> float | None:
+            value = self._read_float(entity, default=None)
+            if value is None:
+                return None
+            return -value if pdl.invert_sign else value
+
         return {
-            "grid_power_l1_w": self._read_float(pdl.power_l1_entity, default=None),
-            "grid_power_l2_w": self._read_float(pdl.power_l2_entity, default=None),
-            "grid_power_l3_w": self._read_float(pdl.power_l3_entity, default=None),
+            "grid_power_l1_w": _phase(pdl.power_l1_entity),
+            "grid_power_l2_w": _phase(pdl.power_l2_entity),
+            "grid_power_l3_w": _phase(pdl.power_l3_entity),
         }
 
     def _read_batteries(self) -> tuple[BatteryState, ...]:
@@ -189,7 +198,14 @@ class EntityReader:
         for device in self._devices:
             if device.mppt is None:
                 continue
-            power = self._read_float(device.mppt.power_entity, default=None)
+            # Sum every declared production sensor (inverters that expose one entity per
+            # string, e.g. Indevolt). Available as long as at least one reads back, so a
+            # single sensor blip undercounts briefly rather than zeroing the whole array.
+            readings = [
+                v
+                for entity in device.mppt.power_entities
+                if (v := self._read_float(entity, default=None)) is not None
+            ]
             temperature = (
                 self._read_float(device.mppt.temperature_entity, default=None)
                 if device.mppt.temperature_entity
@@ -198,9 +214,9 @@ class EntityReader:
             states.append(
                 MpptState(
                     device_name=device.name,
-                    power_w=power if power is not None else 0.0,
+                    power_w=sum(readings),
                     temperature_c=temperature,
-                    available=power is not None,
+                    available=bool(readings),
                 )
             )
         return tuple(states)

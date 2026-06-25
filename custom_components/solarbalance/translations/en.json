@@ -381,6 +381,7 @@
             "name": "Name",
             "peak_power_w": "Peak power (W)",
             "power_entity": "Production power entity (W)",
+            "extra_power_entities": "Additional production sensors (summed)",
             "daily_energy_entity": "Daily energy entity",
             "temperature_entity": "Temperature sensor (°C)",
             "active_control_enabled": "Active curtailment (limit output)",
@@ -388,6 +389,7 @@
           },
           "data_description": {
             "peak_power_w": "Inverter max power; the curtailment upper bound.",
+            "extra_power_entities": "For inverters with one sensor per string and no total (e.g. Indevolt): add the other strings; they are summed with the entity above.",
             "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment)."
           }
         },
@@ -398,6 +400,7 @@
             "name": "Name",
             "peak_power_w": "Peak power (W)",
             "power_entity": "Production power entity (W)",
+            "extra_power_entities": "Additional production sensors (summed)",
             "daily_energy_entity": "Daily energy entity",
             "temperature_entity": "Temperature sensor (°C)",
             "active_control_enabled": "Active curtailment (limit output)",
@@ -405,6 +408,7 @@
           },
           "data_description": {
             "peak_power_w": "Inverter max power; the curtailment upper bound.",
+            "extra_power_entities": "For inverters with one sensor per string and no total (e.g. Indevolt): add the other strings; they are summed with the entity above.",
             "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment)."
           }
         }
@@ -426,6 +430,7 @@
             "name": "Name",
             "kind": "Meter kind",
             "power_entity": "Signed power entity (+ import / − export)",
+            "invert_sign": "Invert sign (meter reads + export / − import)",
             "phases": "Phases",
             "per_phase_zi": "Per-phase zero-injection",
             "power_l1_entity": "Power L1",
@@ -436,7 +441,8 @@
           },
           "data_description": {
             "kind": "pdl = grid connection point ; pv ; consumption ; subcircuit.",
-            "power_entity": "Must be POSITIVE on import, NEGATIVE on export (e.g. Shelly 3EM)."
+            "power_entity": "Must be POSITIVE on import, NEGATIVE on export (e.g. Shelly 3EM).",
+            "invert_sign": "Enable for meters reporting + = export / − = import (e.g. Huawei) — no template helper needed."
           }
         },
         "reconfigure": {
@@ -446,6 +452,7 @@
             "name": "Name",
             "kind": "Meter kind",
             "power_entity": "Signed power entity (+ import / − export)",
+            "invert_sign": "Invert sign (meter reads + export / − import)",
             "phases": "Phases",
             "per_phase_zi": "Per-phase zero-injection",
             "power_l1_entity": "Power L1",
@@ -456,7 +463,8 @@
           },
           "data_description": {
             "kind": "pdl = grid connection point ; pv ; consumption ; subcircuit.",
-            "power_entity": "Must be POSITIVE on import, NEGATIVE on export (e.g. Shelly 3EM)."
+            "power_entity": "Must be POSITIVE on import, NEGATIVE on export (e.g. Shelly 3EM).",
+            "invert_sign": "Enable for meters reporting + = export / − = import (e.g. Huawei) — no template helper needed."
           }
         }
       },
@@ -502,6 +510,7 @@
             "ac_charge_limit_w": "AC charge limit (W)",
             "mppt_peak_power_w": "MPPT: peak power (W)",
             "mppt_power_entity": "MPPT: production power entity (W)",
+            "mppt_extra_power_entities": "MPPT: additional production sensors (summed)",
             "mppt_daily_energy_entity": "MPPT: daily energy",
             "mppt_temperature_entity": "Inverter temperature sensor (°C)",
             "mppt_active_control_enabled": "MPPT: active curtailment",
@@ -544,6 +553,7 @@
             "ac_charge_limit_w": "AC charge limit (W)",
             "mppt_peak_power_w": "MPPT: peak power (W)",
             "mppt_power_entity": "MPPT: production power entity (W)",
+            "mppt_extra_power_entities": "MPPT: additional production sensors (summed)",
             "mppt_daily_energy_entity": "MPPT: daily energy",
             "mppt_temperature_entity": "Inverter temperature sensor (°C)",
             "mppt_active_control_enabled": "MPPT: active curtailment",

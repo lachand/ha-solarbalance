@@ -381,6 +381,7 @@
             "name": "Nom",
             "peak_power_w": "Puissance crête (W)",
             "power_entity": "Entité puissance produite (W)",
+            "extra_power_entities": "Capteurs de production supplémentaires (additionnés)",
             "daily_energy_entity": "Entité énergie du jour",
             "temperature_entity": "Capteur de température (°C)",
             "active_control_enabled": "Bridage actif (limiter la sortie)",
@@ -388,6 +389,7 @@
           },
           "data_description": {
             "peak_power_w": "Puissance max de l'onduleur ; borne haute du bridage.",
+            "extra_power_entities": "Pour les onduleurs avec un capteur par string et sans total (ex. Indevolt) : ajoutez les autres strings ; ils sont additionnés à l'entité ci-dessus.",
             "power_limit_setpoint_entity": "number/W que l'onduleur obéit comme limite de sortie (bridage zéro-injection)."
           }
         },
@@ -398,6 +400,7 @@
             "name": "Nom",
             "peak_power_w": "Puissance crête (W)",
             "power_entity": "Entité puissance produite (W)",
+            "extra_power_entities": "Capteurs de production supplémentaires (additionnés)",
             "daily_energy_entity": "Entité énergie du jour",
             "temperature_entity": "Capteur de température (°C)",
             "active_control_enabled": "Bridage actif (limiter la sortie)",
@@ -405,6 +408,7 @@
           },
           "data_description": {
             "peak_power_w": "Puissance max de l'onduleur ; borne haute du bridage.",
+            "extra_power_entities": "Pour les onduleurs avec un capteur par string et sans total (ex. Indevolt) : ajoutez les autres strings ; ils sont additionnés à l'entité ci-dessus.",
             "power_limit_setpoint_entity": "number/W que l'onduleur obéit comme limite de sortie (bridage zéro-injection)."
           }
         }
@@ -426,6 +430,7 @@
             "name": "Nom",
             "kind": "Type de compteur",
             "power_entity": "Entité puissance signée (+ soutiré / − injecté)",
+            "invert_sign": "Inverser le signe (compteur en + injecté / − soutiré)",
             "phases": "Nombre de phases",
             "per_phase_zi": "Zéro-injection par phase",
             "power_l1_entity": "Puissance L1",
@@ -436,7 +441,8 @@
           },
           "data_description": {
             "kind": "pdl = point de livraison (réseau) ; pv ; consumption ; subcircuit.",
-            "power_entity": "Doit être POSITIF en soutirage, NÉGATIF en injection (ex. Shelly 3EM)."
+            "power_entity": "Doit être POSITIF en soutirage, NÉGATIF en injection (ex. Shelly 3EM).",
+            "invert_sign": "Activez pour un compteur en + = injecté / − = soutiré (ex. Huawei) — pas d'entité template nécessaire."
           }
         },
         "reconfigure": {
@@ -446,6 +452,7 @@
             "name": "Nom",
             "kind": "Type de compteur",
             "power_entity": "Entité puissance signée (+ soutiré / − injecté)",
+            "invert_sign": "Inverser le signe (compteur en + injecté / − soutiré)",
             "phases": "Nombre de phases",
             "per_phase_zi": "Zéro-injection par phase",
             "power_l1_entity": "Puissance L1",
@@ -456,7 +463,8 @@
           },
           "data_description": {
             "kind": "pdl = point de livraison (réseau) ; pv ; consumption ; subcircuit.",
-            "power_entity": "Doit être POSITIF en soutirage, NÉGATIF en injection (ex. Shelly 3EM)."
+            "power_entity": "Doit être POSITIF en soutirage, NÉGATIF en injection (ex. Shelly 3EM).",
+            "invert_sign": "Activez pour un compteur en + = injecté / − = soutiré (ex. Huawei) — pas d'entité template nécessaire."
           }
         }
       },
@@ -502,6 +510,7 @@
             "ac_charge_limit_w": "Limite de charge AC (W)",
             "mppt_peak_power_w": "MPPT : puissance crête (W)",
             "mppt_power_entity": "MPPT : entité puissance produite (W)",
+            "mppt_extra_power_entities": "MPPT : capteurs de production supplémentaires (additionnés)",
             "mppt_daily_energy_entity": "MPPT : énergie du jour",
             "mppt_temperature_entity": "Capteur de température onduleur (°C)",
             "mppt_active_control_enabled": "MPPT : bridage actif",
@@ -544,6 +553,7 @@
             "ac_charge_limit_w": "Limite de charge AC (W)",
             "mppt_peak_power_w": "MPPT : puissance crête (W)",
             "mppt_power_entity": "MPPT : entité puissance produite (W)",
+            "mppt_extra_power_entities": "MPPT : capteurs de production supplémentaires (additionnés)",
             "mppt_daily_energy_entity": "MPPT : énergie du jour",
             "mppt_temperature_entity": "Capteur de température onduleur (°C)",
             "mppt_active_control_enabled": "MPPT : bridage actif",

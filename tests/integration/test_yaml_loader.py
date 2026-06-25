@@ -120,3 +120,45 @@ def test_mppt_temperature_entity_round_trips() -> None:
     }
     devices, *_rest = parse_yaml_config(cfg)
     assert devices[0].mppt.temperature_entity == "sensor.ef_bkxxxx_temperature"
+
+
+def test_mppt_extra_power_entities_round_trip() -> None:
+    cfg = {
+        "devices": [
+            {
+                "name": "indevolt",
+                "roles": {
+                    "mppt": {
+                        "peak_power_w": 2000,
+                        "power_entity": "sensor.indevolt_mppt1",
+                        "extra_power_entities": [
+                            "sensor.indevolt_mppt2",
+                            "sensor.indevolt_mppt3",
+                        ],
+                    }
+                },
+            }
+        ]
+    }
+    devices, *_rest = parse_yaml_config(cfg)
+    assert devices[0].mppt.power_entities == (
+        "sensor.indevolt_mppt1",
+        "sensor.indevolt_mppt2",
+        "sensor.indevolt_mppt3",
+    )
+
+
+def test_meter_invert_sign_round_trip() -> None:
+    cfg = {
+        "meters": [
+            {"name": "huawei", "kind": "pdl", "power_entity": "sensor.huawei", "invert_sign": True}
+        ]
+    }
+    _devices, meters, *_rest = parse_yaml_config(cfg)
+    assert meters[0].invert_sign is True
+
+
+def test_meter_invert_sign_defaults_false() -> None:
+    cfg = {"meters": [{"name": "pdl", "kind": "pdl", "power_entity": "sensor.grid"}]}
+    _devices, meters, *_rest = parse_yaml_config(cfg)
+    assert meters[0].invert_sign is False

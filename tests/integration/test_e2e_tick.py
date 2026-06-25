@@ -239,6 +239,38 @@ async def test_full_battery_pv_estimated_from_peer_inverter(hass: HomeAssistant)
 
 
 @pytest.mark.asyncio
+async def test_meter_invert_sign_and_multi_mppt_sum(hass: HomeAssistant) -> None:
+    """A Huawei-style meter (export positive, import negative) is negated to SB's
+    convention, and an inverter with several per-string sensors is summed into one."""
+    devices = [
+        Device(
+            name="indevolt",
+            mppt=MpptRole(
+                peak_power_w=2000,
+                power_entity="sensor.mppt1",
+                extra_power_entities=("sensor.mppt2",),
+            ),
+        ),
+    ]
+    meters = [
+        Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid", invert_sign=True),
+    ]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+    hass.states.async_set("sensor.grid", "500")  # Huawei: +500 = exporting 500
+    hass.states.async_set("sensor.mppt1", "300")
+    hass.states.async_set("sensor.mppt2", "450")
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    snap = coordinator.data
+    assert snap is not None
+    assert snap.grid_power_w == -500  # negated to SB convention (export is negative)
+    assert snap.pv_total_w == 750  # 300 + 450 summed across the two strings
+
+
+@pytest.mark.asyncio
 async def test_near_full_has_release_hysteresis(hass: HomeAssistant) -> None:
     """Once near-full engages, a SoC dipping just under the margin must not release it
     (which would flip the PV limit / no-charge floor and hunt). It stays latched until

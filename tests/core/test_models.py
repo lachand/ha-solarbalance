@@ -12,6 +12,7 @@ from custom_components.solarbalance.core.models import (
     Load,
     LoadControlType,
     LoadStep,
+    MpptRole,
     MpptState,
     PowerSignConvention,
     Snapshot,
@@ -121,6 +122,21 @@ class TestBatteryRole:
             power_sign_convention=convention,
         )
         assert role.power_sign_convention is convention
+
+
+class TestMpptRole:
+    def test_power_entities_defaults_to_just_the_primary(self) -> None:
+        role = MpptRole(peak_power_w=1000, power_entity="sensor.pv")
+        assert role.power_entities == ("sensor.pv",)
+
+    def test_power_entities_includes_extras_deduplicated(self) -> None:
+        role = MpptRole(
+            peak_power_w=2000,
+            power_entity="sensor.mppt1",
+            extra_power_entities=("sensor.mppt2", "sensor.mppt1", ""),
+        )
+        # Primary first, extras appended, duplicates and blanks dropped.
+        assert role.power_entities == ("sensor.mppt1", "sensor.mppt2")
 
 
 class TestDevice:
