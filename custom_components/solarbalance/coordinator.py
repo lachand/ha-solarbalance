@@ -215,6 +215,10 @@ _BASELINE_EMA_ALPHA = 0.05
 # fleet is within this margin of its ceiling, PV curtailment engages even though
 # the balancer nominally "allocated" the surplus (it would not be honoured).
 _CURTAIL_NEAR_FULL_MARGIN_PCT = 2.0
+# Extra SoC drop required to RELEASE the near-full state once engaged (hysteresis):
+# stops a SoC parked on the margin from flipping near_full — and so the PV limit and
+# the no-charge floor — every tick (which made the PV oscillate when nearly full).
+_CURTAIL_NEAR_FULL_HYST_PCT = 3.0
 # EMA smoothing of the non-controllable (cloud) battery charge before it drives the
 # cloud guards. A dumb cloud battery charges in short bursts; ~0.2 (≈ 90 s at a 10 s
 # tick) averages them so the guards react to a sustained charge, not each blip.
@@ -582,6 +586,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._last_total_power_w: float | None = None
         # EMA state for the smoothed non-controllable (cloud) battery charge.
         self._nc_charge_smoothed_w: float | None = None
+        # Near-full latch (with release hysteresis): drives both the PV curtailment
+        # and the no-charge-floor skip (charge gently toward 100 % near full).
+        self._curtail_near_full: bool = False
         # SoC-equaliser PV-routing back-off state (see the tick): 1.0 = allow output
         # down to the full solar input; shrinks toward 0 if the cloud doesn't absorb.
         # The floor is held across a dwell so the setpoint stays put long enough for
@@ -1845,6 +1852,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # (base target → equaliser offer → no-export → no-charge floor → no-feed /
         # stop-cloud → grid constraints). See core/controllers/regulation.
         gc = result.decision.grid_constraint
+        # Near-full latch (hysteretic), shared by the no-charge-floor skip (charge
+        # gently toward 100 %) and the PV curtailment (trim the excess to baseline).
+        near_full = self._fleet_near_full(snapshot)
         regulation_result = resolve_total_power(
             RegulationInputs(
                 zi_regulating=zi_regulating,
@@ -1862,6 +1872,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 steering_w=steering_w,
                 eq_bias_w=eq_bias_w,
                 eq_discharge_floor_w=eq_discharge_floor_w,
+                fleet_near_full=near_full,
                 grid_filtered_w=grid_filtered_w,
                 controllable_mppt_w=controllable_mppt_w,
                 nc_charge_offset_w=nc_charge_offset_w,
@@ -1898,7 +1909,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # PV curtailment: zero-injection's last resort when the batteries cannot
         # absorb the surplus. Computes a per-inverter output limit (W).
         pv_limits, pv_limit_total = self._compute_pv_limits(
-            snapshot, total_power_w, balancing_result, grid_filtered_w
+            snapshot, total_power_w, balancing_result, grid_filtered_w, near_full
         )
         # Expose the per-inverter applied limit for the per-MPPT diagnostic sensor.
         self._pv_limits_by_device = dict(pv_limits)
@@ -2689,41 +2700,52 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             )
         return result.grid_setpoint_bias_w
 
+    def _fleet_near_full(self, snapshot: Snapshot) -> bool:
+        """Every controllable battery near its SoC ceiling, with release hysteresis.
+
+        Engage at ``_CURTAIL_NEAR_FULL_MARGIN_PCT`` below the ceiling; once engaged,
+        hold until the SoC drops a further ``_CURTAIL_NEAR_FULL_HYST_PCT`` — so a SoC
+        sitting on the margin can't flip the state (and the PV limit + the no-charge
+        floor) every tick. Drives both PV curtailment and the gentle near-full charge.
+        """
+        soc_max_by_device = {
+            d.name: float(d.battery.soc_max_pct)
+            for d in self._devices
+            if d.battery is not None and d.battery.controllable
+        }
+        socs = [
+            (b.soc_pct, soc_max_by_device[b.device_name])
+            for b in snapshot.batteries
+            if b.available and b.device_name in soc_max_by_device
+        ]
+        if not socs:
+            self._curtail_near_full = False
+            return False
+        margin = _CURTAIL_NEAR_FULL_MARGIN_PCT + (
+            _CURTAIL_NEAR_FULL_HYST_PCT if self._curtail_near_full else 0.0
+        )
+        self._curtail_near_full = all(soc >= soc_max - margin for soc, soc_max in socs)
+        return self._curtail_near_full
+
     def _compute_pv_limits(
         self,
         snapshot: Snapshot,
         total_power_w: float,
         balancing_result: BalancingResult,
         grid_w: float,
+        near_full: bool,
     ) -> tuple[dict[str, float], float]:
         """Per-inverter PV output limits and the aggregate limit (W).
 
         Curtailment engages only when the batteries could not absorb the charge
-        demand (saturated) and the grid is exporting past its setpoint.
+        demand (saturated) and the grid is exporting past its setpoint. ``near_full``
+        (the shared, hysteretic latch) treats a battery that can't absorb anymore as
+        saturated even when the balancer still reports it allocated (charge tapering).
         """
         if self._curtailment is None:
             return {}, 0.0
         names = {n for n, _ in self._curtailable_mppts}
         pv_total = sum(m.power_w for m in snapshot.mppts if m.available and m.device_name in names)
-        # The balancer only frees a battery from charge once soc >= soc_max, so a
-        # near-full battery (charge tapering, or a STREAM whose charge is not
-        # honoured) is reported as "allocated" → unallocated ≈ 0 → never saturated,
-        # and we export forever. Treat the fleet as unable to absorb when every
-        # controllable battery sits within a small margin of its ceiling. The
-        # curtailment step still only tightens while actually exporting.
-        soc_max_by_device = {
-            d.name: float(d.battery.soc_max_pct)
-            for d in self._devices
-            if d.battery is not None and d.battery.controllable
-        }
-        controllable_socs = [
-            (b.soc_pct, soc_max_by_device[b.device_name])
-            for b in snapshot.batteries
-            if b.available and b.device_name in soc_max_by_device
-        ]
-        near_full = bool(controllable_socs) and all(
-            soc >= soc_max - _CURTAIL_NEAR_FULL_MARGIN_PCT for soc, soc_max in controllable_socs
-        )
         saturated = (total_power_w > 0.0 and balancing_result.unallocated_w > 1.0) or near_full
         result = self._curtailment.step(
             pv_total_w=pv_total,

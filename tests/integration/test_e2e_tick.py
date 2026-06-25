@@ -171,6 +171,56 @@ async def test_curtails_inverter_when_fleet_near_full_and_exporting(hass: HomeAs
 
 
 @pytest.mark.asyncio
+async def test_near_full_has_release_hysteresis(hass: HomeAssistant) -> None:
+    """Once near-full engages, a SoC dipping just under the margin must not release it
+    (which would flip the PV limit / no-charge floor and hunt). It stays latched until
+    the SoC drops a further hysteresis band."""
+    devices = [
+        Device(
+            name="stream",
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=3000,
+                max_discharge_power_w=3000,
+                soc_entity="sensor.stream_soc",
+                power_entity="sensor.stream_power",
+                soc_max_pct=95,
+                controllable=True,
+                active_control_enabled=True,
+                charge_power_setpoint_entity="number.stream_charge",
+                discharge_power_setpoint_entity="number.stream_discharge",
+            ),
+            mppt=MpptRole(
+                peak_power_w=3000,
+                power_entity="sensor.stream_pv",
+                active_control_enabled=True,
+                power_limit_setpoint_entity="number.stream_pv_limit",
+            ),
+        ),
+    ]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid_power")]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+    hass.states.async_set("sensor.grid_power", "-500")  # exporting
+    hass.states.async_set("sensor.stream_pv", "1500")
+    hass.states.async_set("sensor.stream_soc", "94")  # within 2% of 95 → engage
+    hass.states.async_set("sensor.stream_power", "0")
+    async_mock_service(hass, "number", "set_value")
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    assert coordinator._curtail_near_full is True
+
+    # SoC dips to 92% — below the 2% engage margin (93) but within the 3% release
+    # hysteresis (90): the latch must hold (no flip → no hunting).
+    hass.states.async_set("sensor.stream_soc", "92")
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert coordinator._curtail_near_full is True
+
+
+@pytest.mark.asyncio
 async def test_cloud_charge_signal_is_smoothed_across_ticks(hass: HomeAssistant) -> None:
     """A cloud battery's charge bursts are EMA-smoothed before the cloud guards.
 

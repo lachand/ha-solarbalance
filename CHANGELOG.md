@@ -37,7 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta23] — 2026-06-25
+## [2.0.8-beta24] — 2026-06-25
+
+### Changed (near-full curtailment redesign)
+
+- **On charge maintenant doucement de 93 % à 100 %.** Près du plein, le garde-fou
+  `no_charge_floor` forçait la batterie à **sortir son PV** au lieu de le charger →
+  les derniers % ne se chargeaient pas. Désormais, près du plein, ce garde-fou est
+  **désactivé** : la batterie **continue de charger son propre PV** (elle tape
+  naturellement vers 100 %), et c'est le **bridage onduleur** qui rogne l'excédent.
+- **Bridage au talon de consommation, plus de tout-ou-rien.** Comme la batterie
+  charge (au lieu de couvrir la maison en sortant son PV), l'onduleur fournit la
+  **consommation** et le bridage ne le coupe plus à 0 — il se cale sur le talon et
+  ne rogne que le **vrai excédent** (moins de PV gaspillé).
+- **Hystérésis near-full.** L'état « presque plein » s'enclenche à `soc_max − 2 %`
+  mais ne se relâche qu'à `− 5 %` : un SoC posé sur le seuil ne fait plus **flipper**
+  le bridage (et le no-charge-floor) à chaque tick → **fin du hunting** PV à plein.
 
 ### Changed
 
@@ -1419,6 +1434,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta24]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta23...v2.0.8-beta24
 [2.0.8-beta23]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta22...v2.0.8-beta23
 [2.0.8-beta22]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta21...v2.0.8-beta22
 [2.0.8-beta21]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta20...v2.0.8-beta21

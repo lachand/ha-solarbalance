@@ -45,6 +45,19 @@ class TestResolveTotalPower:
         )
         assert out.total_w == pytest.approx(-200.0)
 
+    def test_no_charge_floor_skipped_when_near_full(self) -> None:
+        # Near full: keep charging the battery's own PV gently (no forced output) so it
+        # tops up toward 100 %; the inverter curtailment trims the genuine excess.
+        out = resolve_total_power(
+            _inp(
+                grid_filtered_w=0.0,
+                zi_correction_w=500.0,
+                controllable_mppt_w=200.0,
+                fleet_near_full=True,
+            )
+        )
+        assert out.total_w == pytest.approx(500.0)  # charges, not floored to -mppt
+
     def test_no_charge_floor_bypassed_when_cloud_charging(self) -> None:
         out = resolve_total_power(
             _inp(

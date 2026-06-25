@@ -175,6 +175,11 @@ class RegulationInputs:
     max_import_w: float | None
     max_export_w: float | None
     loop_base_w: float | None = None
+    fleet_near_full: bool = False
+    """True when the controllable fleet is near its SoC ceiling. Disables the
+    no-charge floor so the battery keeps charging its own PV gently toward 100 %
+    (tapering naturally) instead of being forced to output it; the inverter
+    curtailment trims the genuine excess to the consumption baseline."""
     eq_discharge_floor_w: float | None = None
     """Most-negative discharge the SoC equaliser may command (negative, ~``-mppt``
     scaled by a back-off). When set, the no-export / grid-export floors are lowered to
@@ -241,8 +246,13 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
         # No-charge floor: in surplus (and no cloud battery absorbing it, no
         # equaliser charge intent), don't charge from the grid / a discharging
         # cloud battery — floor the output at the fleet's own solar.
+        # Skipped when the fleet is near full: there we WANT the battery to keep
+        # charging its own PV gently (it tapers on its own toward 100 %) instead of
+        # being forced to output it; the inverter curtailment trims the genuine
+        # excess down to the consumption baseline.
         if (
-            inp.grid_filtered_w >= -inp.zi_hysteresis_w
+            not inp.fleet_near_full
+            and inp.grid_filtered_w >= -inp.zi_hysteresis_w
             and inp.eq_bias_w >= 0.0
             and not inp.noncontrollable_charging
         ):
