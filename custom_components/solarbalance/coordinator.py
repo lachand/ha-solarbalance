@@ -219,11 +219,12 @@ _CURTAIL_NEAR_FULL_MARGIN_PCT = 2.0
 # cloud guards. A dumb cloud battery charges in short bursts; ~0.2 (≈ 90 s at a 10 s
 # tick) averages them so the guards react to a sustained charge, not each blip.
 _NC_CHARGE_EMA_ALPHA = 0.2
-# SoC-equaliser PV-routing back-off: shrink the allowance (decay) each tick the cloud
-# battery fails to absorb the routed PV (grid keeps exporting), recover slowly once it
-# does. Decay > recover so it backs off fast and re-opens cautiously.
-_EQ_PV_RELAX_DECAY = 0.34
-_EQ_PV_RELAX_RECOVER = 0.1
+# SoC-equaliser PV-routing back-off: shrink the allowance (decay) on a sustained
+# export (cloud not absorbing the routed PV), grow it (recover) only when there is
+# import headroom, hold in the grid deadband. Small steps so the output moves gently
+# (no yoyo); decay > recover so it backs off faster than it re-opens.
+_EQ_PV_RELAX_DECAY = 0.12
+_EQ_PV_RELAX_RECOVER = 0.06
 
 _STRATEGY_CLASSES = {
     StrategyKind.SELF_CONSUMPTION.value: SelfConsumptionStrategy,
@@ -1713,10 +1714,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # the battery is never drained (output <= solar input). A back-off shrinks
             # the allowance if the cloud doesn't absorb it (the grid keeps exporting),
             # so it can't keep dumping PV to the grid for nothing.
-            exporting = grid_filtered_w < -self._zi_hysteresis_w
-            if self._eq_pv_relax_active and exporting:
+            # Deadband on the grid: shrink the allowance only on a real export
+            # (cloud not absorbing), grow it only when there is import headroom (the
+            # cloud could take more), and HOLD when the grid is balanced. Without the
+            # hold, it grew on every near-zero tick → relax oscillated around 1.0 and
+            # the binding flipped equaliser↔no_feed every few ticks (yoyo).
+            if self._eq_pv_relax_active and grid_filtered_w < -self._zi_hysteresis_w:
                 self._eq_pv_relax = max(0.0, self._eq_pv_relax - _EQ_PV_RELAX_DECAY)
-            elif not exporting:
+            elif grid_filtered_w > self._zi_hysteresis_w:
                 self._eq_pv_relax = min(1.0, self._eq_pv_relax + _EQ_PV_RELAX_RECOVER)
             if eq_bias_w > 0.0 and controllable_mppt_w > 0.0:
                 eq_discharge_floor_w = -controllable_mppt_w * self._eq_pv_relax

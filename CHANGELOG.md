@@ -37,7 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta21] — 2026-06-25
+## [2.0.8-beta22] — 2026-06-25
+
+### Fixed
+
+- **Yoyo du routing PV équaliseur (garde-fou qui basculait `equaliser` ↔ `no_feed`).**
+  Le back-off de beta20 **remontait** l'autorisation (`_eq_pv_relax`) sur **tout** tick
+  sans injection — y compris réseau ≈ 0 — donc elle **oscillait autour de 1.0** et la
+  cible basculait entre « routage complet » et « bridé » toutes les 2-3 ticks → la
+  STREAM yoyottait. Ajout d'une **bande morte** : l'autorisation **décroît** seulement
+  sur une vraie injection (cloud n'absorbe pas), **remonte** seulement s'il y a de la
+  marge d'import, et **tient** quand le réseau est équilibré. Pas plus de réglages,
+  juste un comportement qui **se stabilise**. (Si la batterie cloud n'augmente pas sa
+  charge en réponse au PV offert, l'autorisation se stabilise bas — pas de yoyo, mais
+  la convergence dépend alors de la cloud, non-pilotable.)
 
 ### Fixed
 
@@ -1392,6 +1405,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta22]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta21...v2.0.8-beta22
 [2.0.8-beta21]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta20...v2.0.8-beta21
 [2.0.8-beta20]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta19...v2.0.8-beta20
 [2.0.8-beta19]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta18...v2.0.8-beta19
