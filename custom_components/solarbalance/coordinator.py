@@ -232,6 +232,9 @@ _EQ_PV_RELAX_RECOVER = 0.06
 # Hold the PV-routing floor (and so the STREAM setpoint) for this many ticks between
 # re-evaluations, to give the slow cloud battery time to react before moving it again.
 _EQ_PV_RELAX_DWELL_TICKS = 6
+# Verify (read-back) the PV output-limit writes this often (ticks), not every tick:
+# the box is slow over BLE, so a just-sent value needs time to read back.
+_VERIFY_WRITE_EVERY_TICKS = 5
 
 _STRATEGY_CLASSES = {
     StrategyKind.SELF_CONSUMPTION.value: SelfConsumptionStrategy,
@@ -586,6 +589,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._last_total_power_w: float | None = None
         # EMA state for the smoothed non-controllable (cloud) battery charge.
         self._nc_charge_smoothed_w: float | None = None
+        # Throttle for the PV-limit write-verification (every _VERIFY_WRITE_EVERY_TICKS).
+        self._verify_tick: int = 0
         # Near-full latch (with release hysteresis): drives both the PV curtailment
         # and the no-charge-floor skip (charge gently toward 100 % near full).
         self._curtail_near_full: bool = False
@@ -1742,12 +1747,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     self._eq_pv_relax = max(0.0, self._eq_pv_relax - _EQ_PV_RELAX_DECAY)
                 elif grid_filtered_w > self._zi_hysteresis_w:
                     self._eq_pv_relax = min(1.0, self._eq_pv_relax + _EQ_PV_RELAX_RECOVER)
-            if eq_bias_w > 0.0 and controllable_mppt_w > 0.0:
+            # Routing capacity = measured controllable PV + PV hidden by a full
+            # battery's auto-curtailment (estimated from the peer inverter). The latter
+            # lets the equaliser route a *full* STREAM's invisible PV: it commands the
+            # discharge that un-curtails the array. ~0 unless an array is suppressed.
+            eq_routing_mppt_w = controllable_mppt_w + self._estimated_suppressed_pv_w(snapshot)
+            if eq_bias_w > 0.0 and eq_routing_mppt_w > 0.0:
                 if reevaluate or self._eq_floor_w is None:
-                    self._eq_floor_w = -controllable_mppt_w * self._eq_pv_relax
-                # Hold the floor across the dwell; cap at the current PV so a falling
-                # PV never turns it into a battery drain.
-                eq_discharge_floor_w = max(self._eq_floor_w, -controllable_mppt_w)
+                    self._eq_floor_w = -eq_routing_mppt_w * self._eq_pv_relax
+                # Hold the floor across the dwell; cap at the (estimated) PV so a falling
+                # PV/peer-yield never turns it into a deep battery drain.
+                eq_discharge_floor_w = max(self._eq_floor_w, -eq_routing_mppt_w)
             else:
                 self._eq_floor_w = None
             self._eq_pv_relax_active = eq_discharge_floor_w is not None and self._eq_pv_relax > 0.01
@@ -2727,6 +2737,60 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._curtail_near_full = all(soc >= soc_max - margin for soc, soc_max in socs)
         return self._curtail_near_full
 
+    def _estimated_suppressed_pv_w(self, snapshot: Snapshot) -> float:
+        """Estimate PV hidden by a full battery auto-curtailing its own array.
+
+        Uses the yield (W produced per W installed) of the still-producing managed
+        arrays — same sun, comparable panels (e.g. a STREAM + its side micro-inverter,
+        both ~1 kWc).
+
+        A STREAM whose battery is full stops showing solar production, so the SoC
+        equaliser would see no PV to route. This estimates that invisible PV from the
+        peer inverter so the equaliser CAN route it: commanding the full battery to
+        discharge un-curtails its array, topping up a lower-SoC cloud battery. The
+        estimate is the peer's production scaled by the installed-peak ratio, minus
+        whatever the suppressed array still shows — so it is ~0 unless the array is
+        genuinely curtailed, and it tapers on its own as the sun (peer yield) drops.
+        """
+        curtailable = {n for n, _ in self._curtailable_mppts}
+        producing_w = producing_peak_w = 0.0
+        suppressed_peak_w = suppressed_measured_w = 0.0
+        for device in self._devices:
+            mppt = device.mppt
+            peak = float(mppt.peak_power_w) if mppt is not None else 0.0
+            if peak <= 0.0:
+                continue
+            managed = device.name in self._controllable_battery_names or device.name in curtailable
+            if not managed:
+                continue
+            measured = next(
+                (m.power_w for m in snapshot.mppts if m.available and m.device_name == device.name),
+                0.0,
+            )
+            soc = next(
+                (
+                    b.soc_pct
+                    for b in snapshot.batteries
+                    if b.available and b.device_name == device.name
+                ),
+                None,
+            )
+            near_full = (
+                device.battery is not None
+                and soc is not None
+                and soc >= float(device.battery.soc_max_pct) - _CURTAIL_NEAR_FULL_MARGIN_PCT
+            )
+            if near_full:
+                suppressed_peak_w += peak
+                suppressed_measured_w += measured
+            else:
+                producing_w += measured
+                producing_peak_w += peak
+        if suppressed_peak_w <= 0.0 or producing_peak_w <= 0.0:
+            return 0.0
+        yield_ratio = max(0.0, producing_w / producing_peak_w)
+        return max(0.0, yield_ratio * suppressed_peak_w - suppressed_measured_w)
+
     def _compute_pv_limits(
         self,
         snapshot: Snapshot,
@@ -2788,6 +2852,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         await self._active_control.apply(per_battery_w, soc_by_device)
         await self._active_control.apply_pv_limits(pv_limits)
         await self._active_control.apply_reserve(self._reserve_setpoints())
+        # Periodically read back the PV-limit writes and re-assert any that didn't land
+        # (a wrong/intermittent inverter entity, or one that reverted). Not every tick.
+        self._verify_tick += 1
+        if self._verify_tick >= _VERIFY_WRITE_EVERY_TICKS:
+            self._verify_tick = 0
+            await self._active_control.verify_pv_limit_writes()
 
     def _reserve_setpoints(self) -> dict[str, float]:
         """Per-battery backup-reserve setpoint (%): storm target in storm, else backup reserve."""

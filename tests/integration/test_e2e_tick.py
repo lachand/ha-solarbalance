@@ -6,6 +6,7 @@ tick and asserts the chain produced the expected writes: the battery is told to
 charge (zero-injection soaks up the export) and the surplus turns the load on.
 """
 
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -25,12 +26,15 @@ from custom_components.solarbalance.const import (
 from custom_components.solarbalance.coordinator import SolarBalanceCoordinator
 from custom_components.solarbalance.core.models import (
     BatteryRole,
+    BatteryState,
     Device,
     Load,
     LoadControlType,
     Meter,
     MeterKind,
     MpptRole,
+    MpptState,
+    Snapshot,
 )
 
 _ENTRY_DATA: dict[str, Any] = {
@@ -168,6 +172,70 @@ async def test_curtails_inverter_when_fleet_near_full_and_exporting(hass: HomeAs
         c.data["value"] for c in number_calls if c.data.get("entity_id") == "number.stream_pv_limit"
     ]
     assert limit_writes and limit_writes[-1] < 3000
+
+
+@pytest.mark.asyncio
+async def test_full_battery_pv_estimated_from_peer_inverter(hass: HomeAssistant) -> None:
+    """A full STREAM curtails its own array (reads 0 W solar); the equaliser estimates
+    that invisible PV from the peer inverter (same install) so it can still route it."""
+    devices = [
+        Device(
+            name="stream",
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=2000,
+                max_discharge_power_w=2000,
+                soc_entity="sensor.stream_soc",
+                power_entity="sensor.stream_power",
+                soc_max_pct=95,
+                controllable=True,
+                active_control_enabled=True,
+                charge_power_setpoint_entity="number.stream_charge",
+                discharge_power_setpoint_entity="number.stream_discharge",
+            ),
+            mppt=MpptRole(peak_power_w=1000, power_entity="sensor.stream_pv"),
+        ),
+        Device(
+            name="bk",
+            mppt=MpptRole(
+                peak_power_w=1000,
+                power_entity="sensor.bk_pv",
+                active_control_enabled=True,
+                power_limit_setpoint_entity="number.bk_limit",
+            ),
+        ),
+    ]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid_power")]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+    for eid, val in (
+        ("sensor.grid_power", "0"),
+        ("sensor.stream_pv", "0"),
+        ("sensor.bk_pv", "700"),
+        ("sensor.stream_soc", "94"),
+        ("sensor.stream_power", "0"),
+    ):
+        hass.states.async_set(eid, val)
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+
+    def _snap(stream_soc: float) -> Snapshot:
+        return Snapshot(
+            timestamp=datetime.now(UTC),
+            grid_power_w=0.0,
+            batteries=(BatteryState("stream", soc_pct=stream_soc, power_w=0.0),),
+            mppts=(MpptState("stream", power_w=0.0), MpptState("bk", power_w=700.0)),
+            inverters=(),
+            loads=(),
+        )
+
+    # Full STREAM (94% within the 2% near-full margin of 95): its 0 W solar is estimated
+    # from the BK's 700 W (equal installed peak) -> ~700 W of routable, invisible PV.
+    assert coordinator._estimated_suppressed_pv_w(_snap(94.0)) == pytest.approx(700.0, abs=1.0)
+    # Not near full: the STREAM array isn't suppressed → nothing to estimate.
+    assert coordinator._estimated_suppressed_pv_w(_snap(50.0)) == 0.0
 
 
 @pytest.mark.asyncio

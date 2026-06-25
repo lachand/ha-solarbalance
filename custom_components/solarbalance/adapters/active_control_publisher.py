@@ -35,6 +35,10 @@ _SOC_MARGIN_PCT = 0.5
 # Quantise the charge setpoint to this step (W): a STREAM is slow over BLE and the
 # fine PI ripple is meaningless to it, so round to 10 W and skip the in-between writes.
 _CHARGE_STEP_W = 10.0
+# A PV output-limit whose actual reading drifts from what we commanded by more than
+# this (W) is re-written (verify+retry) — catches a write that silently didn't land
+# (a wrong/intermittent entity, or an inverter that reverted it).
+_WRITE_VERIFY_TOLERANCE_W = 20.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -160,6 +164,35 @@ class ActiveControlPublisher:
         for name, entity_id in self._pv_limit_entities.items():
             if name in limit_by_device:
                 await self._write_power(entity_id, limit_by_device[name])
+
+    async def verify_pv_limit_writes(self) -> None:
+        """Re-assert any PV output-limit whose actual reading drifted from what we sent.
+
+        Catches a write that silently didn't land (a wrong/intermittent entity, or an
+        inverter that reverted it). Meant to be called *throttled* (every N ticks), not
+        every tick: the box is slow over BLE so a just-sent value needs time to read
+        back. Logs a warning so a never-applied limit is visible, not silent.
+        """
+        for entity_id in self._pv_limit_entities.values():
+            commanded = self._last_power.get(entity_id)
+            if commanded is None:
+                continue  # nothing commanded yet
+            state = self._hass.states.get(entity_id)
+            if state is None or state.state in ("unknown", "unavailable"):
+                continue  # can't verify now; retried when it returns
+            try:
+                actual = float(state.state)
+            except (TypeError, ValueError):
+                continue
+            if abs(actual - commanded) > _WRITE_VERIFY_TOLERANCE_W:
+                _LOGGER.warning(
+                    "Active control: %s reads %.0f W but we commanded %.0f W — "
+                    "re-writing (is the entity correct and controllable?)",
+                    entity_id,
+                    actual,
+                    commanded,
+                )
+                await self._write_power(entity_id, commanded, force=True)
 
     async def apply(
         self,

@@ -37,6 +37,32 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta25] — 2026-06-25
+
+### Added
+
+- **Routing du PV « invisible » d'une batterie pleine.** Quand la STREAM est pleine,
+  elle bride son propre PV → SB lisait 0 W de prod et ne pouvait rien rediriger. SB
+  **estime désormais ce PV caché via l'onduleur pair** (même installation ~1 kWc :
+  prod du pair × ratio de puissance crête, moins ce que l'array bridé montre encore).
+  L'équaliseur peut alors **commander la décharge qui débride ce PV** et le router vers
+  la batterie cloud plus basse (Jackery). L'estimation **suit la prod du pair en temps
+  réel** → quand le soleil baisse, le routage baisse aussi (pas de sur-décharge des
+  cellules), et le back-off existant bride si le cloud n'absorbe pas.
+- **Vérification + retry des écritures de bridage onduleur.** La limite de sortie
+  calculée n'était pas toujours appliquée (entité EcoFlow indisponible/erronée → write
+  silencieusement perdu). SB **relit la limite réelle toutes les ~5 ticks** et la
+  **réécrit si elle a dérivé**, avec un **warning** explicite (un onduleur non piloté
+  n'est plus invisible).
+
+### Changed
+
+- **Garde-fou anti-charge près du plein resserré (suite beta24).** Près du plein, le
+  garde-fou passe de « sortir tout le PV » à « charger jusqu'au PV mais **jamais depuis
+  le réseau/cloud** » (plancher à 0 au lieu de −mppt) : la batterie continue de se
+  remplir doucement de son propre solaire, sans aller-retour réseau (évite qu'une STREAM
+  pleine se charge depuis une Jackery qui se décharge).
+
 ## [2.0.8-beta24] — 2026-06-25
 
 ### Changed (near-full curtailment redesign)
@@ -1434,6 +1460,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta25]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta24...v2.0.8-beta25
 [2.0.8-beta24]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta23...v2.0.8-beta24
 [2.0.8-beta23]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta22...v2.0.8-beta23
 [2.0.8-beta22]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta21...v2.0.8-beta22

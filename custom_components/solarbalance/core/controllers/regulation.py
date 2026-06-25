@@ -246,17 +246,18 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
         # No-charge floor: in surplus (and no cloud battery absorbing it, no
         # equaliser charge intent), don't charge from the grid / a discharging
         # cloud battery — floor the output at the fleet's own solar.
-        # Skipped when the fleet is near full: there we WANT the battery to keep
-        # charging its own PV gently (it tapers on its own toward 100 %) instead of
-        # being forced to output it; the inverter curtailment trims the genuine
-        # excess down to the consumption baseline.
+        # Near full, the floor relaxes from -mppt (output ALL the PV) to 0 (charge up
+        # to the PV but never from the grid/cloud): we WANT the battery to keep topping
+        # up gently from its own solar toward 100 % (it tapers on its own) instead of
+        # being forced to output it, while still refusing a grid/cloud round-trip
+        # charge. The inverter curtailment trims any genuine excess to the baseline.
         if (
-            not inp.fleet_near_full
-            and inp.grid_filtered_w >= -inp.zi_hysteresis_w
+            inp.grid_filtered_w >= -inp.zi_hysteresis_w
             and inp.eq_bias_w >= 0.0
             and not inp.noncontrollable_charging
         ):
-            pin(min(total_w, -inp.controllable_mppt_w), "no_charge_floor")
+            floor_w = 0.0 if inp.fleet_near_full else -inp.controllable_mppt_w
+            pin(min(total_w, floor_w), "no_charge_floor")
         # No-feed: don't *drain the battery* to feed a self-charging cloud battery
         # (it draws from the grid instead -- a single conversion, not a round trip).
         # Exception: when the SoC equaliser is routing PV (eq_discharge_floor_w), let

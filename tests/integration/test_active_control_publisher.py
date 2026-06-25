@@ -194,6 +194,34 @@ async def test_publisher_enabled_with_only_pv_limit() -> None:
     assert pub.enabled is True
 
 
+async def test_verify_pv_limit_rewrites_when_actual_drifts() -> None:
+    # The write was sent (and latched) but the inverter didn't apply it (wrong /
+    # intermittent entity): verify reads the actual back and re-asserts it.
+    from types import SimpleNamespace
+
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_mppt_device("pv", entity="number.pv_limit")])
+    await pub.apply_pv_limits({"pv": 800.0})  # commanded + latched
+    hass.states.get = lambda eid: SimpleNamespace(state="0")  # reads back 0 → didn't land
+    hass.services.async_call.reset_mock()
+    await pub.verify_pv_limit_writes()
+    assert _calls(hass) == [
+        ("number", "set_value", {"entity_id": "number.pv_limit", "value": 800.0})
+    ]
+
+
+async def test_verify_pv_limit_no_rewrite_when_in_tolerance() -> None:
+    from types import SimpleNamespace
+
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_mppt_device("pv", entity="number.pv_limit")])
+    await pub.apply_pv_limits({"pv": 800.0})
+    hass.states.get = lambda eid: SimpleNamespace(state="790")  # within tolerance
+    hass.services.async_call.reset_mock()
+    await pub.verify_pv_limit_writes()
+    assert _calls(hass) == []
+
+
 async def test_service_failure_is_swallowed_and_not_cached() -> None:
     hass = _hass()
     hass.services.async_call.side_effect = RuntimeError("boom")
