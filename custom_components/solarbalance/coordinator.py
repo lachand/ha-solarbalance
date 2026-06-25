@@ -225,6 +225,9 @@ _NC_CHARGE_EMA_ALPHA = 0.2
 # (no yoyo); decay > recover so it backs off faster than it re-opens.
 _EQ_PV_RELAX_DECAY = 0.12
 _EQ_PV_RELAX_RECOVER = 0.06
+# Hold the PV-routing floor (and so the STREAM setpoint) for this many ticks between
+# re-evaluations, to give the slow cloud battery time to react before moving it again.
+_EQ_PV_RELAX_DWELL_TICKS = 6
 
 _STRATEGY_CLASSES = {
     StrategyKind.SELF_CONSUMPTION.value: SelfConsumptionStrategy,
@@ -581,8 +584,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._nc_charge_smoothed_w: float | None = None
         # SoC-equaliser PV-routing back-off state (see the tick): 1.0 = allow output
         # down to the full solar input; shrinks toward 0 if the cloud doesn't absorb.
+        # The floor is held across a dwell so the setpoint stays put long enough for
+        # the slow cloud battery to react.
         self._eq_pv_relax: float = 1.0
         self._eq_pv_relax_active: bool = False
+        self._eq_floor_w: float | None = None
+        self._eq_relax_dwell: int = 0
 
         # PV curtailment — zero-injection's last resort when batteries saturate.
         self._curtailable_mppts: tuple[tuple[str, float], ...] = tuple(
@@ -1714,17 +1721,28 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # the battery is never drained (output <= solar input). A back-off shrinks
             # the allowance if the cloud doesn't absorb it (the grid keeps exporting),
             # so it can't keep dumping PV to the grid for nothing.
-            # Deadband on the grid: shrink the allowance only on a real export
-            # (cloud not absorbing), grow it only when there is import headroom (the
-            # cloud could take more), and HOLD when the grid is balanced. Without the
-            # hold, it grew on every near-zero tick → relax oscillated around 1.0 and
-            # the binding flipped equaliser↔no_feed every few ticks (yoyo).
-            if self._eq_pv_relax_active and grid_filtered_w < -self._zi_hysteresis_w:
-                self._eq_pv_relax = max(0.0, self._eq_pv_relax - _EQ_PV_RELAX_DECAY)
-            elif grid_filtered_w > self._zi_hysteresis_w:
-                self._eq_pv_relax = min(1.0, self._eq_pv_relax + _EQ_PV_RELAX_RECOVER)
+            # Dwell: re-evaluate the allowance only every _EQ_PV_RELAX_DWELL_TICKS, and
+            # HOLD the floor in between, so the STREAM setpoint stays put long enough
+            # for the slow (cloud) battery to react before we move it again. At the
+            # re-evaluation, a grid deadband decides the step: shrink only on a real
+            # export (cloud not absorbing), grow only with import headroom, hold when
+            # balanced — so it settles instead of hunting.
+            self._eq_relax_dwell += 1
+            reevaluate = self._eq_relax_dwell >= _EQ_PV_RELAX_DWELL_TICKS
+            if reevaluate:
+                self._eq_relax_dwell = 0
+                if self._eq_pv_relax_active and grid_filtered_w < -self._zi_hysteresis_w:
+                    self._eq_pv_relax = max(0.0, self._eq_pv_relax - _EQ_PV_RELAX_DECAY)
+                elif grid_filtered_w > self._zi_hysteresis_w:
+                    self._eq_pv_relax = min(1.0, self._eq_pv_relax + _EQ_PV_RELAX_RECOVER)
             if eq_bias_w > 0.0 and controllable_mppt_w > 0.0:
-                eq_discharge_floor_w = -controllable_mppt_w * self._eq_pv_relax
+                if reevaluate or self._eq_floor_w is None:
+                    self._eq_floor_w = -controllable_mppt_w * self._eq_pv_relax
+                # Hold the floor across the dwell; cap at the current PV so a falling
+                # PV never turns it into a battery drain.
+                eq_discharge_floor_w = max(self._eq_floor_w, -controllable_mppt_w)
+            else:
+                self._eq_floor_w = None
             self._eq_pv_relax_active = eq_discharge_floor_w is not None and self._eq_pv_relax > 0.01
             # Grid-only force-charge: raise the ZI target by the forced loads'
             # power so the battery doesn't discharge to feed them (the grid does).

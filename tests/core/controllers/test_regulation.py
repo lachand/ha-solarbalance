@@ -104,8 +104,12 @@ class TestResolveTotalPower:
         }
         blocked = resolve_total_power(_inp(**base))
         assert blocked.total_w == pytest.approx(0.0)  # no_feed caps at 0
-        routed = resolve_total_power(_inp(**base, eq_discharge_floor_w=-817.0))
-        assert routed.total_w == pytest.approx(-817.0)  # PV routed to the cloud
+        assert blocked.binding == "no_feed"
+        # Partial back-off (floor above the equaliser offer): no_feed is relaxed to it,
+        # the fleet outputs PV past the cap, and the binding reads as routing.
+        routed = resolve_total_power(_inp(**base, eq_discharge_floor_w=-400.0))
+        assert routed.total_w == pytest.approx(-400.0)  # PV routed past the no_feed cap
+        assert routed.binding == "eq_pv_route"  # labelled as routing, not blocking
 
     def test_eq_discharge_floor_never_drains_battery_below_mppt(self) -> None:
         # The floor is -mppt: the equaliser can output the PV but not drain the cells.

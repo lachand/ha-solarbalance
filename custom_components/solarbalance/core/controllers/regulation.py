@@ -272,6 +272,15 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
             max(total_w, export_floor),
             "grid_export",
         )
+    # When an anti-export clamp's floor is the SoC-equaliser PV-routing floor, the
+    # fleet is *routing its PV to the cloud battery*, not being blocked -- relabel so
+    # the diagnostic reads "eq_pv_route" instead of a misleading "no_feed"/export.
+    if (
+        inp.eq_discharge_floor_w is not None
+        and binding in ("no_export", "no_feed", "grid_export")
+        and abs(total_w - inp.eq_discharge_floor_w) < 1e-6
+    ):
+        binding = "eq_pv_route"
     return RegulationResult(
         total_w=total_w, binding=binding, base_w=base_w, natural_grid_w=natural_grid_w
     )

@@ -37,7 +37,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta22] — 2026-06-25
+## [2.0.8-beta23] — 2026-06-25
+
+### Changed
+
+- **Routing PV équaliseur : consigne tenue (dwell) pour laisser la batterie cloud
+  réagir.** L'autorisation de routing se réévaluait **chaque tick** → la consigne de
+  la STREAM bougeait en continu et la Jackery (cloud, lente) n'avait jamais le temps
+  de réagir. Désormais l'autorisation (et donc le plancher/la consigne) est **figée
+  ~6 ticks** entre deux réévaluations ; entre-temps elle est plafonnée au PV courant
+  (jamais de décharge batterie si le PV baisse).
+- **Nouveau libellé de garde-fou `eq_pv_route`** : quand le parc route son PV vers une
+  batterie cloud plus basse, le capteur « Garde-fou actif » affiche désormais
+  `eq_pv_route` au lieu de `no_feed` — il **route**, il ne **bloque** pas. (Le
+  « no_feed qui s'active trop vite » était surtout ce libellé trompeur + la
+  réévaluation à chaque tick, tous deux corrigés ici.)
 
 ### Fixed
 
@@ -1405,6 +1419,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta23]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta22...v2.0.8-beta23
 [2.0.8-beta22]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta21...v2.0.8-beta22
 [2.0.8-beta21]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta20...v2.0.8-beta21
 [2.0.8-beta20]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta19...v2.0.8-beta20
