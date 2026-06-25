@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta28] — 2026-06-25
+
+### Added
+
+- **Capteurs diagnostic pour le routing PV « invisible ».** Deux nouveaux capteurs
+  (catégorie *diagnostic*, visibles uniquement si l'équaliseur SoC est actif) rendent
+  le routing observable au lieu d'avoir à le deviner :
+  - **« Équaliseur : PV caché (batterie pleine, est.) »** (W) — le PV qu'une batterie
+    pleine bride et que SB estime via l'onduleur pair, donc routable en décharge.
+  - **« Équaliseur : ouverture du routage PV »** (%) — le facteur de back-off :
+    100 % = routage pleinement ouvert ; baisse quand la batterie cloud n'absorbe pas
+    (le réseau continue d'injecter), jusqu'à 0 % (routage bridé).
+
 ## [2.0.8-beta27] — 2026-06-25
 
 ### Changed
@@ -1484,6 +1497,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta28]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta27...v2.0.8-beta28
 [2.0.8-beta27]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta26...v2.0.8-beta27
 [2.0.8-beta26]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta25...v2.0.8-beta26
 [2.0.8-beta25]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta24...v2.0.8-beta25

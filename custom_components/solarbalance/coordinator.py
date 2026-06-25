@@ -319,6 +319,12 @@ class RegulationDiagnostics:
     regulation_binding: str = "base"
     # Detected sudden PV drop (W, a passing cloud); 0 when none.
     pv_drop_w: float = 0.0
+    # PV a full battery hides by auto-curtailing its array, estimated from the peer
+    # inverter (W); what the SoC equaliser can route by commanding a discharge.
+    eq_hidden_pv_w: float = 0.0
+    # SoC-equaliser PV-routing back-off factor (1.0 = fully allowed, 0 = fully
+    # backed off because the cloud battery isn't absorbing the routed PV).
+    eq_pv_route_relax: float = 1.0
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -1639,6 +1645,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             for m in snapshot.mppts
             if m.available and m.device_name in self._controllable_battery_names
         )
+        # PV a full battery hides by auto-curtailing its own array (estimated from the
+        # peer inverter). Computed once: used by the equaliser PV-routing floor below
+        # and surfaced as a diagnostic so the routing is observable, not guessed.
+        hidden_pv_w = self._estimated_suppressed_pv_w(snapshot)
         # Exclude any declared local AC load (served by the fleet but off-meter, e.g.
         # the STREAM's AC socket): output = mppt - battery, of which local_ac_load is
         # consumed locally, so the *grid-facing* output = output - local_ac_load and
@@ -1751,7 +1761,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # battery's auto-curtailment (estimated from the peer inverter). The latter
             # lets the equaliser route a *full* STREAM's invisible PV: it commands the
             # discharge that un-curtails the array. ~0 unless an array is suppressed.
-            eq_routing_mppt_w = controllable_mppt_w + self._estimated_suppressed_pv_w(snapshot)
+            eq_routing_mppt_w = controllable_mppt_w + hidden_pv_w
             if eq_bias_w > 0.0 and eq_routing_mppt_w > 0.0:
                 if reevaluate or self._eq_floor_w is None:
                     self._eq_floor_w = -eq_routing_mppt_w * self._eq_pv_relax
@@ -1934,6 +1944,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             natural_grid_w=natural_grid_w,
             regulation_binding=regulation_result.binding,
             pv_drop_w=pv_drop_w,
+            eq_hidden_pv_w=hidden_pv_w,
+            eq_pv_route_relax=self._eq_pv_relax,
             autotune_zi_kp=self._zi_tuner.value if self._zi_tuner else 0.0,
             autotune_equaliser_step_w=self._eq_tuner.value if self._eq_tuner else 0.0,
         )

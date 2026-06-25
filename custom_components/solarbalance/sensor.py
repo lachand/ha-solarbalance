@@ -118,6 +118,15 @@ async def async_setup_entry(
                 "mdi:tune-variant",
             )
         )
+    # SoC-equaliser PV-routing observability: the PV a full battery hides (estimated
+    # from the peer inverter) and the back-off factor throttling the routing.
+    if coordinator._soc_equaliser is not None:
+        entities += [
+            SolarBalanceRegulationDiagnosticSensor(
+                coordinator, entry, "eq_hidden_pv_w", "eq_hidden_pv", "mdi:solar-power"
+            ),
+            SolarBalanceEqPvRouteRelaxSensor(coordinator, entry),
+        ]
 
     # Advisory predictive plan (observation only) — when a controllable fleet exists.
     if coordinator._scheduler is not None:
@@ -988,6 +997,27 @@ class SolarBalanceRegulationDiagnosticSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float:
         return round(float(getattr(self.coordinator.diagnostics, self._diag_attr)), 1)
+
+
+class SolarBalanceEqPvRouteRelaxSensor(_SolarBalanceSensor):
+    """SoC-equaliser PV-routing allowance (%, diagnostic).
+
+    100 % = routing fully open; lower = backed off because the cloud battery is not
+    absorbing the routed PV (the grid kept exporting), down to 0 % (routing throttled).
+    """
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_translation_key = "eq_pv_route_relax"
+    _attr_icon = "mdi:valve"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "diag_eq_pv_route_relax")
+
+    @property
+    def native_value(self) -> float:
+        return round(self.coordinator.diagnostics.eq_pv_route_relax * 100.0, 0)
 
 
 class SolarBalanceConsumptionForecastSensor(_SolarBalanceSensor):

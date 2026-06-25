@@ -753,6 +753,12 @@
       "pv_output_limit": {
         "name": "PV output limit"
       },
+      "eq_hidden_pv": {
+        "name": "Equaliser: hidden PV (full battery, est.)"
+      },
+      "eq_pv_route_relax": {
+        "name": "Equaliser: PV-routing allowance"
+      },
       "planner_recommended_power": {
         "name": "Planner recommended power (advisory)"
       },
