@@ -380,8 +380,7 @@
             "preset": "Device model (pre-fills the form)",
             "name": "Name",
             "peak_power_w": "Peak power (W)",
-            "power_entity": "Production power entity (W)",
-            "extra_power_entities": "Additional production sensors (summed)",
+            "power_entities": "Production sensors (W, summed)",
             "daily_energy_entity": "Daily energy entity",
             "temperature_entity": "Temperature sensor (°C)",
             "active_control_enabled": "Active curtailment (limit output)",
@@ -389,7 +388,7 @@
           },
           "data_description": {
             "peak_power_w": "Inverter max power; the curtailment upper bound.",
-            "extra_power_entities": "For inverters with one sensor per string and no total (e.g. Indevolt): add the other strings; they are summed with the entity above.",
+            "power_entities": "List every production sensor. For inverters with one per string and no total (e.g. Indevolt), add them all — they are summed.",
             "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment)."
           }
         },
@@ -399,8 +398,7 @@
           "data": {
             "name": "Name",
             "peak_power_w": "Peak power (W)",
-            "power_entity": "Production power entity (W)",
-            "extra_power_entities": "Additional production sensors (summed)",
+            "power_entities": "Production sensors (W, summed)",
             "daily_energy_entity": "Daily energy entity",
             "temperature_entity": "Temperature sensor (°C)",
             "active_control_enabled": "Active curtailment (limit output)",
@@ -408,7 +406,7 @@
           },
           "data_description": {
             "peak_power_w": "Inverter max power; the curtailment upper bound.",
-            "extra_power_entities": "For inverters with one sensor per string and no total (e.g. Indevolt): add the other strings; they are summed with the entity above.",
+            "power_entities": "List every production sensor. For inverters with one per string and no total (e.g. Indevolt), add them all — they are summed.",
             "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment)."
           }
         }
@@ -509,8 +507,7 @@
             "reserve_soc_setpoint_entity": "Reserve / min-SoC (number %)",
             "ac_charge_limit_w": "AC charge limit (W)",
             "mppt_peak_power_w": "MPPT: peak power (W)",
-            "mppt_power_entity": "MPPT: production power entity (W)",
-            "mppt_extra_power_entities": "MPPT: additional production sensors (summed)",
+            "mppt_power_entities": "MPPT: production sensors (W, summed)",
             "mppt_daily_energy_entity": "MPPT: daily energy",
             "mppt_temperature_entity": "Inverter temperature sensor (°C)",
             "mppt_active_control_enabled": "MPPT: active curtailment",
@@ -518,7 +515,7 @@
           },
           "data_description": {
             "power_entity": "Signed battery power. Must be POSITIVE while charging.",
-            "mppt_power_entity": "Power produced by the device's PV input.",
+            "mppt_power_entities": "Production sensor(s) of the device's PV input (summed).",
             "mppt_power_limit_setpoint_entity": "number/W to curtail PV output (zero-injection)."
           }
         },
@@ -552,8 +549,7 @@
             "reserve_soc_setpoint_entity": "Reserve / min-SoC (number %)",
             "ac_charge_limit_w": "AC charge limit (W)",
             "mppt_peak_power_w": "MPPT: peak power (W)",
-            "mppt_power_entity": "MPPT: production power entity (W)",
-            "mppt_extra_power_entities": "MPPT: additional production sensors (summed)",
+            "mppt_power_entities": "MPPT: production sensors (W, summed)",
             "mppt_daily_energy_entity": "MPPT: daily energy",
             "mppt_temperature_entity": "Inverter temperature sensor (°C)",
             "mppt_active_control_enabled": "MPPT: active curtailment",
@@ -561,7 +557,7 @@
           },
           "data_description": {
             "power_entity": "Signed battery power. Must be POSITIVE while charging.",
-            "mppt_power_entity": "Power produced by the device's PV input.",
+            "mppt_power_entities": "Production sensor(s) of the device's PV input (summed).",
             "mppt_power_limit_setpoint_entity": "number/W to curtail PV output (zero-injection)."
           }
         }

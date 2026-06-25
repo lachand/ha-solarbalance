@@ -1226,10 +1226,9 @@ def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
         {
             vol.Required("name", default=d.get("name", "")): selector.TextSelector(),
             vol.Required("peak_power_w", default=m.get("peak_power_w")): _num(0, step=50, unit="W"),
-            vol.Required("power_entity", default=m.get("power_entity")): _entity("sensor"),
-            vol.Optional(
-                "extra_power_entities", default=m.get("extra_power_entities", [])
-            ): _entity_multi("sensor"),
+            vol.Required("power_entities", default=_combine_power_entities(m)): _entity_multi(
+                "sensor"
+            ),
             vol.Optional("daily_energy_entity", default=m.get("daily_energy_entity", "")): _entity(
                 "sensor"
             ),
@@ -1248,13 +1247,35 @@ def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
 
 _MPPT_ROLE_KEYS = (
     "peak_power_w",
-    "power_entity",
-    "extra_power_entities",
     "daily_energy_entity",
     "temperature_entity",
     "active_control_enabled",
     "power_limit_setpoint_entity",
 )
+
+
+def _combine_power_entities(m: dict[str, Any]) -> list[str]:
+    """Role dict -> the single multi-entity form field (primary then any extras).
+
+    Inverse of :func:`_split_power_entities`; used as the form default on reconfigure.
+    """
+    return [e for e in (m.get("power_entity"), *m.get("extra_power_entities", [])) if e]
+
+
+def _split_power_entities(entities: Any) -> dict[str, Any]:
+    """Map the single 'production sensors' multi field to the role keys.
+
+    The first entity becomes ``power_entity`` and the rest ``extra_power_entities``.
+    Inverters with several per-string sensors and no aggregate just list them all; the
+    first is stored as the canonical entity, the rest summed with it by the reader.
+    """
+    cleaned = [e for e in (entities or []) if e]
+    if not cleaned:
+        return {}
+    out: dict[str, Any] = {"power_entity": cleaned[0]}
+    if cleaned[1:]:
+        out["extra_power_entities"] = cleaned[1:]
+    return out
 
 
 def _mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
@@ -1264,6 +1285,7 @@ def _mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
         if val in (None, "", []):
             continue
         mppt[key] = val
+    mppt.update(_split_power_entities(user_input.get("power_entities")))
     return {"name": user_input["name"], "roles": {"mppt": mppt}}
 
 
@@ -1381,10 +1403,9 @@ def _battery_mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Required("mppt_peak_power_w", default=m.get("peak_power_w")): _num(
                 0, step=50, unit="W"
             ),
-            vol.Required("mppt_power_entity", default=m.get("power_entity")): _entity("sensor"),
-            vol.Optional(
-                "mppt_extra_power_entities", default=m.get("extra_power_entities", [])
-            ): _entity_multi("sensor"),
+            vol.Required("mppt_power_entities", default=_combine_power_entities(m)): _entity_multi(
+                "sensor"
+            ),
             vol.Optional(
                 "mppt_daily_energy_entity", default=m.get("daily_energy_entity", "")
             ): _entity("sensor"),
@@ -1405,8 +1426,6 @@ def _battery_mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
 
 _MPPT_PREFIXED = {
     "mppt_peak_power_w": "peak_power_w",
-    "mppt_power_entity": "power_entity",
-    "mppt_extra_power_entities": "extra_power_entities",
     "mppt_daily_energy_entity": "daily_energy_entity",
     "mppt_temperature_entity": "temperature_entity",
     "mppt_active_control_enabled": "active_control_enabled",
@@ -1422,6 +1441,7 @@ def _battery_mppt_input_to_device(user_input: dict[str, Any]) -> dict[str, Any]:
         if val in (None, "", []):
             continue
         mppt[dst] = val
+    mppt.update(_split_power_entities(user_input.get("mppt_power_entities")))
     device["roles"]["mppt"] = mppt
     return device
 

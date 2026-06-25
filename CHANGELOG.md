@@ -37,6 +37,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta27] — 2026-06-25
+
+### Changed
+
+- **MPPT multi-capteurs : un seul champ.** Le champ de production de l'onduleur (et du
+  device batterie+MPPT) devient un **sélecteur multi-entités unique** « Capteurs de
+  production », au lieu d'un capteur principal + un champ « supplémentaires ». Pour les
+  onduleurs **sans capteur agrégé** (ex. Indevolt), où aucun capteur n'est « principal »,
+  on liste simplement tous les strings — SB les additionne (le premier reste l'entité
+  canonique en interne ; `extra_power_entities` reste l'écriture YAML équivalente).
+
 ## [2.0.8-beta26] — 2026-06-25
 
 ### Added
@@ -1473,6 +1484,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta27]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta26...v2.0.8-beta27
 [2.0.8-beta26]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta25...v2.0.8-beta26
 [2.0.8-beta25]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta24...v2.0.8-beta25
 [2.0.8-beta24]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta23...v2.0.8-beta24

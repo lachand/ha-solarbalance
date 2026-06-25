@@ -145,13 +145,15 @@ def test_mppt_input_and_build() -> None:
     ui = {
         "name": "onduleur",
         "peak_power_w": 1000,
-        "power_entity": "sensor.pv",
+        "power_entities": ["sensor.pv1", "sensor.pv2"],  # single multi-entity field
         "active_control_enabled": True,
         "power_limit_setpoint_entity": "number.limit",
     }
     device = _mppt_input_to_device(ui)
     built = build_device_from_dict(device)
     assert built.mppt is not None and built.mppt.peak_power_w == 1000
+    # The N picked sensors are summed: first is canonical, the rest are extras.
+    assert built.mppt.power_entities == ("sensor.pv1", "sensor.pv2")
 
 
 def test_meter_input_coerces_phases_and_builds() -> None:
@@ -206,7 +208,7 @@ def test_battery_mppt_combined_builds_both_roles() -> None:
         "soc_entity": "sensor.soc",
         "power_entity": "sensor.batt_power",
         "mppt_peak_power_w": 1000,
-        "mppt_power_entity": "sensor.pv_power",
+        "mppt_power_entities": ["sensor.pv_power"],
     }
     device = _battery_mppt_input_to_device(ui)
     built = build_device_from_dict(device)
