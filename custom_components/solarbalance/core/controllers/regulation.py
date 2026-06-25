@@ -72,7 +72,12 @@ def apply_equaliser_offer(target_w: float, offer_w: float) -> float:
     return target_w
 
 
-def clamp_discharge_no_export(target_w: float, current_fleet_w: float, grid_w: float) -> float:
+def clamp_discharge_no_export(
+    target_w: float,
+    current_fleet_w: float,
+    grid_w: float,
+    extra_floor_w: float | None = None,
+) -> float:
     """Cap a discharge so the controllable fleet never pushes the grid into export.
 
     There is no reason to discharge a battery while already injecting into the
@@ -86,10 +91,18 @@ def clamp_discharge_no_export(target_w: float, current_fleet_w: float, grid_w: f
     Only ever *reduces a discharge* (``target_w < 0``); the floor is capped at 0 so
     it never forces a charge, leaving a genuine PV surplus free to export. When the
     grid is importing it does nothing (the discharge is legitimately covering load).
+
+    ``extra_floor_w`` (negative, e.g. ``-controllable_mppt``) lowers the floor so the
+    fleet may output AC past the grid=0 point **down to that value** — used by the SoC
+    equaliser to route the fleet's own PV out (battery never drained: output ≤ solar
+    input) toward a lower-SoC cloud battery, even if it briefly exports that PV.
     """
     if target_w >= 0.0:
         return target_w
-    return max(target_w, min(0.0, current_fleet_w - grid_w))
+    floor = min(0.0, current_fleet_w - grid_w)
+    if extra_floor_w is not None:
+        floor = min(floor, extra_floor_w)
+    return max(target_w, floor)
 
 
 def noncontrollable_charge_offset_w(
@@ -162,6 +175,11 @@ class RegulationInputs:
     max_import_w: float | None
     max_export_w: float | None
     loop_base_w: float | None = None
+    eq_discharge_floor_w: float | None = None
+    """Most-negative discharge the SoC equaliser may command (negative, ~``-mppt``
+    scaled by a back-off). When set, the no-export / grid-export floors are lowered to
+    it so the fleet can output its PV toward a lower-SoC cloud battery (the battery is
+    never drained). ``None`` → strict anti-export (no equaliser PV-routing)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,10 +228,14 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
     if inp.zi_regulating:
         # SoC-equaliser offer as a direct floor/ceiling on the fleet target.
         pin(apply_equaliser_offer(total_w, inp.eq_bias_w), "equaliser")
-        # Strict self-consumption: never discharge the fleet into the grid.
+        # Strict self-consumption: never discharge the fleet into the grid — except,
+        # when the SoC equaliser is routing PV (eq_discharge_floor_w), down to that
+        # floor (PV output, battery not drained).
         if inp.no_battery_export:
             pin(
-                clamp_discharge_no_export(total_w, inp.current_fleet_w, inp.grid_filtered_w),
+                clamp_discharge_no_export(
+                    total_w, inp.current_fleet_w, inp.grid_filtered_w, inp.eq_discharge_floor_w
+                ),
                 "no_export",
             )
         # No-charge floor: in surplus (and no cloud battery absorbing it, no
@@ -239,8 +261,12 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
             "grid_import",
         )
     if inp.max_export_w is not None:
+        export_floor = -inp.max_export_w - inp.grid_filtered_w + inp.current_fleet_w
+        if inp.eq_discharge_floor_w is not None:
+            # SoC equaliser routing PV out: allow export down to the PV-output floor.
+            export_floor = min(export_floor, inp.eq_discharge_floor_w)
         pin(
-            max(total_w, -inp.max_export_w - inp.grid_filtered_w + inp.current_fleet_w),
+            max(total_w, export_floor),
             "grid_export",
         )
     return RegulationResult(

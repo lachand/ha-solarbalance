@@ -37,7 +37,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta19] — 2026-06-24
+## [2.0.8-beta20] — 2026-06-25
+
+### Added
+
+- **L'équaliseur SoC peut router le PV du parc vers une batterie cloud plus basse,
+  jusqu'à l'entrée solaire.** Avant, l'anti-injection plafonnait la sortie du parc au
+  point « réseau = 0 », calculé à partir du réseau **actuel** (qui inclut la décharge
+  de la batterie cloud) : le parc **gardait son PV pour se charger lui-même** pendant
+  que la batterie cloud (plus basse) se vidait pour couvrir la maison → SoC qui
+  **divergent**. Désormais, quand l'équaliseur veut rééquilibrer (offre > 0), le parc
+  peut **sortir son PV jusqu'à sa production solaire** (`-mppt`) — la **batterie n'est
+  jamais vidée vers le réseau** (sortie ≤ entrée solaire) — pour soulager la batterie
+  cloud et faire converger les SoC.
+- **Bridage progressif** : si la batterie cloud n'absorbe pas (le réseau continue
+  d'injecter sur plusieurs ticks), l'autorisation **rétrécit** (`_eq_pv_relax`) pour
+  ne pas injecter du PV au réseau pour rien ; elle se **rouvre** doucement quand la
+  cloud absorbe à nouveau. N'agit que **l'équaliseur actif** ; sinon anti-injection
+  strict inchangé.
 
 ### Changed
 
@@ -1363,6 +1380,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta20]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta19...v2.0.8-beta20
 [2.0.8-beta19]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta18...v2.0.8-beta19
 [2.0.8-beta18]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta17...v2.0.8-beta18
 [2.0.8-beta17]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta16...v2.0.8-beta17

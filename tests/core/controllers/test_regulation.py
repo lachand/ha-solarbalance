@@ -75,6 +75,35 @@ class TestResolveTotalPower:
         )
         assert out.total_w == pytest.approx(-200.0)
 
+    def test_eq_discharge_floor_lets_fleet_output_pv_past_no_export(self) -> None:
+        # Equaliser wants a big discharge; without the floor the export clamp caps at
+        # the grid=0 point, with it the fleet may output down to -mppt (its PV).
+        states: dict[str, object] = {
+            "grid_filtered_w": -2.0,
+            "current_fleet_w": -312.0,
+            "eq_bias_w": 1200.0,
+            "controllable_mppt_w": 703.0,
+            "max_export_w": 0.0,
+        }
+        strict = resolve_total_power(_inp(**states))
+        assert strict.total_w == pytest.approx(-310.0)  # capped at grid=0
+        relaxed = resolve_total_power(_inp(**states, eq_discharge_floor_w=-703.0))
+        assert relaxed.total_w == pytest.approx(-703.0)  # outputs all its PV
+
+    def test_eq_discharge_floor_never_drains_battery_below_mppt(self) -> None:
+        # The floor is -mppt: the equaliser can output the PV but not drain the cells.
+        out = resolve_total_power(
+            _inp(
+                grid_filtered_w=-2.0,
+                current_fleet_w=-312.0,
+                eq_bias_w=5000.0,  # huge offer
+                controllable_mppt_w=703.0,
+                max_export_w=0.0,
+                eq_discharge_floor_w=-703.0,
+            )
+        )
+        assert out.total_w == pytest.approx(-703.0)  # never below -mppt
+
     def test_binding_reports_the_clamp_that_set_the_target(self) -> None:
         out = resolve_total_power(
             _inp(

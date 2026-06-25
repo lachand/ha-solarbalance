@@ -219,6 +219,11 @@ _CURTAIL_NEAR_FULL_MARGIN_PCT = 2.0
 # cloud guards. A dumb cloud battery charges in short bursts; ~0.2 (≈ 90 s at a 10 s
 # tick) averages them so the guards react to a sustained charge, not each blip.
 _NC_CHARGE_EMA_ALPHA = 0.2
+# SoC-equaliser PV-routing back-off: shrink the allowance (decay) each tick the cloud
+# battery fails to absorb the routed PV (grid keeps exporting), recover slowly once it
+# does. Decay > recover so it backs off fast and re-opens cautiously.
+_EQ_PV_RELAX_DECAY = 0.34
+_EQ_PV_RELAX_RECOVER = 0.1
 
 _STRATEGY_CLASSES = {
     StrategyKind.SELF_CONSUMPTION.value: SelfConsumptionStrategy,
@@ -573,6 +578,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._last_total_power_w: float | None = None
         # EMA state for the smoothed non-controllable (cloud) battery charge.
         self._nc_charge_smoothed_w: float | None = None
+        # SoC-equaliser PV-routing back-off state (see the tick): 1.0 = allow output
+        # down to the full solar input; shrinks toward 0 if the cloud doesn't absorb.
+        self._eq_pv_relax: float = 1.0
+        self._eq_pv_relax_active: bool = False
 
         # PV curtailment — zero-injection's last resort when batteries saturate.
         self._curtailable_mppts: tuple[tuple[str, float], ...] = tuple(
@@ -1662,6 +1671,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         nc_charge_w = self._nc_charge_smoothed_w
         zi_correction_w = 0.0
         eq_bias_w = 0.0
+        eq_discharge_floor_w: float | None = None
         nc_charge_offset_w = 0.0
         zi_regulating = (
             self._zi_enabled and self._mode in (HemsMode.NORMAL, HemsMode.VACATION) and not red_prep
@@ -1697,6 +1707,20 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if self._eq_tuner is not None and self._soc_equaliser is not None:
                 # Damp the equaliser step cap if the offer is oscillating.
                 self._soc_equaliser.set_max_step_w(self._eq_tuner.step(eq_bias_w))
+            # SoC equaliser PV-routing: when the equaliser wants the fleet to
+            # discharge (it is the higher-SoC side), let it output its OWN PV out past
+            # the no-export point (down to -mppt) toward the lower-SoC cloud battery —
+            # the battery is never drained (output <= solar input). A back-off shrinks
+            # the allowance if the cloud doesn't absorb it (the grid keeps exporting),
+            # so it can't keep dumping PV to the grid for nothing.
+            exporting = grid_filtered_w < -self._zi_hysteresis_w
+            if self._eq_pv_relax_active and exporting:
+                self._eq_pv_relax = max(0.0, self._eq_pv_relax - _EQ_PV_RELAX_DECAY)
+            elif not exporting:
+                self._eq_pv_relax = min(1.0, self._eq_pv_relax + _EQ_PV_RELAX_RECOVER)
+            if eq_bias_w > 0.0 and controllable_mppt_w > 0.0:
+                eq_discharge_floor_w = -controllable_mppt_w * self._eq_pv_relax
+            self._eq_pv_relax_active = eq_discharge_floor_w is not None and self._eq_pv_relax > 0.01
             # Grid-only force-charge: raise the ZI target by the forced loads'
             # power so the battery doesn't discharge to feed them (the grid does).
             # The equaliser offer is NOT biased into the ZI setpoint anymore (it
@@ -1814,6 +1838,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 absolute_target_w=absolute_target_w,
                 steering_w=steering_w,
                 eq_bias_w=eq_bias_w,
+                eq_discharge_floor_w=eq_discharge_floor_w,
                 grid_filtered_w=grid_filtered_w,
                 controllable_mppt_w=controllable_mppt_w,
                 nc_charge_offset_w=nc_charge_offset_w,
