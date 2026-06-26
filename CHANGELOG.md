@@ -37,6 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta30] — 2026-06-25
+
+### Fixed
+
+- **Bridage PV intempestif alors que les batteries sont loin du plein (anti-windup).**
+  La boucle zéro-injection (velocity-form) intégrait sur la consigne **brute**, même
+  quand le balancer ne pouvait pas la placer parce qu'elle **dépassait la puissance de
+  charge max** (le *rythme*, pas le SoC). Tick après tick la consigne **gonflait** → le
+  parc était rapporté « saturé » (`unallocated > 0`) → l'onduleur était **bridé même
+  loin du SoC cible**. La boucle n'intègre désormais **que ce qui est réellement
+  allouable** : plus d'emballement, le bridage ne reflète que le vrai excédent.
+
 ## [2.0.8-beta29] — 2026-06-25
 
 ### Changed
@@ -1508,6 +1520,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta30]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta29...v2.0.8-beta30
 [2.0.8-beta29]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta28...v2.0.8-beta29
 [2.0.8-beta28]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta27...v2.0.8-beta28
 [2.0.8-beta27]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta26...v2.0.8-beta27

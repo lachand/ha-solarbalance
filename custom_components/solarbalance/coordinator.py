@@ -1916,7 +1916,6 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Slew-rate limit: cap how far the command may move per tick. Hard safety
         # belt against limit cycles given the battery's actuation lag.
         total_power_w = apply_slew_limit(total_power_w, self._last_total_power_w, self._max_ramp_w)
-        self._last_total_power_w = total_power_w
 
         # Dispatch loads using the unallocated surplus
         battery_states = {b.device_name: b for b in snapshot.batteries}
@@ -1925,6 +1924,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             states=battery_states,
             now=snapshot.timestamp,
         )
+        # Anti-windup for the velocity-form loop: it integrates on the last *commanded*
+        # total, so if the balancer could not place all of it — the command exceeds the
+        # batteries' charge/discharge *rate* (max_*_power), not their SoC — integrating
+        # the un-achievable excess winds the loop up tick after tick. That inflates the
+        # command, reports the fleet "saturated" (unallocated > 0) and curtails PV even
+        # far from full. Store only what was actually allocatable as the loop base, so
+        # the integrator can wind up at most to the physical rate.
+        self._last_total_power_w = total_power_w - balancing_result.unallocated_w
 
         # PV curtailment: zero-injection's last resort when the batteries cannot
         # absorb the surplus. Computes a per-inverter output limit (W).

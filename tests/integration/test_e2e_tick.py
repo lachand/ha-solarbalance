@@ -271,6 +271,53 @@ async def test_meter_invert_sign_and_multi_mppt_sum(hass: HomeAssistant) -> None
 
 
 @pytest.mark.asyncio
+async def test_velocity_form_loop_does_not_wind_up_past_charge_rate(hass: HomeAssistant) -> None:
+    """Anti-windup: a surplus beyond the battery's charge *rate* (not its SoC) must not
+    wind the velocity-form loop up. The loop base stays bounded near max_charge_power
+    instead of running away (which reported the fleet saturated and curtailed PV far
+    from full)."""
+    devices = [
+        Device(
+            name="stream",
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=500,  # small charge *rate*
+                max_discharge_power_w=500,
+                soc_entity="sensor.stream_soc",
+                power_entity="sensor.stream_power",
+                soc_max_pct=95,
+                controllable=True,
+                active_control_enabled=True,
+                charge_power_setpoint_entity="number.stream_charge",
+                discharge_power_setpoint_entity="number.stream_discharge",
+                mode_setpoint_entity="select.stream_mode",  # → velocity-form ZI
+            ),
+        ),
+    ]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid_power")]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+    # Far from full (50 %) but a big, persistent 2500 W export — far beyond the 500 W
+    # charge rate. The harness doesn't move the grid in response, so the loop keeps
+    # being asked to charge more; anti-windup must cap the loop base at the rate.
+    hass.states.async_set("sensor.grid_power", "-2500")
+    hass.states.async_set("sensor.stream_soc", "50")
+    hass.states.async_set("sensor.stream_power", "0")
+    hass.states.async_set("select.stream_mode", "self_powered")
+    async_mock_service(hass, "number", "set_value")
+    async_mock_service(hass, "select", "select_option")
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    for _ in range(12):
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+    # Bounded at the physical charge rate (500 W), not wound up into the thousands.
+    assert 0.0 < coordinator._last_total_power_w <= 510.0
+
+
+@pytest.mark.asyncio
 async def test_near_full_has_release_hysteresis(hass: HomeAssistant) -> None:
     """Once near-full engages, a SoC dipping just under the margin must not release it
     (which would flip the PV limit / no-charge floor and hunt). It stays latched until
