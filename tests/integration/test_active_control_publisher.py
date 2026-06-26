@@ -204,7 +204,7 @@ async def test_verify_pv_limit_rewrites_when_actual_drifts() -> None:
     await pub.apply_pv_limits({"pv": 800.0})  # commanded + latched
     hass.states.get = lambda eid: SimpleNamespace(state="0")  # reads back 0 → didn't land
     hass.services.async_call.reset_mock()
-    await pub.verify_pv_limit_writes()
+    await pub.verify_writes()
     assert _calls(hass) == [
         ("number", "set_value", {"entity_id": "number.pv_limit", "value": 800.0})
     ]
@@ -218,8 +218,22 @@ async def test_verify_pv_limit_no_rewrite_when_in_tolerance() -> None:
     await pub.apply_pv_limits({"pv": 800.0})
     hass.states.get = lambda eid: SimpleNamespace(state="790")  # within tolerance
     hass.services.async_call.reset_mock()
-    await pub.verify_pv_limit_writes()
+    await pub.verify_writes()
     assert _calls(hass) == []
+
+
+async def test_verify_rewrites_battery_charge_setpoint_that_didnt_land() -> None:
+    # A STREAM that accepted charge=600 then reverted its charging_power_limit to 0:
+    # verify must re-assert the commanded charge (the user-reported symptom).
+    from types import SimpleNamespace
+
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_device("batt", charge_entity="number.chg", entity=None)])
+    await pub.apply({"batt": 600.0}, {"batt": 50.0})  # command charge → latched
+    hass.states.get = lambda eid: SimpleNamespace(state="0")  # box reverted it to 0
+    hass.services.async_call.reset_mock()
+    await pub.verify_writes()
+    assert ("number", "set_value", {"entity_id": "number.chg", "value": 600.0}) in _calls(hass)
 
 
 async def test_service_failure_is_swallowed_and_not_cached() -> None:

@@ -165,18 +165,20 @@ class ActiveControlPublisher:
             if name in limit_by_device:
                 await self._write_power(entity_id, limit_by_device[name])
 
-    async def verify_pv_limit_writes(self) -> None:
-        """Re-assert any PV output-limit whose actual reading drifted from what we sent.
+    async def verify_writes(self) -> None:
+        """Re-assert any power setpoint whose actual reading drifted from what we sent.
 
-        Catches a write that silently didn't land (a wrong/intermittent entity, or an
-        inverter that reverted it). Meant to be called *throttled* (every N ticks), not
-        every tick: the box is slow over BLE so a just-sent value needs time to read
-        back. Logs a warning so a never-applied limit is visible, not silent.
+        Covers every latched power write — PV output limits AND battery charge/discharge
+        setpoints (e.g. a STREAM's charging_power_limit). The latch in ``_write_power``
+        tracks what *we* last sent, so a call that silently didn't land — a wrong or
+        intermittent entity, or a box that accepted it then reverted the value — is never
+        retried on its own. This reads the actual back and re-writes the commanded value.
+
+        Meant to be called *throttled* (every N ticks), not every tick: the box is slow
+        over BLE so a just-sent value needs time to read back. Logs a warning so a
+        setpoint that never sticks is visible, not silent.
         """
-        for entity_id in self._pv_limit_entities.values():
-            commanded = self._last_power.get(entity_id)
-            if commanded is None:
-                continue  # nothing commanded yet
+        for entity_id, commanded in list(self._last_power.items()):
             state = self._hass.states.get(entity_id)
             if state is None or state.state in ("unknown", "unavailable"):
                 continue  # can't verify now; retried when it returns

@@ -232,7 +232,7 @@ _EQ_PV_RELAX_RECOVER = 0.06
 # Hold the PV-routing floor (and so the STREAM setpoint) for this many ticks between
 # re-evaluations, to give the slow cloud battery time to react before moving it again.
 _EQ_PV_RELAX_DWELL_TICKS = 6
-# Verify (read-back) the PV output-limit writes this often (ticks), not every tick:
+# Verify (read-back) the power setpoint writes this often (ticks), not every tick:
 # the box is slow over BLE, so a just-sent value needs time to read back.
 _VERIFY_WRITE_EVERY_TICKS = 5
 
@@ -2864,12 +2864,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         await self._active_control.apply(per_battery_w, soc_by_device)
         await self._active_control.apply_pv_limits(pv_limits)
         await self._active_control.apply_reserve(self._reserve_setpoints())
-        # Periodically read back the PV-limit writes and re-assert any that didn't land
-        # (a wrong/intermittent inverter entity, or one that reverted). Not every tick.
+        # Periodically read back the power setpoints (PV limit + battery charge/discharge)
+        # and re-assert any that didn't land (a wrong/intermittent entity, or a box that
+        # reverted the value — a STREAM dropping its charging_power_limit). Not every tick.
         self._verify_tick += 1
         if self._verify_tick >= _VERIFY_WRITE_EVERY_TICKS:
             self._verify_tick = 0
-            await self._active_control.verify_pv_limit_writes()
+            await self._active_control.verify_writes()
 
     def _reserve_setpoints(self) -> dict[str, float]:
         """Per-battery backup-reserve setpoint (%): storm target in storm, else backup reserve."""

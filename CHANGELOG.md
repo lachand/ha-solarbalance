@@ -37,6 +37,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta29] — 2026-06-25
+
+### Changed
+
+- **Vérification + retry des écritures étendue aux consignes batterie.** Le verify+retry
+  introduit en beta25 ne couvrait que la **limite de sortie PV** ; il couvre maintenant
+  **toutes les consignes de puissance**, dont le **`charging_power_limit` de la STREAM**.
+  Si la box accepte l'écriture puis **révoque la valeur** (ou si l'entité est
+  intermittente), SB relit la valeur réelle toutes les ~5 ticks et la **réécrit**, avec
+  un warning explicite. Corrige les cas où la consigne de charge « ne passait pas ».
+
 ## [2.0.8-beta28] — 2026-06-25
 
 ### Added
@@ -1497,6 +1508,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta29]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta28...v2.0.8-beta29
 [2.0.8-beta28]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta27...v2.0.8-beta28
 [2.0.8-beta27]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta26...v2.0.8-beta27
 [2.0.8-beta26]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta25...v2.0.8-beta26
