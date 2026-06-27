@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta31] — 2026-06-25
+
+### Fixed
+
+- **Talon (conso de veille) pollué par un gros consommateur de nuit → délestage à tort.**
+  L'estimateur **moyennait** la conso sur la fenêtre 02:00–05:00 ; une **recharge de
+  voiture électrique** (ou un appareil de nuit) dans cette fenêtre gonflait le talon →
+  le délestage fin de journée croyait qu'il ne restait plus de PV pour charger les
+  batteries et **coupait de gros consommateurs même à 90 % de SoC**. Le talon
+  **redescend désormais librement** vers une nuit plus propre mais **ne monte que de
+  50 W/nuit au maximum** : une nuit « VE » ne le pollue quasiment plus, et la première
+  nuit propre suivante le ramène au vrai talon de veille. (Le talon actuel, déjà pollué,
+  se corrige tout seul à la prochaine nuit sans gros consommateur.)
+
 ## [2.0.8-beta30] — 2026-06-25
 
 ### Fixed
@@ -1520,6 +1534,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta31]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta30...v2.0.8-beta31
 [2.0.8-beta30]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta29...v2.0.8-beta30
 [2.0.8-beta29]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta28...v2.0.8-beta29
 [2.0.8-beta28]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta27...v2.0.8-beta28

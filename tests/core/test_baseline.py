@@ -44,6 +44,22 @@ def test_talon_held_until_next_night() -> None:
     assert est.talon_w == 250.0
 
 
+def test_ev_night_barely_raises_talon_then_clean_night_snaps_back() -> None:
+    est = NightBaselineEstimator(window_start_h=2, window_end_h=5)
+    # Night 1, clean standby → talon = 300.
+    _feed(est, date(2026, 6, 13), [(time(3, 0), 300.0)])
+    est.update(local_time=time(6, 0), local_date=date(2026, 6, 13), baseline_w=0.0)
+    assert est.talon_w == 300.0
+    # Night 2, EV charging the whole window (~7 kW) → talon rises by the cap only.
+    _feed(est, date(2026, 6, 14), [(time(3, 0), 7000.0)])
+    est.update(local_time=time(6, 0), local_date=date(2026, 6, 14), baseline_w=0.0)
+    assert est.talon_w == 350.0  # 300 + 50 cap, NOT 7000 (the bug this guards against)
+    # Night 3, clean again → snaps straight back down to the true floor.
+    _feed(est, date(2026, 6, 15), [(time(3, 0), 280.0)])
+    est.update(local_time=time(6, 0), local_date=date(2026, 6, 15), baseline_w=0.0)
+    assert est.talon_w == 280.0
+
+
 def test_overnight_window() -> None:
     est = NightBaselineEstimator(window_start_h=22, window_end_h=5)
     assert est._in_window(time(23, 0))
