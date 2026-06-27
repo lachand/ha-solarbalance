@@ -28,6 +28,10 @@ from dataclasses import dataclass
 # Below these the comparison is noise: skip shedding.
 _MIN_REMAINING_PV_KWH = 0.05
 _MIN_DEFICIT_KWH = 0.05
+# Never shed once every battery is within this much of its ceiling: the last few %
+# fill on their own, and shedding big loads for them is disproportionate — exactly
+# where forecast/talon noise wrongly tips the decision.
+_NEAR_FULL_SHED_GUARD_PCT = 10.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -88,8 +92,13 @@ def evaluate_evening_shed(
     baseline_energy_kwh = max(0.0, (talon_w or 0.0) / 1000.0 * max(0.0, remaining_hours))
     pv_for_charge_kwh = max(0.0, remaining_pv_kwh - baseline_energy_kwh)
 
+    near_full = bool(batteries) and all(
+        b.soc_pct >= b.soc_max_pct - _NEAR_FULL_SHED_GUARD_PCT for b in batteries
+    )
     if not enabled:
         reason = "disabled"
+    elif near_full:
+        reason = "near_full"
     elif remaining_pv_kwh < _MIN_REMAINING_PV_KWH:
         reason = "no_production_left"
     elif deficit_kwh < _MIN_DEFICIT_KWH:

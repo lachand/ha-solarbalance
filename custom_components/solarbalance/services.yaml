@@ -154,6 +154,13 @@ activate_storm_mode:
           max: 72
           unit_of_measurement: "h"
 
+reset_baseline_talon:
+  name: Reset standby baseline (talon)
+  description: >
+    Discard the learned night standby baseline (talon) and re-estimate it at the next
+    quiet night. Use after a one-off big night load (e.g. EV charging) inflated it and
+    caused wrong end-of-day load shedding.
+
 export_config:
   name: Export device configuration
   description: >

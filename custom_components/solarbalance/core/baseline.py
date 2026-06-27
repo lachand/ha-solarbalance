@@ -78,3 +78,15 @@ class NightBaselineEstimator:
     def restore(self, talon_w: float | None) -> None:
         """Seed the last-known talon after a restart."""
         self.talon_w = talon_w
+
+    def reset(self) -> None:
+        """Discard the talon and any in-progress accumulation.
+
+        Forces a fresh estimate at the next night window. Until then the talon reads
+        ``None`` (treated as 0 by consumers, e.g. no baseline subtraction in the
+        evening shed) — used to clear a value polluted by a one-off big night load.
+        """
+        self.talon_w = None
+        self._sum_w = 0.0
+        self._count = 0
+        self._accum_day = None

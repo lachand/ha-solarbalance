@@ -33,6 +33,7 @@ from homeassistant.const import (
     UnitOfEnergy,
     UnitOfPower,
     UnitOfTemperature,
+    UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import DeviceInfo
@@ -66,6 +67,8 @@ async def async_setup_entry(
         SolarBalanceBatterySocAvgSensor(coordinator, entry),
         SolarBalanceBatteryRemainingSensor(coordinator, entry),
         SolarBalanceBatteryUsableSensor(coordinator, entry),
+        SolarBalanceTimeToFullSensor(coordinator, entry),
+        SolarBalanceTimeToEmptySensor(coordinator, entry),
         SolarBalancePvEnergyTodaySensor(coordinator, entry),
         SolarBalanceGridImportTodaySensor(coordinator, entry),
         SolarBalanceGridExportTodaySensor(coordinator, entry),
@@ -452,6 +455,46 @@ class SolarBalanceBatteryUsableSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> float | None:
         return self.coordinator.usable_battery_window_kwh()
+
+
+class SolarBalanceTimeToFullSensor(_SolarBalanceSensor):
+    """Estimated time to fill the fleet at the current charge power (h).
+
+    ``unknown`` while the fleet is not charging — there is no meaningful estimate then.
+    """
+
+    _attr_translation_key = "time_to_full"
+    _attr_native_unit_of_measurement = UnitOfTime.HOURS
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:battery-clock"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "time_to_full")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.time_to_full_h
+
+
+class SolarBalanceTimeToEmptySensor(_SolarBalanceSensor):
+    """Estimated time to the SoC floor at the current discharge power (h).
+
+    ``unknown`` while the fleet is not discharging.
+    """
+
+    _attr_translation_key = "time_to_empty"
+    _attr_native_unit_of_measurement = UnitOfTime.HOURS
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_icon = "mdi:battery-clock-outline"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "time_to_empty")
+
+    @property
+    def native_value(self) -> float | None:
+        return self.coordinator.time_to_empty_h
 
 
 class SolarBalancePvEnergyTodaySensor(_SolarBalanceSensor):

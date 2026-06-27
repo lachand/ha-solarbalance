@@ -37,6 +37,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta32] — 2026-06-25
+
+### Added
+
+- **Capteurs « temps avant plein » / « temps avant vide »** (durée, h). Estimation =
+  énergie jusqu'au plafond/plancher SoC ÷ **puissance batterie instantanée lissée**
+  (EMA, comme un BMS). `unknown` quand le parc ne charge/décharge pas (division absurde).
+  Intégrés au **panneau** (deux tuiles) et à l'exemple Lovelace.
+- **Service `reset_baseline_talon`** + bouton **« Recalculer le talon »** dans le
+  panneau : oublie immédiatement le talon de veille (persisté) — utile après une
+  recharge VE de nuit qui l'a faussé — et le ré-estime à la prochaine nuit calme.
+
+### Changed
+
+- **Garde-fou « presque plein » sur le délestage fin de journée.** Plus de délestage
+  quand **toutes les batteries sont à ≤ 10 % de leur plafond** : le dernier ~10 % se
+  remplit de lui-même et couper de gros consommateurs pour ça est disproportionné —
+  c'est exactement là que le bruit talon/prévision faisait basculer la décision à tort.
+
 ## [2.0.8-beta31] — 2026-06-25
 
 ### Fixed
@@ -1534,6 +1553,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta32]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta31...v2.0.8-beta32
 [2.0.8-beta31]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta30...v2.0.8-beta31
 [2.0.8-beta30]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta29...v2.0.8-beta30
 [2.0.8-beta29]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta28...v2.0.8-beta29

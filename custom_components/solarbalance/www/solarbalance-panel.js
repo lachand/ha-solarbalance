@@ -56,6 +56,9 @@ const STR_EN = {
   "Coût attendu (24 h)": "Expected cost (24 h)",
   Restant: "Remaining",
   Exploitable: "Usable",
+  "Avant plein": "To full",
+  "Avant vide": "To empty",
+  "Recalculer le talon": "Recompute the talon",
   "Par appareil": "Per device",
   "Production solaire": "Solar production",
   "Limite production": "Output limit",
@@ -139,6 +142,12 @@ class SolarBalancePanel extends HTMLElement {
     const toggle = path.find((n) => n.dataset && n.dataset.toggle);
     if (toggle && this._hass) {
       this._hass.callService("switch", "toggle", { entity_id: toggle.dataset.toggle });
+      return;
+    }
+    // SolarBalance service buttons (e.g. reset the standby-baseline talon).
+    const svc = path.find((n) => n.dataset && n.dataset.service);
+    if (svc && this._hass) {
+      this._hass.callService("solarbalance", svc.dataset.service, {});
       return;
     }
     const btn = path.find((n) => n.dataset && n.dataset.h);
@@ -227,6 +236,8 @@ class SolarBalancePanel extends HTMLElement {
       soc: id("battery_soc_avg", "sensor.solarbalance_battery_soc_avg"),
       batteryRemaining: id("battery_remaining", "sensor.solarbalance_battery_remaining"),
       batteryUsable: id("battery_usable", "sensor.solarbalance_battery_usable"),
+      timeToFull: id("time_to_full", "sensor.solarbalance_time_to_full"),
+      timeToEmpty: id("time_to_empty", "sensor.solarbalance_time_to_empty"),
       pvToday: id("pv_energy_today", "sensor.solarbalance_pv_energy_today"),
       gridImportToday: id("grid_import_today", "sensor.solarbalance_grid_import_today"),
       gridExportToday: id("grid_export_today", "sensor.solarbalance_grid_export_today"),
@@ -885,6 +896,12 @@ class SolarBalancePanel extends HTMLElement {
               ${this._tile("Économies", this._fmt(E.dailySavings, 2, "€"), "var(--success-color,#27ae60)")}
             </div>
             <div class="tiles">
+              <button class="sb-svc-btn" data-service="reset_baseline_talon"
+                title="Recalcule le talon de veille à la prochaine nuit calme (après une charge VE de nuit qui l'a faussé)">
+                ↺ ${this._t("Recalculer le talon")}
+              </button>
+            </div>
+            <div class="tiles">
               ${this._tile("Éco. ce mois", this._fmt(E.savingsMonth, 2, "€"), "var(--success-color,#27ae60)")}
               ${this._tile("Éco. cette année", this._fmt(E.savingsYear, 2, "€"), "var(--success-color,#27ae60)")}
             </div>
@@ -914,6 +931,10 @@ class SolarBalancePanel extends HTMLElement {
               ${this._tile("SoC moyen", this._fmt(E.soc, 0, "%"))}
               ${this._tile("Restant", this._fmt(E.batteryRemaining, 1, "kWh"), "var(--success-color,#27ae60)")}
               ${this._tile("Exploitable", this._fmt(E.batteryUsable, 1, "kWh"), "var(--secondary-text-color)")}
+            </div>
+            <div class="tiles">
+              ${this._tile("Avant plein", this._fmt(E.timeToFull, 1, "h"), "var(--success-color,#27ae60)")}
+              ${this._tile("Avant vide", this._fmt(E.timeToEmpty, 1, "h"), "var(--warning-color,#f5a623)")}
             </div>
           </div>
 
@@ -1013,6 +1034,9 @@ class SolarBalancePanel extends HTMLElement {
                 border:none; border-radius:8px; padding:4px 10px; margin-left:6px; cursor:pointer;
                 font-size:.8rem; }
         .winsel button.on { background:var(--primary-color); color:#fff; }
+        .sb-svc-btn { background:var(--secondary-background-color); color:var(--secondary-text-color);
+                border:none; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:.8rem; }
+        .sb-svc-btn:hover { background:var(--primary-color); color:#fff; }
         .chart { width:100%; height:auto; display:block; }
         .chart-empty { color:var(--secondary-text-color); padding:40px 0; text-align:center; }
         .grid-line { fill:none; stroke:var(--info-color,#3d8bff); stroke-width:2; }

@@ -271,6 +271,40 @@ async def test_meter_invert_sign_and_multi_mppt_sum(hass: HomeAssistant) -> None
 
 
 @pytest.mark.asyncio
+async def test_time_remaining_estimates(hass: HomeAssistant) -> None:
+    """time_to_full is a positive estimate while charging; time_to_empty is None then."""
+    devices = [
+        Device(
+            name="batt",
+            battery=BatteryRole(
+                capacity_kwh=10.0,
+                max_charge_power_w=3000,
+                max_discharge_power_w=3000,
+                soc_entity="sensor.batt_soc",
+                power_entity="sensor.batt_power",
+                soc_max_pct=100,
+                soc_min_pct=10,
+                controllable=True,
+            ),
+        ),
+    ]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid_power")]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+    # 50 % of a 10 kWh (0.95 usable ratio) pack, charging at 1000 W.
+    hass.states.async_set("sensor.grid_power", "-1000")
+    hass.states.async_set("sensor.batt_soc", "50")
+    hass.states.async_set("sensor.batt_power", "1000")  # + = charging
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    # ~4.75 kWh to full / 1 kW ≈ 4.75 h; not discharging → empty estimate is N/A.
+    assert coordinator.time_to_full_h is not None and coordinator.time_to_full_h > 0.0
+    assert coordinator.time_to_empty_h is None
+
+
+@pytest.mark.asyncio
 async def test_velocity_form_loop_does_not_wind_up_past_charge_rate(hass: HomeAssistant) -> None:
     """Anti-windup: a surplus beyond the battery's charge *rate* (not its SoC) must not
     wind the velocity-form loop up. The loop base stays bounded near max_charge_power

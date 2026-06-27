@@ -71,3 +71,10 @@ def test_restore_seeds_talon() -> None:
     est = NightBaselineEstimator()
     est.restore(275.0)
     assert est.talon_w == 275.0
+
+
+def test_reset_discards_talon() -> None:
+    est = NightBaselineEstimator()
+    est.restore(500.0)  # a polluted value
+    est.reset()
+    assert est.talon_w is None

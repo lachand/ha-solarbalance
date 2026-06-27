@@ -235,6 +235,12 @@ _EQ_PV_RELAX_DWELL_TICKS = 6
 # Verify (read-back) the power setpoint writes this often (ticks), not every tick:
 # the box is slow over BLE, so a just-sent value needs time to read back.
 _VERIFY_WRITE_EVERY_TICKS = 5
+# EMA smoothing for the fleet battery power used by the time-to-full/empty estimates,
+# so a passing cloud doesn't make the remaining-time jump around.
+_BATTERY_POWER_EMA_ALPHA = 0.2
+# Below this |smoothed power| (W) the fleet is treated as idle → time remaining is N/A
+# (dividing the energy by ~0 is meaningless).
+_TIME_REMAINING_MIN_POWER_W = 50.0
 
 _STRATEGY_CLASSES = {
     StrategyKind.SELF_CONSUMPTION.value: SelfConsumptionStrategy,
@@ -595,6 +601,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._last_total_power_w: float | None = None
         # EMA state for the smoothed non-controllable (cloud) battery charge.
         self._nc_charge_smoothed_w: float | None = None
+        # EMA of the whole-fleet battery power (W, + = charge) for the remaining-time
+        # estimates; None until the first tick.
+        self._battery_power_smoothed_w: float | None = None
         # Throttle for the PV-limit write-verification (every _VERIFY_WRITE_EVERY_TICKS).
         self._verify_tick: int = 0
         # Near-full latch (with release hysteresis): drives both the PV curtailment
@@ -1327,6 +1336,53 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         else:
             self._shed_exempt.discard(load_name)
 
+    @property
+    def time_to_full_h(self) -> float | None:
+        """Hours to fill the fleet at the smoothed charge power; None when not charging."""
+        return self._time_remaining_h(charging=True)
+
+    @property
+    def time_to_empty_h(self) -> float | None:
+        """Hours to the SoC floor at the smoothed discharge power; None when idle."""
+        return self._time_remaining_h(charging=False)
+
+    def _time_remaining_h(self, *, charging: bool) -> float | None:
+        """Energy to the ceiling/floor over the smoothed fleet power (None if idle)."""
+        snap = self.data
+        power_w = self._battery_power_smoothed_w
+        if snap is None or power_w is None:
+            return None
+        if charging and power_w <= _TIME_REMAINING_MIN_POWER_W:
+            return None
+        if not charging and power_w >= -_TIME_REMAINING_MIN_POWER_W:
+            return None
+        roles = {d.name: d.battery for d in self._devices if d.battery is not None}
+        energy_kwh = 0.0
+        for b in snap.batteries:
+            role = roles.get(b.device_name)
+            if role is None or not b.available:
+                continue
+            usable = role.effective_usable_capacity_kwh
+            if charging:
+                energy_kwh += max(0.0, (role.soc_max_pct - b.soc_pct) / 100.0 * usable)
+            else:
+                energy_kwh += max(0.0, (b.soc_pct - role.soc_min_pct) / 100.0 * usable)
+        power_kw = abs(power_w) / 1000.0
+        if power_kw <= 0.0:
+            return None
+        return round(energy_kwh / power_kw, 2)
+
+    async def reset_baseline_talon(self) -> None:
+        """Discard the standby-baseline talon and persist the reset (service handler).
+
+        Use after a one-off big night load (e.g. EV charging) polluted it: until the
+        next clean night re-estimates, the talon reads None — no baseline subtraction
+        in the evening shed — so it stops shedding on a wrong, inflated talon now.
+        """
+        self._baseline_est.reset()
+        await self.async_persist_now()
+        _LOGGER.info("SolarBalance: night-baseline talon reset on request")
+
     def force_charge_load_active(self, load_name: str) -> bool:
         """True when a manual 'charge now' request is active for this load."""
         return load_name in self._force_charge_req
@@ -1699,6 +1755,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 nc_charge_raw_w - self._nc_charge_smoothed_w
             )
         nc_charge_w = self._nc_charge_smoothed_w
+        # Smoothed whole-fleet battery power for the time-to-full/empty estimates.
+        total_battery_w = sum(b.power_w for b in snapshot.batteries if b.available)
+        if self._battery_power_smoothed_w is None:
+            self._battery_power_smoothed_w = total_battery_w
+        else:
+            self._battery_power_smoothed_w += _BATTERY_POWER_EMA_ALPHA * (
+                total_battery_w - self._battery_power_smoothed_w
+            )
         zi_correction_w = 0.0
         eq_bias_w = 0.0
         eq_discharge_floor_w: float | None = None

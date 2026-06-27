@@ -675,6 +675,12 @@
       "battery_usable": {
         "name": "Fenêtre exploitable batteries"
       },
+      "time_to_full": {
+        "name": "Temps avant batteries pleines"
+      },
+      "time_to_empty": {
+        "name": "Temps avant batteries vides"
+      },
       "pv_energy_today": {
         "name": "Énergie PV aujourd'hui"
       },
@@ -884,6 +890,10 @@
     "activate_storm_mode": {
       "name": "Activer le mode tempête",
       "description": "Déclenche manuellement le mode préparation tempête : monte le SoC jusqu'à la cible définie."
+    },
+    "reset_baseline_talon": {
+      "name": "Réinitialiser le talon de veille",
+      "description": "Oublie le talon de veille appris et le ré-estime à la prochaine nuit calme. À utiliser après qu'un gros consommateur de nuit ponctuel (ex. recharge VE) l'a gonflé et a provoqué un délestage à tort."
     }
   }
 }

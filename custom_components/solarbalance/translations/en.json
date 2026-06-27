@@ -675,6 +675,12 @@
       "battery_usable": {
         "name": "Battery Usable Window"
       },
+      "time_to_full": {
+        "name": "Battery time to full"
+      },
+      "time_to_empty": {
+        "name": "Battery time to empty"
+      },
       "pv_energy_today": {
         "name": "PV Energy Today"
       },
@@ -884,6 +890,10 @@
     "activate_storm_mode": {
       "name": "Activate storm mode",
       "description": "Manually trigger storm-preparation mode: ramp SoC to the storm target."
+    },
+    "reset_baseline_talon": {
+      "name": "Reset standby baseline (talon)",
+      "description": "Discard the learned night standby baseline and re-estimate it next quiet night. Use after a one-off big night load (e.g. EV charging) inflated it and caused wrong load shedding."
     }
   }
 }

@@ -202,6 +202,12 @@ def _register_services(hass: HomeAssistant) -> None:
             coord.cancel_force_charge_load(str(call.data["load"]))
             coord.async_update_listeners()
 
+    async def handle_reset_baseline_talon(call: ServiceCall) -> None:
+        coord = _get_coordinator(hass)
+        if coord:
+            await coord.reset_baseline_talon()
+            coord.async_update_listeners()
+
     async def handle_export_config(call: ServiceCall) -> dict[str, Any]:
         coord = _get_coordinator(hass)
         if coord is None:
@@ -294,6 +300,7 @@ def _register_services(hass: HomeAssistant) -> None:
         DOMAIN, "cancel_force_charge_load", handle_cancel_force_charge_load
     )
     hass.services.async_register(DOMAIN, "activate_storm_mode", handle_activate_storm_mode)
+    hass.services.async_register(DOMAIN, "reset_baseline_talon", handle_reset_baseline_talon)
 
     from homeassistant.core import SupportsResponse
 

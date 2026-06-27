@@ -35,8 +35,16 @@ def test_no_production_left_does_not_shed() -> None:
 
 
 def test_full_batteries_do_not_shed() -> None:
+    # Full → caught by the near-full guard (which precedes the deficit check).
     d = _eval(batteries=[_need(100.0)])
-    assert d.active is False and d.reason == "batteries_full"
+    assert d.active is False and d.reason == "near_full"
+
+
+def test_near_full_guard_skips_shedding_even_with_little_pv() -> None:
+    # 92 % (within 10 % of the 100 % ceiling) + barely any PV would normally shed,
+    # but the near-full guard refuses to cut big loads for the last few %.
+    d = _eval(batteries=[_need(92.0)], remaining_pv_kwh=0.5)
+    assert d.active is False and d.reason == "near_full"
 
 
 def test_surplus_sufficient_does_not_shed() -> None:
