@@ -37,6 +37,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta35] — 2026-06-25
+
+### Fixed (round-trip nuit : la cloud basse se vidait dans la batterie pilotable haute)
+
+- **Anti-round-trip nuit.** Sans PV, une batterie cloud basse (ex. Jackery 28 %) pouvait
+  **se décharger pour charger la batterie pilotable haute** (ex. STREAM 79 %) : la box
+  pilotable absorbe le surplus AC de son côté et le garde-fou *passif* ne peut pas
+  l'arrêter (réseau masqué par la cloud). SB **commande désormais activement la batterie
+  haute à décharger pour couvrir la maison**, de sorte que la cloud basse se repose.
+  - **Plafonné à la consommation maison** → la haute couvre le foyer, **ne charge jamais
+    la cloud** (ce serait un transfert batterie-à-batterie avec pertes).
+  - **Back-off existant** : si la cloud ne réduit pas (l'injection persiste), on bride.
+  - Ne s'active que **équaliseur SoC actif, sans PV, et fleet nettement plus haute** que
+    la cloud (sinon c'est la cloud qui doit couvrir). Nouveau binding **`cloud_relief`**.
+
 ## [2.0.8-beta34] — 2026-06-25
 
 ### Changed (watchdog adapté aux onduleurs éteints la nuit)
@@ -1583,6 +1598,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta35]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta34...v2.0.8-beta35
 [2.0.8-beta34]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta33...v2.0.8-beta34
 [2.0.8-beta33]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta32...v2.0.8-beta33
 [2.0.8-beta32]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta31...v2.0.8-beta32

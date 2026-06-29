@@ -19,6 +19,7 @@ from custom_components.solarbalance.const import (
     CONF_LOAD_CONTROL_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_PV_DROP_COMPENSATION_ENABLED,
+    CONF_SOC_EQUALISER_ENABLED,
     CONF_ZERO_INJECTION_ENABLED,
     CONF_ZERO_INJECTION_SETPOINT_W,
     DOMAIN,
@@ -268,6 +269,76 @@ async def test_meter_invert_sign_and_multi_mppt_sum(hass: HomeAssistant) -> None
     assert snap is not None
     assert snap.grid_power_w == -500  # negated to SB convention (export is negative)
     assert snap.pv_total_w == 750  # 300 + 450 summed across the two strings
+
+
+@pytest.mark.asyncio
+async def test_cloud_relief_covers_home_when_fleet_higher_at_night(hass: HomeAssistant) -> None:
+    """Night anti-round-trip: no PV + a higher-SoC fleet → discharge it to cover the home
+    (so the lower cloud battery stops draining into it), capped at the home load."""
+    devices = [
+        Device(
+            name="stream",
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=2000,
+                max_discharge_power_w=2000,
+                soc_entity="sensor.stream_soc",
+                power_entity="sensor.stream_power",
+                controllable=True,
+                active_control_enabled=True,
+                charge_power_setpoint_entity="number.stream_charge",
+                discharge_power_setpoint_entity="number.stream_discharge",
+            ),
+        ),
+        Device(
+            name="jackery",
+            battery=BatteryRole(
+                capacity_kwh=1.0,
+                max_charge_power_w=1000,
+                max_discharge_power_w=1000,
+                soc_entity="sensor.jackery_soc",
+                power_entity="sensor.jackery_power",
+                controllable=False,  # cloud / non-controllable
+            ),
+        ),
+    ]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid_power")]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+    for eid, val in (
+        ("sensor.grid_power", "0"),
+        ("sensor.stream_soc", "79"),
+        ("sensor.stream_power", "400"),
+        ("sensor.jackery_soc", "28"),
+        ("sensor.jackery_power", "-650"),
+    ):
+        hass.states.async_set(eid, val)
+    entry = MockConfigEntry(domain=DOMAIN, data={**_ENTRY_DATA, CONF_SOC_EQUALISER_ENABLED: True})
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+
+    def _snap(stream_soc: float) -> Snapshot:
+        return Snapshot(
+            timestamp=datetime.now(UTC),
+            grid_power_w=0.0,
+            batteries=(
+                BatteryState("stream", soc_pct=stream_soc, power_w=400.0),  # charging (round-trip)
+                BatteryState("jackery", soc_pct=28.0, power_w=-650.0),  # cloud discharging
+            ),
+            mppts=(),
+            inverters=(),
+            loads=(),
+        )
+
+    # No PV, fleet 79% well above cloud 28%: cover the home = 0 + 0 - (400 - 650) = 250 W.
+    assert coordinator._cloud_relief_w(_snap(79.0), controllable_mppt_w=0.0) == pytest.approx(
+        250.0, abs=1.0
+    )
+    # Daytime (PV present) → handled by PV-routing, not cloud-relief.
+    assert coordinator._cloud_relief_w(_snap(79.0), controllable_mppt_w=500.0) == 0.0
+    # Fleet not higher than the cloud → never drain it into the cloud.
+    assert coordinator._cloud_relief_w(_snap(20.0), controllable_mppt_w=0.0) == 0.0
 
 
 @pytest.mark.asyncio

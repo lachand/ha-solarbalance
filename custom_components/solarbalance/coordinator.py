@@ -235,6 +235,12 @@ _EQ_PV_RELAX_DWELL_TICKS = 6
 # Verify (read-back) the power setpoint writes this often (ticks), not every tick:
 # the box is slow over BLE, so a just-sent value needs time to read back.
 _VERIFY_WRITE_EVERY_TICKS = 5
+# Night cloud-relief (anti-round-trip): a controllable fleet must be at least this much
+# higher in SoC than a cloud battery before SB discharges it to cover the home (spares
+# the lower cloud battery instead of letting it discharge into the higher one).
+_CLOUD_RELIEF_SOC_MARGIN_PCT = 5.0
+# Below this home consumption (W) there is nothing worth relieving.
+_CLOUD_RELIEF_MIN_W = 50.0
 # EMA smoothing for the fleet battery power used by the time-to-full/empty estimates,
 # so a passing cloud doesn't make the remaining-time jump around.
 _BATTERY_POWER_EMA_ALPHA = 0.2
@@ -561,6 +567,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             for d in devices
             if d.battery is not None and not d.battery.controllable
         ]
+        self._eq_min_pv_w = float(
+            cfg.get(CONF_SOC_EQUALISER_MIN_PV_W, DEFAULT_SOC_EQUALISER_MIN_PV_W)
+        )
         self._soc_equaliser: SocEqualiserController | None = None
         if uncontrollable and bool(cfg.get(CONF_SOC_EQUALISER_ENABLED, False)):
             self._soc_equaliser = SocEqualiserController(
@@ -1807,6 +1816,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if self._eq_tuner is not None and self._soc_equaliser is not None:
                 # Damp the equaliser step cap if the offer is oscillating.
                 self._soc_equaliser.set_max_step_w(self._eq_tuner.step(eq_bias_w))
+            # Night cloud-relief (anti-round-trip): no PV but a higher-SoC fleet would let
+            # a lower cloud battery discharge into it. Force the fleet to discharge to
+            # cover the home (cloud rests), capped at the home load — never charging the
+            # cloud. Reuses the same back-off/floor below (capacity = the home load here).
+            cloud_relief_w = self._cloud_relief_w(snapshot, controllable_mppt_w)
+            if cloud_relief_w > 0.0 and eq_bias_w <= 0.0:
+                eq_bias_w = cloud_relief_w
             # SoC equaliser PV-routing: when the equaliser wants the fleet to
             # discharge (it is the higher-SoC side), let it output its OWN PV out past
             # the no-export point (down to -mppt) toward the lower-SoC cloud battery —
@@ -1831,13 +1847,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # battery's auto-curtailment (estimated from the peer inverter). The latter
             # lets the equaliser route a *full* STREAM's invisible PV: it commands the
             # discharge that un-curtails the array. ~0 unless an array is suppressed.
-            eq_routing_mppt_w = controllable_mppt_w + hidden_pv_w
-            if eq_bias_w > 0.0 and eq_routing_mppt_w > 0.0:
+            # Discharge capacity the equaliser floor may use: measured PV + PV hidden by
+            # a full battery (daytime routing), or the home load (night cloud-relief).
+            eq_capacity_w = max(controllable_mppt_w + hidden_pv_w, cloud_relief_w)
+            if eq_bias_w > 0.0 and eq_capacity_w > 0.0:
                 if reevaluate or self._eq_floor_w is None:
-                    self._eq_floor_w = -eq_routing_mppt_w * self._eq_pv_relax
-                # Hold the floor across the dwell; cap at the (estimated) PV so a falling
-                # PV/peer-yield never turns it into a deep battery drain.
-                eq_discharge_floor_w = max(self._eq_floor_w, -eq_routing_mppt_w)
+                    self._eq_floor_w = -eq_capacity_w * self._eq_pv_relax
+                # Hold the floor across the dwell; cap at the capacity so a falling
+                # PV/peer-yield/home-load never turns it into a deeper battery drain.
+                eq_discharge_floor_w = max(self._eq_floor_w, -eq_capacity_w)
             else:
                 self._eq_floor_w = None
             self._eq_pv_relax_active = eq_discharge_floor_w is not None and self._eq_pv_relax > 0.01
@@ -2423,6 +2441,36 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def _controllable_avg_soc(self, snapshot: Snapshot) -> float | None:
         """Capacity-weighted SoC of the available controllable battery fleet, or None."""
         return self._weighted_soc(snapshot, controllable_only=True)
+
+    def _cloud_relief_w(self, snapshot: Snapshot, controllable_mppt_w: float) -> float:
+        """Discharge (W) a higher-SoC controllable fleet should provide to cover the home.
+
+        Stops a lower-SoC cloud battery from discharging into the higher controllable
+        fleet at night (a round-trip that drains the low battery into the high one). The
+        fleet covers the home load instead, so the cloud rests. Capped at the home
+        consumption — it covers the load, never charges the cloud (that would be a lossy
+        battery-to-battery transfer). Zero unless the SoC equaliser is on, there is no PV
+        (daytime is handled by PV-routing), an available + fresh cloud battery is
+        meaningfully lower-SoC than the fleet, and there is a home load to cover.
+        """
+        if self._soc_equaliser is None or controllable_mppt_w > self._eq_min_pv_w:
+            return 0.0
+        fleet_soc = self._controllable_avg_soc(snapshot)
+        cloud = [
+            b
+            for b in snapshot.batteries
+            if b.available and not b.stale and b.device_name not in self._controllable_battery_names
+        ]
+        if fleet_soc is None or not cloud:
+            return 0.0
+        cloud_soc = sum(b.soc_pct for b in cloud) / len(cloud)
+        if fleet_soc <= cloud_soc + _CLOUD_RELIEF_SOC_MARGIN_PCT:
+            return 0.0
+        pv_total = sum(m.power_w for m in snapshot.mppts if m.available)
+        total_battery_w = sum(b.power_w for b in snapshot.batteries if b.available)
+        # consumption = generation + grid_import - net battery charge.
+        consumption_w = pv_total + snapshot.grid_power_w - total_battery_w
+        return consumption_w if consumption_w > _CLOUD_RELIEF_MIN_W else 0.0
 
     def _command_load_powers(self, commands: tuple[LoadCommand, ...]) -> dict[str, float]:
         """Power (W) each load command applies — 0 when off, else commanded/nominal."""

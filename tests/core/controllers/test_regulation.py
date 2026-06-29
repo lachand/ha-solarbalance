@@ -124,6 +124,23 @@ class TestResolveTotalPower:
         assert routed.total_w == pytest.approx(-400.0)  # PV routed past the no_feed cap
         assert routed.binding == "eq_pv_route"  # labelled as routing, not blocking
 
+    def test_eq_discharge_floor_without_pv_is_labelled_cloud_relief(self) -> None:
+        # No PV (controllable_mppt 0) but the floor binds → it's the night cloud-relief
+        # (cover the home from stored energy), not PV-routing.
+        out = resolve_total_power(
+            _inp(
+                grid_filtered_w=1.0,
+                current_fleet_w=-7.0,
+                eq_bias_w=300.0,
+                controllable_mppt_w=0.0,
+                nc_charge_offset_w=8.0,
+                noncontrollable_charging=True,
+                eq_discharge_floor_w=-250.0,
+            )
+        )
+        assert out.total_w == pytest.approx(-250.0)
+        assert out.binding == "cloud_relief"
+
     def test_eq_discharge_floor_never_drains_battery_below_mppt(self) -> None:
         # The floor is -mppt: the equaliser can output the PV but not drain the cells.
         out = resolve_total_power(

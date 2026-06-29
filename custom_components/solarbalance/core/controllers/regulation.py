@@ -291,7 +291,9 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
         and binding in ("no_export", "no_feed", "grid_export")
         and abs(total_w - inp.eq_discharge_floor_w) < 1e-6
     ):
-        binding = "eq_pv_route"
+        # PV-routing (daytime, outputs solar) vs cloud-relief (night, covers the home
+        # from stored energy so a lower cloud battery stops discharging into the fleet).
+        binding = "cloud_relief" if inp.controllable_mppt_w < 1.0 else "eq_pv_route"
     return RegulationResult(
         total_w=total_w, binding=binding, base_w=base_w, natural_grid_w=natural_grid_w
     )

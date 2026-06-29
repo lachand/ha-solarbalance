@@ -1113,9 +1113,10 @@ class SolarBalanceRegulationBindingSensor(_SolarBalanceSensor):
     """Which clamp set the fleet target this tick (diagnostic, text).
 
     One of: base / equaliser / no_export / no_charge_floor / no_feed / eq_pv_route /
-    grid_import / grid_export. Makes a surprising target self-explanatory
+    cloud_relief / grid_import / grid_export. Makes a surprising target self-explanatory
     (``eq_pv_route`` = the equaliser is routing the fleet's PV to a lower-SoC cloud
-    battery, not being blocked).
+    battery; ``cloud_relief`` = at night the fleet covers the home so a lower-SoC cloud
+    battery stops discharging into it — neither is being blocked).
     """
 
     _attr_translation_key = "regulation_binding"
