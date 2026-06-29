@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta34] — 2026-06-25
+
+### Changed (watchdog adapté aux onduleurs éteints la nuit)
+
+- **Catégorie « optionnelle » pour les MPPT / onduleurs.** Un micro-onduleur éteint la
+  nuit passe `unavailable`/absent — c'est désormais traité comme **« éteint », normal**,
+  plus comme une entité périmée. Plus aucun warning pour ça ; seul un capteur **figé**
+  (valeur présente mais qui ne bouge plus) est signalé. Le **PDL reste le seul critique**
+  (lui seul déclenche le mode dégradé).
+- **Logs du watchdog sur transition (edge-triggered).** Une entité qui tombe ou revient
+  est désormais loggée **une seule fois** (chute, puis retour), au lieu d'un warning **à
+  chaque tick** → fini le spam nocturne (onduleurs éteints, batterie cloud débranchée…).
+
 ## [2.0.8-beta33] — 2026-06-25
 
 ### Fixed (yoyo du binding équaliseur — deux causes)
@@ -1570,6 +1583,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta34]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta33...v2.0.8-beta34
 [2.0.8-beta33]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta32...v2.0.8-beta33
 [2.0.8-beta32]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta31...v2.0.8-beta32
 [2.0.8-beta31]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta30...v2.0.8-beta31

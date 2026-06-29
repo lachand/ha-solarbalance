@@ -753,9 +753,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._baseline_ema_w: float | None = None
 
         # Watchdog — entity lists built from config
-        self._critical_entity_ids, self._monitored_entity_ids = self._collect_entity_ids(
-            devices, meters
-        )
+        (
+            self._critical_entity_ids,
+            self._monitored_entity_ids,
+            self._optional_entity_ids,
+        ) = self._collect_entity_ids(devices, meters)
         self._watchdog = EntityWatchdog(hass)
 
         # Build ordered strategy list from config
@@ -1607,7 +1609,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
 
         # --- Watchdog: detect stale critical entities ---
-        wd = self._watchdog.check(self._critical_entity_ids, self._monitored_entity_ids)
+        wd = self._watchdog.check(
+            self._critical_entity_ids,
+            self._monitored_entity_ids,
+            self._optional_entity_ids,
+        )
         if wd.is_degraded:
             if self._mode is not HemsMode.DEGRADED:
                 _LOGGER.warning(
@@ -3285,14 +3291,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     @staticmethod
     def _collect_entity_ids(
         devices: list[Device], meters: list[Meter]
-    ) -> tuple[list[str], list[str]]:
-        """Return (critical_ids, monitored_ids) derived from config.
+    ) -> tuple[list[str], list[str], list[str]]:
+        """Return (critical_ids, monitored_ids, optional_ids) derived from config.
 
         Critical: PDL meter power entity — its staleness triggers DEGRADED.
-        Monitored: battery SoC/power entities and MPPT power entities.
+        Monitored: battery SoC/power and non-PDL meter entities (should be present).
+        Optional: MPPT/inverter entities — these legitimately go away when the device
+        is off (a micro-inverter at night), so being unavailable is *expected*, not a
+        fault; only a frozen value is flagged.
         """
         critical: list[str] = []
         monitored: list[str] = []
+        optional: list[str] = []
         for m in meters:
             if m.kind is MeterKind.PDL:
                 critical.append(m.power_entity)
@@ -3304,8 +3314,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 if d.battery.power_entity:
                     monitored.append(d.battery.power_entity)
             if d.mppt:
-                monitored.extend(d.mppt.power_entities)
-        return critical, monitored
+                optional.extend(d.mppt.power_entities)
+            if d.inverter:
+                optional.append(d.inverter.ac_output_power_entity)
+        return critical, monitored, optional
 
     @staticmethod
     def _build_arbiter(
