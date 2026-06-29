@@ -224,7 +224,8 @@ def test_stops_in_deadband_and_rearms_only_past_margin() -> None:
         rearm_margin_pct=1.0,
     )
     _run(ctrl, fleet_soc=70.0, auto_soc=50.0, ticks=3)  # armed, offer built up
-    within = _run(ctrl, fleet_soc=51.5, auto_soc=50.0, ticks=2)  # |1.5| <= deadband -> stop
+    # |1.5| <= deadband -> stop. Held for the anti-flutter dwell, then decays.
+    within = _run(ctrl, fleet_soc=51.5, auto_soc=50.0, ticks=5)
     assert within[-1] < within[0]  # decaying toward 0
     # |2.5| is past the deadband but below deadband+margin (3.0): stays stopped.
     margin = _run(ctrl, fleet_soc=52.5, auto_soc=50.0, ticks=2)
@@ -313,6 +314,52 @@ def test_unavailable_uncontrollable_skipped() -> None:
     )
     assert r.grid_setpoint_bias_w == 0.0
     assert r.in_deadband is True
+
+
+def test_stale_uncontrollable_skipped() -> None:
+    # A cloud station unplugged but still reporting its last SoC (stale) must not be
+    # steered — that drove the morning equaliser↔base flutter.
+    ctrl = SocEqualiserController(
+        [("auto", _role())], step_w=150.0, cadence_ticks=1, adaptive_cadence=False
+    )
+    r = ctrl.step(
+        controllable_states=[_state("a", 90.0)],
+        uncontrollable_states={
+            "auto": BatteryState(
+                device_name="auto", soc_pct=50.0, power_w=0.0, available=True, stale=True
+            )
+        },
+        grid_w=0.0,
+        available_pv_w=5000.0,
+    )
+    assert r.grid_setpoint_bias_w == 0.0
+    assert r.in_deadband is True
+
+
+def test_brief_deadband_dip_holds_offer() -> None:
+    # A short SoC dip into the deadband must hold the offer (anti-flutter), not collapse
+    # it; only a sustained dip relaxes it.
+    ctrl = SocEqualiserController(
+        [("auto", _role())], step_w=1000.0, cadence_ticks=1, adaptive_cadence=False
+    )
+    built = _run(ctrl, fleet_soc=90.0, auto_soc=50.0, ticks=3)[-1]
+    assert built > 0.0
+    held = _run(ctrl, fleet_soc=90.0, auto_soc=90.0, ticks=1)[-1]  # one in-deadband tick
+    assert held == pytest.approx(built)  # held, not dropped
+    relaxed = _run(ctrl, fleet_soc=90.0, auto_soc=90.0, ticks=5)[-1]  # sustained
+    assert relaxed < built  # eventually relaxes
+
+
+def test_disarm_dwell_adapts_to_measured_lag() -> None:
+    # A slower cloud (bigger measured lag) gets a longer hold before relaxing, so a
+    # varying response delay doesn't collapse the offer prematurely.
+    ctrl = SocEqualiserController(
+        [("auto", _role())], step_w=1000.0, cadence_ticks=1, adaptive_cadence=True
+    )
+    built = _run(ctrl, fleet_soc=90.0, auto_soc=50.0, ticks=3)[-1]
+    ctrl._lag_ema = 6.0  # measured response lag of 6 ticks → dwell = max(floor 3, 6) = 6
+    held = _run(ctrl, fleet_soc=90.0, auto_soc=90.0, ticks=5)  # all within the 6-tick dwell
+    assert all(h == pytest.approx(built) for h in held)  # still held, not yet relaxing
 
 
 @pytest.mark.parametrize(

@@ -37,6 +37,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta33] — 2026-06-25
+
+### Fixed (yoyo du binding équaliseur — deux causes)
+
+- **Batterie cloud débranchée (yoyo du matin).** Une station cloud **non branchée**
+  mais qui reporte encore son dernier SoC (**stale**) faisait calculer une offre sur
+  des données mortes → binding `equaliser ↔ base` au gré du flapping. L'équaliseur
+  **ignore désormais une batterie non pilotable stale** (comme indisponible).
+- **Flutter en bord de bande morte (yoyo de l'après-midi).** L'offre se relâchait à 0
+  **immédiatement** dès que l'écart SoC retombait dans la bande morte ; le SoC cloud
+  étant quantifié (~pas de 1 %), il *dither* autour du bord → l'offre s'effondrait et
+  repartait, faisant flipper toute la cascade (`eq_pv_route ↔ no_feed ↔ equaliser ↔
+  base`). L'offre est maintenant **tenue pendant un dwell** avant de se relâcher, et ce
+  dwell **s'adapte au délai de réponse mesuré** de la batterie non pilotable (plancher
+  3 ticks, plus long si la cloud répond lentement) — plus de flutter, et robuste à un
+  délai variable.
+
 ## [2.0.8-beta32] — 2026-06-25
 
 ### Added
@@ -1553,6 +1570,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta33]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta32...v2.0.8-beta33
 [2.0.8-beta32]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta31...v2.0.8-beta32
 [2.0.8-beta31]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta30...v2.0.8-beta31
 [2.0.8-beta30]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta29...v2.0.8-beta30

@@ -147,6 +147,7 @@ class SocEqualiserController:
         self._armed = True
         self._ticks_since_move = 0
         self._leak_ticks = 0
+        self._disarm_ticks = 0
         self._prev_fa_meas: float | None = None
         self._last_moved_offer_w = 0.0
         self._lag_ema: float | None = None
@@ -203,7 +204,10 @@ class SocEqualiserController:
         active = False
         for name, role in self._uncontrollable:
             state = uncontrollable_states.get(name)
-            if state is None or not state.available:
+            # Skip a stale battery: a cloud station that is unplugged/not updating keeps
+            # reporting its last SoC, and steering on that dead value made the offer (and
+            # the whole binding chain) flutter on/off as the entity flapped available.
+            if state is None or not state.available or state.stale:
                 continue
             error = target - state.soc_pct  # > 0 -> below target -> wants to charge
             if abs(error) <= threshold:
@@ -224,14 +228,22 @@ class SocEqualiserController:
             active = True
 
         if not active:
-            # Inside the (hysteresis-widened) deadband or at a SoC bound: stop and
-            # relax the offer toward zero (rate-limited, the safe direction).
+            # Inside the (hysteresis-widened) deadband or at a SoC bound. Hold a
+            # meaningful offer through a brief dip (cloud SoC quantization) before
+            # relaxing, so the offer doesn't flutter at the edge. The dwell adapts to
+            # the cloud battery's *measured* response lag (_leak_persist) — a slow
+            # station gets a longer hold — so a varying delay doesn't cause a collapse;
+            # relax once the dip persists past it or the offer is already negligible.
+            if abs(self._offer_w) > _MIN_STEP_W and self._disarm_ticks < self._leak_persist():
+                self._disarm_ticks += 1
+                return self._result(target, in_deadband=False)
             self._armed = False
             self._offer_w = self._slew(self._offer_w, 0.0)
             self._reset_dynamics()
             return self._result(target, in_deadband=True)
 
         self._armed = True
+        self._disarm_ticks = 0
         offer_target = self._clamp_offer(offer_target)
         # Never transfer more than the controllable fleet's PV: redistribute solar,
         # don't drain its battery into the automatic one (round-trip loss).
