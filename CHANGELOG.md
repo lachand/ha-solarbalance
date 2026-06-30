@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta39] — 2026-06-25
+
+### Fixed
+
+- **STREAM à 2 batteries : la puissance système partagée n'est plus comptée deux fois.**
+  Quand plusieurs devices batterie pointent la **même** entité de puissance (cas STREAM :
+  la puissance est remontée au **niveau système**, pas par batterie), SB la **compte une
+  seule fois** — la lecture est répartie également entre les devices — au lieu de
+  l'additionner une fois par device. Évite un `current_fleet` (et des estimations / ZI)
+  doublés. Les MPPT, déclarés **par batterie** (entités distinctes), restent sommés
+  normalement. Détection **automatique** (même entité), aucune config en plus ; exemple
+  « 2 batteries STREAM » ajouté dans `docs/device-mapping.md`.
+
 ## [2.0.8-beta38] — 2026-06-25
 
 ### Fixed
@@ -1635,6 +1648,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta39]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta38...v2.0.8-beta39
 [2.0.8-beta38]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta37...v2.0.8-beta38
 [2.0.8-beta37]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta36...v2.0.8-beta37
 [2.0.8-beta36]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta35...v2.0.8-beta36

@@ -103,6 +103,54 @@ The equivalent YAML (for reference — the wizard writes this for you):
       power_limit_setpoint_entity: number.ef_bkxxxx_maximum_output_power
 ```
 
+### Two STREAM batteries (one device per battery)
+
+A STREAM stack with **two batteries** exposes **per-battery** SoC, PV (MPPT), charge
+limit and base-load, but **one system-level power** sensor for the whole stack. Declare
+**one device per battery** and:
+
+- `power_entity`: the **same** system power sensor on both devices — SolarBalance detects
+  the shared entity and **counts it once** (splits it evenly per device), so the fleet
+  power isn't double-counted.
+- MPPT: each device gets **its own** panel sensor (1 entity, real `peak_power_w`).
+- `charge_power_setpoint_entity`: each battery's own `charging_power_limit` (per-battery).
+- `discharge_power_setpoint_entity`: each battery's own `base_load_power`, **plus
+  `discharge_mirror_group: stream` on both** — the discharge is a shared total mirrored
+  to each base-load (800 W on both = 800 W total, not 1600). Charge stays per-battery.
+
+```yaml
+- name: ecoflow_stream_a
+  roles:
+    battery:
+      soc_entity: sensor.ef_xxxxxx_a_battery_level
+      power_entity: sensor.ef_xxxxxx_system_power          # shared (counted once)
+      charge_power_setpoint_entity: number.ef_xxxxxx_a_charging_power_limit
+      discharge_power_setpoint_entity: number.ef_xxxxxx_a_base_load_power
+      discharge_mirror_group: stream
+      active_control_enabled: true
+      # ... capacity, max powers, mode_setpoint_entity, reserve, etc.
+    mppt:
+      peak_power_w: 520
+      power_entity: sensor.ef_xxxxxx_a_solar_power
+- name: ecoflow_stream_b
+  roles:
+    battery:
+      soc_entity: sensor.ef_xxxxxx_b_battery_level
+      power_entity: sensor.ef_xxxxxx_system_power          # same entity → counted once
+      charge_power_setpoint_entity: number.ef_xxxxxx_b_charging_power_limit
+      discharge_power_setpoint_entity: number.ef_xxxxxx_b_base_load_power
+      discharge_mirror_group: stream
+      active_control_enabled: true
+    mppt:
+      peak_power_w: 520
+      power_entity: sensor.ef_xxxxxx_b_solar_power
+```
+
+The two batteries' SoC self-balances in the firmware, so SolarBalance does not steer
+them against each other; its charge split only sets the total. The per-device **"Battery
+power"** sensor reads ~half the system power (there is no true per-battery power) — that's
+expected; the **fleet** power is correct.
+
 ### A non-controllable cloud battery alongside (e.g. Jackery)
 
 Declare a cloud-only battery (Jackery HomePower) with `controllable: false` and

@@ -69,6 +69,44 @@ def test_entity_reader_builds_snapshot_from_historical_states() -> None:
     assert snap.batteries[0].available is True
 
 
+def test_shared_power_entity_split_across_battery_devices() -> None:
+    # Two STREAM batteries declared as 2 devices but reporting only one *system* power
+    # entity: the reading is split so the fleet sum counts it once, not twice.
+    def _batt(name: str, soc: str) -> Device:
+        return Device(
+            name=name,
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=2000,
+                max_discharge_power_w=2000,
+                soc_entity=soc,
+                power_entity="sensor.stream_system_power",  # shared by both devices
+            ),
+        )
+
+    devices = [_batt("stream_a", "sensor.soc_a"), _batt("stream_b", "sensor.soc_b")]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid")]
+    historical = {
+        "sensor.grid": "0",
+        "sensor.soc_a": "60",
+        "sensor.soc_b": "62",
+        "sensor.stream_system_power": "800",
+    }
+    reader = EntityReader(
+        None,
+        devices,
+        meters,
+        [],
+        state_getter=lambda eid: State(eid, historical[eid]) if eid in historical else None,
+    )
+    snap = reader.snapshot(timestamp=datetime(2026, 6, 14, 12, 0, tzinfo=UTC))
+    powers = {b.device_name: b.power_w for b in snap.batteries}
+    assert powers["stream_a"] == 400.0  # 800 / 2 sharers
+    assert powers["stream_b"] == 400.0
+    assert sum(b.power_w for b in snap.batteries) == 800.0  # system power counted once
+    assert all(b.available for b in snap.batteries)  # per-battery SoC + power present
+
+
 @pytest.mark.asyncio
 async def test_async_replay_day_runs_arbiter_and_summarises(
     hass: HomeAssistant, monkeypatch
