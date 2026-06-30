@@ -103,6 +103,10 @@ class ActiveControlPublisher:
         self._last_power: dict[str, float] = {}
         self._last_mode: dict[str, str] = {}
         self._last_reserve: dict[str, float] = {}
+        # Final (charge_w, discharge_w) actually commanded per device — post SoC-cut and
+        # post discharge-mirror — so a diagnostic shows what was *written*, not the raw
+        # balancer split (mirrored group members read the same discharge, e.g. STREAM).
+        self._last_setpoints: dict[str, tuple[float, float]] = {}
 
         # Catch a common misconfiguration early: a setpoint entity_id without a
         # domain (e.g. "ef_xxxxxx_backup_reserve" instead of "number.ef_...").
@@ -135,6 +139,18 @@ class ActiveControlPublisher:
     def enabled(self) -> bool:
         """True when at least one device has an active-control entity."""
         return bool(self._managed) or bool(self._pv_limit_entities) or bool(self._reserve_entities)
+
+    def last_setpoint_w(self, device_name: str, *, charge: bool) -> float | None:
+        """Last charge (or discharge) power actually commanded for a device, or None.
+
+        Reflects what was *written* (after the SoC cut and the discharge mirror), so a
+        diagnostic shows the real setpoint — for a mirrored group, members read the same
+        discharge total, not the balancer's internal per-battery split.
+        """
+        pair = self._last_setpoints.get(device_name)
+        if pair is None:
+            return None
+        return pair[0] if charge else pair[1]
 
     async def apply_reserve(self, soc_by_device: Mapping[str, float]) -> None:
         """Write each battery's backup-reserve / min-SoC setpoint (%)."""
@@ -246,6 +262,7 @@ class ActiveControlPublisher:
             for n in members:
                 if n in discharge:
                     discharge[n] = total
+        self._last_setpoints = {n: (charge[n], discharge[n]) for n in self._managed}
         # Phase 3 — write.
         for name, m in self._managed.items():
             charge_w, discharge_w = charge[name], discharge[name]

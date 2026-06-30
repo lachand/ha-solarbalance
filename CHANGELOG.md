@@ -37,6 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta38] — 2026-06-25
+
+### Fixed
+
+- **Les capteurs « consigne de charge/décharge » par batterie affichent la valeur
+  réellement écrite.** Ils montraient la **répartition interne du balancer** (ex. pour
+  un groupe de décharge mirroré : décharge 500 sur une batterie, 300 sur l'autre), alors
+  que SB **écrit le total mirroré** (800 sur **chaque** `base_load`). Les capteurs
+  reflètent désormais la consigne **écrite** (après cut SoC + mirror) → pour un groupe
+  mirroré (ex. STREAM), les deux batteries affichent **la même décharge**. La charge,
+  elle, reste par batterie (valeurs différentes possibles).
+
 ## [2.0.8-beta37] — 2026-06-25
 
 ### Added
@@ -1623,6 +1635,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta38]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta37...v2.0.8-beta38
 [2.0.8-beta37]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta36...v2.0.8-beta37
 [2.0.8-beta36]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta35...v2.0.8-beta36
 [2.0.8-beta35]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta34...v2.0.8-beta35

@@ -813,6 +813,14 @@ class SolarBalanceBatterySetpointSensor(_SolarBalanceSensor):
 
     @property
     def native_value(self) -> float | None:
+        # Prefer the value actually written (post SoC-cut and discharge-mirror) so a
+        # mirrored group (e.g. STREAM) shows the same discharge on each member, not the
+        # balancer's internal per-battery split.
+        written = self.coordinator._active_control.last_setpoint_w(
+            self._device_name, charge=self._direction == "charge"
+        )
+        if written is not None:
+            return round(written, 1)
         balancing = self.coordinator.publisher.latest_balancing
         if balancing is not None:
             pw = balancing.per_battery_w.get(self._device_name, 0.0)

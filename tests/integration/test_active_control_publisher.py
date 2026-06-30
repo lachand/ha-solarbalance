@@ -258,6 +258,9 @@ async def test_discharge_mirror_group_totals_discharge_but_splits_charge() -> No
     vals = _values(hass)
     assert vals["number.dis_a"] == 800.0
     assert vals["number.dis_b"] == 800.0
+    # The written-setpoint accessor (what the diagnostic shows) mirrors too.
+    assert pub.last_setpoint_w("a", charge=False) == 800.0
+    assert pub.last_setpoint_w("b", charge=False) == 800.0
 
     # Charge stays per-battery (not mirrored).
     hass.services.async_call.reset_mock()
