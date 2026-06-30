@@ -222,7 +222,8 @@
             "discharge_mode_option": "Option de mode décharge (ex. self_powered)",
             "idle_mode_option": "Option de mode repos (optionnel)",
             "reserve_soc_setpoint_entity": "Réserve / SoC mini du device (number %)",
-            "ac_charge_limit_w": "Limite de charge AC (W)"
+            "ac_charge_limit_w": "Limite de charge AC (W)",
+            "discharge_mirror_group": "Groupe de décharge partagée (ex. stream)"
           },
           "data_description": {
             "capacity_kwh": "Capacité nominale. Ex : 3.92",
@@ -264,7 +265,8 @@
             "discharge_mode_option": "Option de mode décharge (ex. self_powered)",
             "idle_mode_option": "Option de mode repos (optionnel)",
             "reserve_soc_setpoint_entity": "Réserve / SoC mini du device (number %)",
-            "ac_charge_limit_w": "Limite de charge AC (W)"
+            "ac_charge_limit_w": "Limite de charge AC (W)",
+            "discharge_mirror_group": "Groupe de décharge partagée (ex. stream)"
           },
           "data_description": {
             "capacity_kwh": "Capacité nominale. Ex : 3.92",
@@ -506,6 +508,7 @@
             "idle_mode_option": "Option de mode repos (optionnel)",
             "reserve_soc_setpoint_entity": "Réserve / SoC mini (number %)",
             "ac_charge_limit_w": "Limite de charge AC (W)",
+            "discharge_mirror_group": "Groupe de décharge partagée (ex. stream)",
             "mppt_peak_power_w": "MPPT : puissance crête (W)",
             "mppt_power_entities": "MPPT : capteurs de production (W, additionnés)",
             "mppt_daily_energy_entity": "MPPT : énergie du jour",
@@ -548,6 +551,7 @@
             "idle_mode_option": "Option de mode repos (optionnel)",
             "reserve_soc_setpoint_entity": "Réserve / SoC mini (number %)",
             "ac_charge_limit_w": "Limite de charge AC (W)",
+            "discharge_mirror_group": "Groupe de décharge partagée (ex. stream)",
             "mppt_peak_power_w": "MPPT : puissance crête (W)",
             "mppt_power_entities": "MPPT : capteurs de production (W, additionnés)",
             "mppt_daily_energy_entity": "MPPT : énergie du jour",

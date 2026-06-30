@@ -37,6 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta37] — 2026-06-25
+
+### Added
+
+- **Groupe de décharge mirroré (EcoFlow STREAM multi-batteries).** Nouveau champ
+  batterie **`discharge_mirror_group`** : les batteries qui partagent ce libellé voient
+  le **total de décharge du groupe écrit à l'identique sur chaque `base_load`** (800 W
+  sur les deux = 800 W **total**, pas 1600), tandis que la **charge reste répartie par
+  batterie** (valeurs différentes possibles, équilibrage SoC). Permet de déclarer **2
+  devices STREAM** (un par batterie) avec le bon comportement firmware. Une batterie à
+  son plancher SoC est exclue du total. **Opt-in** : champ vide = comportement inchangé.
+
 ## [2.0.8-beta36] — 2026-06-25
 
 ### Fixed (yoyo de consigne STREAM quand une cloud finit sa charge)
@@ -1611,6 +1623,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta37]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta36...v2.0.8-beta37
 [2.0.8-beta36]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta35...v2.0.8-beta36
 [2.0.8-beta35]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta34...v2.0.8-beta35
 [2.0.8-beta34]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta33...v2.0.8-beta34

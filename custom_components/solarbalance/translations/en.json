@@ -222,7 +222,8 @@
             "discharge_mode_option": "Discharge mode option (e.g. self_powered)",
             "idle_mode_option": "Idle mode option (optional)",
             "reserve_soc_setpoint_entity": "Device reserve / min-SoC (number %)",
-            "ac_charge_limit_w": "AC charge limit (W)"
+            "ac_charge_limit_w": "AC charge limit (W)",
+            "discharge_mirror_group": "Shared-discharge group (e.g. stream)"
           },
           "data_description": {
             "capacity_kwh": "Nominal capacity. E.g. 3.92",
@@ -264,7 +265,8 @@
             "discharge_mode_option": "Discharge mode option (e.g. self_powered)",
             "idle_mode_option": "Idle mode option (optional)",
             "reserve_soc_setpoint_entity": "Device reserve / min-SoC (number %)",
-            "ac_charge_limit_w": "AC charge limit (W)"
+            "ac_charge_limit_w": "AC charge limit (W)",
+            "discharge_mirror_group": "Shared-discharge group (e.g. stream)"
           },
           "data_description": {
             "capacity_kwh": "Nominal capacity. E.g. 3.92",
@@ -506,6 +508,7 @@
             "idle_mode_option": "Idle mode option (optional)",
             "reserve_soc_setpoint_entity": "Reserve / min-SoC (number %)",
             "ac_charge_limit_w": "AC charge limit (W)",
+            "discharge_mirror_group": "Shared-discharge group (e.g. stream)",
             "mppt_peak_power_w": "MPPT: peak power (W)",
             "mppt_power_entities": "MPPT: production sensors (W, summed)",
             "mppt_daily_energy_entity": "MPPT: daily energy",
@@ -548,6 +551,7 @@
             "idle_mode_option": "Idle mode option (optional)",
             "reserve_soc_setpoint_entity": "Reserve / min-SoC (number %)",
             "ac_charge_limit_w": "AC charge limit (W)",
+            "discharge_mirror_group": "Shared-discharge group (e.g. stream)",
             "mppt_peak_power_w": "MPPT: peak power (W)",
             "mppt_power_entities": "MPPT: production sensors (W, summed)",
             "mppt_daily_energy_entity": "MPPT: daily energy",

@@ -773,6 +773,9 @@ def _battery_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Optional("ac_charge_limit_w", default=d.get("ac_charge_limit_w", "")): _num(
                 0, step=50, unit="W"
             ),
+            vol.Optional(
+                "discharge_mirror_group", default=d.get("discharge_mirror_group", "")
+            ): selector.TextSelector(),
         }
     )
 
@@ -803,6 +806,7 @@ _BATTERY_ROLE_KEYS = (
     "idle_mode_option",
     "reserve_soc_setpoint_entity",
     "ac_charge_limit_w",
+    "discharge_mirror_group",
 )
 
 

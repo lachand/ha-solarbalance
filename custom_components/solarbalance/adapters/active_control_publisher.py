@@ -54,6 +54,7 @@ class _Managed:
     mode_zeroes_opposite: bool
     soc_floor: float
     soc_ceiling: float
+    discharge_mirror_group: str | None
 
 
 class ActiveControlPublisher:
@@ -76,8 +77,15 @@ class ActiveControlPublisher:
                 mode_zeroes_opposite=battery.mode_switch_zeroes_opposite,
                 soc_floor=float(battery.soc_min_pct) + _SOC_MARGIN_PCT,
                 soc_ceiling=float(battery.soc_max_pct) - _SOC_MARGIN_PCT,
+                discharge_mirror_group=battery.discharge_mirror_group or None,
             )
         self._managed = managed
+        # Groups whose discharge is a shared total mirrored to each member (e.g. the two
+        # EcoFlow STREAM base-loads: same value written to both = that value total).
+        self._discharge_groups: dict[str, list[str]] = {}
+        for name, m in managed.items():
+            if m.discharge_mirror_group:
+                self._discharge_groups.setdefault(m.discharge_mirror_group, []).append(name)
         # device_name -> PV output-limit entity (curtailable micro-inverters)
         self._pv_limit_entities: dict[str, str] = {
             device.name: device.mppt.power_limit_setpoint_entity
@@ -215,6 +223,9 @@ class ActiveControlPublisher:
             per_battery_w: Per-battery signed power (positive = charge).
             soc_by_device: Current SoC (%) per device, for the floor/ceiling cuts.
         """
+        # Phase 1 — per-device charge/discharge with the SoC floor/ceiling cuts.
+        charge: dict[str, float] = {}
+        discharge: dict[str, float] = {}
         for name, m in self._managed.items():
             allocated = per_battery_w.get(name, 0.0)
             charge_w = max(0.0, allocated)
@@ -225,12 +236,24 @@ class ActiveControlPublisher:
                     discharge_w = 0.0
                 if soc >= m.soc_ceiling:
                     charge_w = 0.0
-            charge_w = round(charge_w / _CHARGE_STEP_W) * _CHARGE_STEP_W
+            charge[name] = round(charge_w / _CHARGE_STEP_W) * _CHARGE_STEP_W
+            discharge[name] = discharge_w
+        # Phase 2 — mirror each discharge group: the group TOTAL goes to every member's
+        # discharge entity (the EcoFlow STREAM mirrors a per-battery base-load to one
+        # group total). A member cut to 0 by its SoC floor is excluded from the total.
+        for members in self._discharge_groups.values():
+            total = sum(discharge[n] for n in members if n in discharge)
+            for n in members:
+                if n in discharge:
+                    discharge[n] = total
+        # Phase 3 — write.
+        for name, m in self._managed.items():
+            charge_w, discharge_w = charge[name], discharge[name]
             _LOGGER.debug(
                 "active-control %s: alloc=%+.0fW soc=%s -> charge=%.0fW discharge=%.0fW",
                 name,
-                allocated,
-                f"{soc:.0f}" if soc is not None else "?",
+                per_battery_w.get(name, 0.0),
+                f"{soc_by_device[name]:.0f}" if name in soc_by_device else "?",
                 charge_w,
                 discharge_w,
             )

@@ -151,6 +151,12 @@ class BatteryRole:
     minimum-SoC setpoint (%). SolarBalance raises it to the storm target during
     storm mode so a discharge-only-controllable battery is held and fills from PV,
     then restores it to the configured backup reserve afterwards."""
+    discharge_mirror_group: str | None = None
+    """Label grouping batteries whose *discharge* setpoint is a shared total mirrored
+    to each (e.g. the two EcoFlow STREAM batteries: writing 800 W to both base-loads
+    discharges 800 W total, not 1600). Batteries with the same non-empty label get the
+    group's total discharge written to each of their discharge entities; charge stays
+    per-battery. ``None`` = independent (current behaviour)."""
 
     def __post_init__(self) -> None:
         if self.power_entity is None and (

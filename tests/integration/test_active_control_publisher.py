@@ -222,6 +222,51 @@ async def test_verify_pv_limit_no_rewrite_when_in_tolerance() -> None:
     assert _calls(hass) == []
 
 
+async def test_discharge_mirror_group_totals_discharge_but_splits_charge() -> None:
+    # Two STREAM batteries grouped: the discharge TOTAL is mirrored to each base-load
+    # (800 to both = 800 total), while the charge stays per-battery.
+    def _batt(name: str, dis: str, chg: str) -> Device:
+        return Device(
+            name=name,
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=2000,
+                max_discharge_power_w=2000,
+                soc_entity="sensor.soc",
+                power_entity="sensor.power",
+                controllable=True,
+                active_control_enabled=True,
+                discharge_power_setpoint_entity=dis,
+                charge_power_setpoint_entity=chg,
+                discharge_mirror_group="stream",
+            ),
+        )
+
+    def _values(hass: MagicMock) -> dict[str, float]:
+        return {
+            c.args[2]["entity_id"]: c.args[2]["value"]
+            for c in hass.services.async_call.call_args_list
+        }
+
+    hass = _hass()
+    pub = ActiveControlPublisher(
+        hass,
+        [_batt("a", "number.dis_a", "number.chg_a"), _batt("b", "number.dis_b", "number.chg_b")],
+    )
+    # Discharge split -500 / -300 by the balancer → group total 800 mirrored to both.
+    await pub.apply({"a": -500.0, "b": -300.0}, {"a": 50.0, "b": 50.0})
+    vals = _values(hass)
+    assert vals["number.dis_a"] == 800.0
+    assert vals["number.dis_b"] == 800.0
+
+    # Charge stays per-battery (not mirrored).
+    hass.services.async_call.reset_mock()
+    await pub.apply({"a": 400.0, "b": 200.0}, {"a": 50.0, "b": 50.0})
+    vals = _values(hass)
+    assert vals["number.chg_a"] == 400.0
+    assert vals["number.chg_b"] == 200.0
+
+
 async def test_verify_rewrites_battery_charge_setpoint_that_didnt_land() -> None:
     # A STREAM that accepted charge=600 then reverted its charging_power_limit to 0:
     # verify must re-assert the commanded charge (the user-reported symptom).
