@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta36] — 2026-06-25
+
+### Fixed (yoyo de consigne STREAM quand une cloud finit sa charge)
+
+- **La consigne STREAM ne yoyote plus entre charger et sortir son PV.** Une batterie
+  cloud presque pleine charge par **rafales décroissantes** ; l'état interne « la cloud
+  charge » repassait sous le seuil **entre deux rafales**, ce qui faisait basculer
+  `no_charge_floor` (et `no_feed`) à chaque tick → la STREAM était **slammée entre
+  charger (~1200 W) et sortir tout son PV (~−1000 W)**, avec des pics d'injection réseau.
+  Cet état est désormais **latché avec hystérésis + dwell** (s'enclenche au-dessus du
+  seuil, ne se relâche qu'après être resté **bien en dessous** plusieurs ticks) →
+  `no_charge_floor`/`no_feed` ne clignotent plus, la consigne reste stable.
+
 ## [2.0.8-beta35] — 2026-06-25
 
 ### Fixed (round-trip nuit : la cloud basse se vidait dans la batterie pilotable haute)
@@ -1598,6 +1611,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta36]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta35...v2.0.8-beta36
 [2.0.8-beta35]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta34...v2.0.8-beta35
 [2.0.8-beta34]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta33...v2.0.8-beta34
 [2.0.8-beta33]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta32...v2.0.8-beta33

@@ -223,6 +223,11 @@ _CURTAIL_NEAR_FULL_HYST_PCT = 3.0
 # cloud guards. A dumb cloud battery charges in short bursts; ~0.2 (≈ 90 s at a 10 s
 # tick) averages them so the guards react to a sustained charge, not each blip.
 _NC_CHARGE_EMA_ALPHA = 0.2
+# Consecutive ticks the smoothed cloud-charge must stay well below the threshold before
+# the "cloud is charging" latch releases. A near-full cloud battery charges in decaying
+# bursts; without this the latch (and so no_charge_floor / no_feed) flapped tick-to-tick,
+# slamming the STREAM between charging and dumping its PV.
+_NC_CHARGING_RELEASE_DWELL_TICKS = 3
 # SoC-equaliser PV-routing back-off: shrink the allowance (decay) on a sustained
 # export (cloud not absorbing the routed PV), grow it (recover) only when there is
 # import headroom, hold in the grid deadband. Small steps so the output moves gently
@@ -610,6 +615,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._last_total_power_w: float | None = None
         # EMA state for the smoothed non-controllable (cloud) battery charge.
         self._nc_charge_smoothed_w: float | None = None
+        # Hysteretic latch for "a cloud battery is charging" + its release dwell counter.
+        self._nc_charging_latch: bool = False
+        self._nc_charging_release_ticks: int = 0
         # EMA of the whole-fleet battery power (W, + = charge) for the remaining-time
         # estimates; None until the first tick.
         self._battery_power_smoothed_w: float | None = None
@@ -1770,6 +1778,21 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 nc_charge_raw_w - self._nc_charge_smoothed_w
             )
         nc_charge_w = self._nc_charge_smoothed_w
+        # Hysteretic cloud-charging state. A near-full cloud battery charges in decaying
+        # bursts, so the smoothed value crosses the threshold repeatedly; latching it
+        # (engage above the hysteresis, release only after it stays below half for a
+        # dwell) stops the cloud guards (no_charge_floor / no_feed) — and so the STREAM
+        # setpoint — from flapping between charging and dumping its PV.
+        if nc_charge_w > self._zi_hysteresis_w:
+            self._nc_charging_latch = True
+            self._nc_charging_release_ticks = 0
+        elif self._nc_charging_latch:
+            if nc_charge_w < self._zi_hysteresis_w * 0.5:
+                self._nc_charging_release_ticks += 1
+                if self._nc_charging_release_ticks >= _NC_CHARGING_RELEASE_DWELL_TICKS:
+                    self._nc_charging_latch = False
+            else:
+                self._nc_charging_release_ticks = 0
         # Smoothed whole-fleet battery power for the time-to-full/empty estimates.
         total_battery_w = sum(b.power_w for b in snapshot.batteries if b.available)
         if self._battery_power_smoothed_w is None:
@@ -1865,8 +1888,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # could not force a discharge against local PV charging); it is applied
             # as a direct floor on the fleet target below (apply_equaliser_offer).
             force_offset_w = self._force_charge_grid_offset_w(snapshot)
-            nc_charge_offset_w = self._noncontrollable_charge_offset_w(
-                nc_charge_w, natural_grid_w, force_offset_w
+            # Only feed the cloud guards while the (hysteretic) latch says the cloud is
+            # charging, so a between-bursts dip can't drop the no_feed floor for a tick.
+            nc_charge_offset_w = (
+                self._noncontrollable_charge_offset_w(nc_charge_w, natural_grid_w, force_offset_w)
+                if self._nc_charging_latch
+                else 0.0
             )
             effective_setpoint_w = self._zi_setpoint_w + force_offset_w + nc_charge_offset_w
             if (
@@ -1953,9 +1980,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     ts, threshold=DEFAULT_COST_MIN_EXPENSIVE_THRESHOLD
                 ),
             )
-        # Smoothed cloud charge (computed above) feeds the no-charge floor and the
-        # no-feed / stop-cloud guards inside the clamp pipeline.
-        noncontrollable_charge_w = nc_charge_w
+        # The hysteretic cloud-charging latch (computed above) feeds the no-charge floor
+        # and the no-feed guard inside the clamp pipeline.
         # Whole aggregate-target clamp pipeline, extracted to a single pure function
         # (base target → equaliser offer → no-export → no-charge floor → no-feed /
         # stop-cloud → grid constraints). See core/controllers/regulation.
@@ -1984,7 +2010,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 grid_filtered_w=grid_filtered_w,
                 controllable_mppt_w=controllable_mppt_w,
                 nc_charge_offset_w=nc_charge_offset_w,
-                noncontrollable_charging=noncontrollable_charge_w > self._zi_hysteresis_w,
+                noncontrollable_charging=self._nc_charging_latch,
                 zi_hysteresis_w=self._zi_hysteresis_w,
                 no_battery_export=self._no_battery_export,
                 max_import_w=gc.max_import_w,

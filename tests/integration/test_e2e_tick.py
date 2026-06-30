@@ -272,6 +272,65 @@ async def test_meter_invert_sign_and_multi_mppt_sum(hass: HomeAssistant) -> None
 
 
 @pytest.mark.asyncio
+async def test_cloud_charging_latch_has_hysteresis(hass: HomeAssistant) -> None:
+    """The 'cloud is charging' state latches: a brief dip between charge bursts holds it
+    (so no_charge_floor/no_feed don't flap), and it releases only after a sustained drop."""
+    devices = [
+        Device(
+            name="stream",
+            battery=BatteryRole(
+                capacity_kwh=5.0,
+                max_charge_power_w=2000,
+                max_discharge_power_w=2000,
+                soc_entity="sensor.stream_soc",
+                power_entity="sensor.stream_power",
+                controllable=True,
+            ),
+        ),
+        Device(
+            name="jackery",
+            battery=BatteryRole(
+                capacity_kwh=1.0,
+                max_charge_power_w=1000,
+                max_discharge_power_w=1000,
+                soc_entity="sensor.jackery_soc",
+                power_entity="sensor.jackery_power",
+                controllable=False,
+            ),
+        ),
+    ]
+    meters = [Meter(name="pdl", kind=MeterKind.PDL, power_entity="sensor.grid_power")]
+    hass.data.setdefault(DOMAIN, {})[YAML_CONFIG_KEY] = (devices, meters, [], None, None)
+    for eid, val in (
+        ("sensor.grid_power", "0"),
+        ("sensor.stream_soc", "60"),
+        ("sensor.stream_power", "0"),
+        ("sensor.jackery_soc", "90"),
+        ("sensor.jackery_power", "200"),  # cloud charging (> 50 W hysteresis)
+    ):
+        hass.states.async_set(eid, val)
+    entry = MockConfigEntry(domain=DOMAIN, data=_ENTRY_DATA)
+    entry.add_to_hass(hass)
+    await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][entry.entry_id][COORDINATOR_KEY]
+    assert coordinator._nc_charging_latch is True
+
+    # Cloud stops; force the smoothed value below the release threshold to simulate a
+    # decayed burst. One tick must still hold the latch (dwell), not flap.
+    hass.states.async_set("sensor.jackery_power", "0")
+    coordinator._nc_charge_smoothed_w = 10.0  # < zi_hysteresis * 0.5 (25)
+    await coordinator.async_refresh()
+    await hass.async_block_till_done()
+    assert coordinator._nc_charging_latch is True  # held through the brief dip
+
+    for _ in range(3):  # sustained below threshold past the dwell → release
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+    assert coordinator._nc_charging_latch is False
+
+
+@pytest.mark.asyncio
 async def test_cloud_relief_covers_home_when_fleet_higher_at_night(hass: HomeAssistant) -> None:
     """Night anti-round-trip: no PV + a higher-SoC fleet → discharge it to cover the home
     (so the lower cloud battery stops draining into it), capped at the home load."""
