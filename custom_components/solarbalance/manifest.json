@@ -1,7 +1,7 @@
 {
   "domain": "solarbalance",
   "name": "SolarBalance",
-  "version": "2.0.8-beta43",
+  "version": "2.0.8-beta44",
   "codeowners": ["@lachand"],
   "config_flow": true,
   "dependencies": ["frontend", "http", "panel_custom"],

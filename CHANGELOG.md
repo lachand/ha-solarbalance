@@ -37,6 +37,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta44] — 2026-07-01
+
+### Fixed
+
+- **Écriture d'une consigne hors plage de l'entité (`ServiceValidationError` en boucle).**
+  Une batterie STREAM dont le `charging_power_limit` plafonne sous l'allocation (p. ex.
+  1050 W alors que le régulateur demandait 1100 W) faisait échouer `number.set_value`
+  (« Value 1100.0 … outside valid range 0 - 1050 ») **à chaque tick** : le latch mémorisait
+  la valeur non appliquée, `verify_writes` relisait 1050, voyait un écart et réécrivait 1100
+  → **spam d'ERROR + réécriture sans fin**. Les écritures de puissance (charge/décharge/PV
+  limit) et de réserve sont désormais **bornées au `min`/`max` déclarés par l'entité** avant
+  l'appel de service ; le latch retient la valeur bornée, donc la vérification se stabilise.
+  À corriger aussi côté config : aligner `max_charge_power_w` du device sur la vraie limite
+  de l'entité, et supprimer un éventuel device STREAM en double pointant la même entité.
+
 ## [2.0.8-beta43] — 2026-07-01
 
 ### Added
@@ -1697,6 +1712,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta44]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta43...v2.0.8-beta44
 [2.0.8-beta43]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta42...v2.0.8-beta43
 [2.0.8-beta42]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta41...v2.0.8-beta42
 [2.0.8-beta41]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta40...v2.0.8-beta41

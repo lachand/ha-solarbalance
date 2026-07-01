@@ -222,6 +222,25 @@ async def test_verify_pv_limit_no_rewrite_when_in_tolerance() -> None:
     assert _calls(hass) == []
 
 
+async def test_power_write_clamped_to_entity_range() -> None:
+    # A STREAM charging_power_limit maxes out below the allocation (e.g. 1050 W): the
+    # write must clamp to the entity range, not send 1100 W (which raises
+    # ServiceValidationError) and then re-write it forever via verify.
+    from types import SimpleNamespace
+
+    hass = _hass()
+    hass.states.get = lambda eid: SimpleNamespace(state="1050", attributes={"min": 0, "max": 1050})
+    pub = ActiveControlPublisher(hass, [_device("a", entity="number.dis_a")])
+    await pub.apply({"a": -1100.0}, {"a": 50.0})
+    # Commanded 1100 → clamped to the entity's 1050 ceiling for the actual write.
+    assert _calls(hass) == [("number", "set_value", {"entity_id": "number.dis_a", "value": 1050.0})]
+    # The latch holds the clamped 1050, matching the readback → verify does NOT re-write
+    # (no ServiceValidationError loop).
+    hass.services.async_call.reset_mock()
+    await pub.verify_writes()
+    assert _calls(hass) == []
+
+
 async def test_discharge_mirror_group_totals_discharge_but_splits_charge() -> None:
     # Two STREAM batteries grouped: the discharge TOTAL is mirrored to each base-load
     # (800 to both = 800 total), while the charge stays per-battery.

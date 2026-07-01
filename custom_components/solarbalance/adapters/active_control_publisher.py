@@ -167,6 +167,7 @@ class ActiveControlPublisher:
                 await self._write_reserve(entity_id, soc_by_device[name])
 
     async def _write_reserve(self, entity_id: str, value_pct: float) -> None:
+        value_pct = self._clamp_to_entity_range(entity_id, value_pct)
         last = self._last_reserve.get(entity_id)
         if last is not None and abs(last - value_pct) < 0.5:
             return
@@ -423,9 +424,47 @@ class ActiveControlPublisher:
             if m.charge_entity is not None:
                 await self._write_power(m.charge_entity, 0.0)
 
+    def _clamp_to_entity_range(self, entity_id: str, value: float) -> float:
+        """Clamp a value to the target number entity's declared ``min``/``max``.
+
+        A ``number`` exposes its valid range as attributes; ``number.set_value`` raises
+        ``ServiceValidationError`` for anything outside it. Writing e.g. 1100 W to a
+        STREAM ``charging_power_limit`` capped at 1050 W then fails *every* tick and,
+        because the latch would store the un-applied 1100, ``verify_writes`` reads back
+        1050, sees a mismatch and re-writes 1100 forever. Clamping first makes the write
+        land and the latch hold a reachable value, so the loop settles.
+        """
+        state = self._hass.states.get(entity_id)
+        if state is None:
+            return value
+        attrs = getattr(state, "attributes", None)
+        if not isinstance(attrs, Mapping):
+            return value
+        lo = attrs.get("min")
+        hi = attrs.get("max")
+        clamped = value
+        try:
+            if hi is not None and clamped > float(hi):
+                clamped = float(hi)
+            if lo is not None and clamped < float(lo):
+                clamped = float(lo)
+        except (TypeError, ValueError):
+            return value
+        if abs(clamped - value) > _WRITE_EPSILON_W:
+            _LOGGER.debug(
+                "Active control: %s clamped %.0f -> %.0f (entity range %s..%s)",
+                entity_id,
+                value,
+                clamped,
+                lo,
+                hi,
+            )
+        return clamped
+
     async def _write_power(
         self, entity_id: str, value_w: float, *, blocking: bool = False, force: bool = False
     ) -> None:
+        value_w = self._clamp_to_entity_range(entity_id, value_w)
         last = self._last_power.get(entity_id)
         if not force and last is not None and abs(last - value_w) < _WRITE_EPSILON_W:
             return
