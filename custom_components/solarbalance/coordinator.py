@@ -1805,6 +1805,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         eq_bias_w = 0.0
         eq_discharge_floor_w: float | None = None
         nc_charge_offset_w = 0.0
+        force_offset_w = 0.0
+        cloud_relief_w = 0.0
+        effective_setpoint_w = self._zi_setpoint_w
         zi_regulating = (
             self._zi_enabled and self._mode in (HemsMode.NORMAL, HemsMode.VACATION) and not red_prep
         )
@@ -2071,6 +2074,53 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             autotune_equaliser_step_w=self._eq_tuner.value if self._eq_tuner else 0.0,
         )
         self._autotune_suggestions()
+
+        # One comprehensive per-tick line for debugging the regulation (enable DEBUG on
+        # custom_components.solarbalance). Everything that decides the fleet target and
+        # the binding, correlated on the same tick — so a yoyo is explainable from logs
+        # alone. Per battery: "soc%/power" (+charge/-discharge), "!" = stale, "x" =
+        # unavailable. loop_base = velocity-form base for next tick (windup shows here).
+        if _LOGGER.isEnabledFor(logging.DEBUG):
+            batt = {
+                b.device_name: (
+                    f"{b.soc_pct:.0f}%/{b.power_w:+.0f}"
+                    + ("!" if b.stale else "")
+                    + ("x" if not b.available else "")
+                )
+                for b in snapshot.batteries
+            }
+            _LOGGER.debug(
+                "tick mode=%s zi_reg=%s settle=%s | grid=%.0f nat=%.0f setpt=%.0f "
+                "(force=%.0f nc_off=%.0f) | fleet=%.0f mppt=%.0f hidden=%.0f batt=%s | "
+                "nc=%.0f latch=%s | loop_base=%.0f zi=%.0f eq=%.0f relief=%.0f floor=%s "
+                "relax=%.2f nearfull=%s | target=%.0f bind=%s | per=%s unalloc=%.0f pvlim=%.0f",
+                self._mode.value,
+                zi_regulating,
+                self._settle_state.active,
+                grid_filtered_w,
+                natural_grid_w,
+                effective_setpoint_w,
+                force_offset_w,
+                nc_charge_offset_w,
+                current_fleet_w,
+                controllable_mppt_w,
+                hidden_pv_w,
+                batt,
+                nc_charge_w,
+                self._nc_charging_latch,
+                self._last_total_power_w,
+                zi_correction_w,
+                eq_bias_w,
+                cloud_relief_w,
+                f"{eq_discharge_floor_w:.0f}" if eq_discharge_floor_w is not None else "-",
+                self._eq_pv_relax,
+                near_full,
+                total_power_w,
+                regulation_result.binding,
+                {k: round(v) for k, v in balancing_result.per_battery_w.items()},
+                balancing_result.unallocated_w,
+                pv_limit_total,
+            )
 
         # Surplus available to pilotable loads: the export we would still have
         # after the controllable fleet takes its allocated charge. Uses the

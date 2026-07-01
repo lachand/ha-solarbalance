@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta42] — 2026-06-25
+
+### Added
+
+- **Ligne de debug complète par tick** (niveau DEBUG sur `custom_components.solarbalance`)
+  pour diagnostiquer la régulation / les yoyo depuis les logs seuls. Une ligne unique par
+  tick, tout corrélé : mode, ZI actif, settle ; réseau brut + naturel + setpoint effectif
+  (avec force-offset & offset cloud) ; fleet mesuré, mppt contrôlable, PV caché ; **SoC +
+  puissance par batterie** (dont cloud, marqueurs stale/indispo) ; charge cloud lissée +
+  latch ; **loop_base** (base velocity-form → montre le windup), correction ZI, offre
+  équaliseur, cloud-relief, plancher décharge, back-off, near_full ; **cible + binding** ;
+  allocations par batterie, non-alloué, limite PV.
+
 ## [2.0.8-beta41] — 2026-06-25
 
 ### Fixed
@@ -1674,6 +1687,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta42]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta41...v2.0.8-beta42
 [2.0.8-beta41]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta40...v2.0.8-beta41
 [2.0.8-beta40]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta39...v2.0.8-beta40
 [2.0.8-beta39]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta38...v2.0.8-beta39
