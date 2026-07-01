@@ -20,6 +20,12 @@ from ..models import BatteryRole, BatteryState, Device
 _MAX_ITER = 32
 _RESIDUAL_TOLERANCE_W = 1.0
 _EQUALISER_EPSILON = 1e-3
+# Stop allocating discharge this far ABOVE the SoC floor. A battery near its floor (or
+# its device's backup reserve, which the box maintains a little above) won't actually
+# discharge — commanding it anyway winds the zero-injection loop up (the morning
+# "wants to charge before it can discharge" case). Excluding it early lets the
+# anti-windup relax the command instead.
+_DISCHARGE_SOC_MARGIN_PCT = 2.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -147,7 +153,7 @@ class BalancingController:
                 continue
             if total_power_w > 0 and state.soc_pct >= role.soc_max_pct:
                 continue
-            if total_power_w < 0 and state.soc_pct <= role.soc_min_pct:
+            if total_power_w < 0 and state.soc_pct <= role.soc_min_pct + _DISCHARGE_SOC_MARGIN_PCT:
                 continue
             # Anti-short-cycle guard: block direction reversal during dwell window.
             if now is not None and self._min_dwell_s > 0 and requested_dir != 0:

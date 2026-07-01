@@ -37,6 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta40] — 2026-06-25
+
+### Fixed
+
+- **Windup matinal quand une batterie est près de sa réserve.** Le matin, une batterie
+  juste au-dessus de son plancher (`soc_min`, ou la réserve que la box maintient un peu
+  au-dessus) « veut charger avant de pouvoir décharger » ; SB lui commandait quand même
+  une décharge que la box refuse → la boucle zéro-injection **s'enroulait** (fleet target
+  géant, ex. −1161 W bloqué). Le balancer **exclut désormais la décharge dans une marge
+  de 2 %** au-dessus du plancher → l'anti-windup relâche la commande au lieu de rester
+  coincé. (Aligne aussi le comportement quand `soc_min < backup_reserve`.)
+
 ## [2.0.8-beta39] — 2026-06-25
 
 ### Fixed
@@ -1648,6 +1660,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta40]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta39...v2.0.8-beta40
 [2.0.8-beta39]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta38...v2.0.8-beta39
 [2.0.8-beta38]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta37...v2.0.8-beta38
 [2.0.8-beta37]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta36...v2.0.8-beta37

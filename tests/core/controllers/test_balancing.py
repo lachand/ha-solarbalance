@@ -5,11 +5,36 @@ from dataclasses import replace
 import pytest
 
 from custom_components.solarbalance.core.controllers.balancing import BalancingController
-from custom_components.solarbalance.core.models import BatteryState, Device
+from custom_components.solarbalance.core.models import BatteryRole, BatteryState, Device
 
 
 def _state(device_name: str, soc_pct: float, *, available: bool = True) -> BatteryState:
     return BatteryState(device_name=device_name, soc_pct=soc_pct, power_w=0.0, available=available)
+
+
+def test_discharge_excluded_within_soc_margin_of_floor() -> None:
+    # A battery just above its floor gets no discharge (anti-windup margin) — the box
+    # won't discharge that close to its reserve, so commanding it only winds the loop up.
+    dev = Device(
+        name="b",
+        battery=BatteryRole(
+            capacity_kwh=5.0,
+            max_charge_power_w=2000,
+            max_discharge_power_w=2000,
+            soc_entity="sensor.s",
+            power_entity="sensor.p",
+            soc_min_pct=20,
+            controllable=True,
+        ),
+    )
+    ctrl = BalancingController([dev], alpha=1.0)
+    # 21 % is within the 2 % margin of the 20 % floor → excluded (loop can relax).
+    near = ctrl.allocate(total_power_w=-500.0, states={"b": _state("b", 21.0)})
+    assert near.per_battery_w == {}
+    assert near.unallocated_w == -500.0
+    # Clear of the margin → discharge allocated normally.
+    clear = ctrl.allocate(total_power_w=-500.0, states={"b": _state("b", 25.0)})
+    assert clear.per_battery_w["b"] == pytest.approx(-500.0, abs=2.0)
 
 
 class TestBalancingController:
