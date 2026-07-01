@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta41] — 2026-06-25
+
+### Fixed
+
+- **Yoyo matinal `base ↔ no_charge_floor ↔ no_feed` (auto-oscillation du garde-fou).**
+  Le `no_charge_floor` s'activait dès que le **réseau brut** était ~0 — or le matin le
+  parc **charge son propre surplus PV**, ce qui *maintient* le réseau à ~0 → le garde-fou
+  **forçait la sortie du PV** → export → désactivation → recharge → oscillation (et le
+  `no_feed` apparaissait sur les ticks de sortie forcée). Il tient maintenant compte du
+  **réseau naturel** (`grid − parc`) : si le parc **absorbe un vrai surplus PV** (réseau
+  naturel exportateur **et** PV contrôlable réel), on **ne force plus la sortie**. Le
+  garde-fou anti-round-trip reste actif quand il n'y a **pas de PV** (nuit + cloud qui se
+  décharge) et quand le réseau brut n'exporte pas sans surplus.
+
 ## [2.0.8-beta40] — 2026-06-25
 
 ### Fixed
@@ -1660,6 +1674,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta41]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta40...v2.0.8-beta41
 [2.0.8-beta40]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta39...v2.0.8-beta40
 [2.0.8-beta39]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta38...v2.0.8-beta39
 [2.0.8-beta38]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta37...v2.0.8-beta38

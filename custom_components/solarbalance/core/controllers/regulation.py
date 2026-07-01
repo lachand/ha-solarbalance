@@ -243,16 +243,22 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
                 ),
                 "no_export",
             )
-        # No-charge floor: in surplus (and no cloud battery absorbing it, no
-        # equaliser charge intent), don't charge from the grid / a discharging
-        # cloud battery — floor the output at the fleet's own solar.
-        # Near full, the floor relaxes from -mppt (output ALL the PV) to 0 (charge up
-        # to the PV but never from the grid/cloud): we WANT the battery to keep topping
-        # up gently from its own solar toward 100 % (it tapers on its own) instead of
-        # being forced to output it, while still refusing a grid/cloud round-trip
-        # charge. The inverter curtailment trims any genuine excess to the baseline.
+        # No-charge floor: when the grid isn't exporting, don't charge from the grid / a
+        # discharging cloud battery — floor the output at the fleet's own solar. Exception:
+        # a fleet already charging a real PV surplus holds the raw grid at ~0; testing only
+        # the raw grid then wrongly forced it to output its PV (a charge↔output morning
+        # oscillation). So also skip the floor when the *natural* grid (grid - fleet) is
+        # exporting AND there is real controllable PV -- i.e. the fleet is absorbing its own
+        # solar. The PV requirement keeps a cloud battery *discharging* at night (no PV)
+        # triggering the floor — no round-trip. Near full, the floor relaxes from -mppt
+        # (output ALL the PV) to 0 (charge up to the PV, never from grid/cloud).
+        natural_grid_w = inp.grid_filtered_w - inp.current_fleet_w
+        fleet_absorbing_pv_surplus = (
+            natural_grid_w < -inp.zi_hysteresis_w and inp.controllable_mppt_w > inp.zi_hysteresis_w
+        )
         if (
             inp.grid_filtered_w >= -inp.zi_hysteresis_w
+            and not fleet_absorbing_pv_surplus
             and inp.eq_bias_w >= 0.0
             and not inp.noncontrollable_charging
         ):

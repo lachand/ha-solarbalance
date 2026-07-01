@@ -45,6 +45,34 @@ class TestResolveTotalPower:
         )
         assert out.total_w == pytest.approx(-200.0)
 
+    def test_no_charge_floor_allows_charging_a_real_pv_surplus(self) -> None:
+        # Fleet already charging its PV surplus holds the raw grid ~0, but the *natural*
+        # grid exports and there is real PV → don't force output (the morning yoyo).
+        out = resolve_total_power(
+            _inp(
+                grid_filtered_w=0.0,
+                current_fleet_w=500.0,
+                zi_correction_w=100.0,
+                controllable_mppt_w=600.0,
+            )
+        )
+        assert out.total_w == pytest.approx(600.0)  # charges (500 + 100), not floored
+        assert out.binding == "base"
+
+    def test_no_charge_floor_fires_without_pv_even_if_natural_grid_exports(self) -> None:
+        # No PV (a cloud battery discharging at night looks like a surplus on the natural
+        # grid): the floor must still fire to block a round-trip, not allow charging.
+        out = resolve_total_power(
+            _inp(
+                grid_filtered_w=0.0,
+                current_fleet_w=500.0,
+                zi_correction_w=100.0,
+                controllable_mppt_w=0.0,
+            )
+        )
+        assert out.total_w == pytest.approx(0.0)  # floored at -mppt (=0) → no charge
+        assert out.binding == "no_charge_floor"
+
     def test_no_charge_floor_near_full_allows_pv_self_charge_not_grid(self) -> None:
         # Near full: charge the battery's own PV (floor relaxes to 0, not forced to
         # -mppt output) but still refuse a grid/cloud charge (capped at 0, not +500).
