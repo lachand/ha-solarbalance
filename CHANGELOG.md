@@ -37,6 +37,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta43] — 2026-07-01
+
+### Added
+
+- **`wr=` dans la ligne de debug par tick** — la consigne réellement **écrite** sur chaque
+  batterie (`"<charge>c<décharge>d"`, après la coupe SoC et le mirror de décharge). Plus
+  besoin de croiser avec les lignes `active-control` séparées : le tick complet, décision
+  *et* écriture, tient sur une seule ligne. La ligne est maintenant émise **après** les
+  écritures (le flag `settle` affiché reste celui qui a piloté ce tick).
+
 ## [2.0.8-beta42] — 2026-06-25
 
 ### Added
@@ -1687,6 +1697,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta43]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta42...v2.0.8-beta43
 [2.0.8-beta42]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta41...v2.0.8-beta42
 [2.0.8-beta41]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta40...v2.0.8-beta41
 [2.0.8-beta40]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta39...v2.0.8-beta40

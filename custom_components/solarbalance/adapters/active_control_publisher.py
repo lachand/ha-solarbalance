@@ -152,6 +152,14 @@ class ActiveControlPublisher:
             return None
         return pair[0] if charge else pair[1]
 
+    def written_setpoints(self) -> dict[str, tuple[float, float]]:
+        """Every managed device's last written ``(charge_w, discharge_w)`` pair.
+
+        Post SoC-cut and post discharge-mirror — i.e. what was actually commanded to
+        the hardware, for the per-tick regulation debug line.
+        """
+        return dict(self._last_setpoints)
+
     async def apply_reserve(self, soc_by_device: Mapping[str, float]) -> None:
         """Write each battery's backup-reserve / min-SoC setpoint (%)."""
         for name, entity_id in self._reserve_entities.items():
