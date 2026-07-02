@@ -342,6 +342,14 @@ class RegulationDiagnostics:
     # SoC-equaliser PV-routing back-off factor (1.0 = fully allowed, 0 = fully
     # backed off because the cloud battery isn't absorbing the routed PV).
     eq_pv_route_relax: float = 1.0
+    # Extra per-tick internals for the live "debug" dashboard view (the tick log line):
+    loop_base_w: float = 0.0  # velocity-form base (last commanded total); windup shows here
+    current_fleet_w: float = 0.0  # measured controllable fleet power
+    controllable_mppt_w: float = 0.0
+    unallocated_w: float = 0.0  # aggregate the balancer could not place (saturation)
+    nc_charge_w: float = 0.0  # smoothed non-controllable (cloud) charge
+    settle_active: bool = False
+    noncontrollable_charging: bool = False
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -2072,6 +2080,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             eq_pv_route_relax=self._eq_pv_relax,
             autotune_zi_kp=self._zi_tuner.value if self._zi_tuner else 0.0,
             autotune_equaliser_step_w=self._eq_tuner.value if self._eq_tuner else 0.0,
+            loop_base_w=self._last_total_power_w,
+            current_fleet_w=current_fleet_w,
+            controllable_mppt_w=controllable_mppt_w,
+            unallocated_w=balancing_result.unallocated_w,
+            nc_charge_w=nc_charge_w,
+            settle_active=self._settle_state.active,
+            noncontrollable_charging=self._nc_charging_latch,
         )
         self._autotune_suggestions()
 

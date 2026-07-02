@@ -801,6 +801,9 @@
       "regulation_binding": {
         "name": "Garde-fou actif"
       },
+      "regulation_debug": {
+        "name": "Debug régulation"
+      },
       "consumption_forecast_now": {
         "name": "Conso prévue (heure courante)"
       },

@@ -142,6 +142,8 @@ class ActiveControlPublisher:
         # case: its members each own a distinct base-load entity (the group total is
         # mirrored across those separate entities).
         seen: dict[str, str] = {}
+        # entity_id -> "deviceA & deviceB", surfaced on the dashboard health card.
+        self._duplicate_entities: dict[str, str] = {}
         for name, m in managed.items():
             for eid in (m.charge_entity, m.discharge_entity, m.mode_entity):
                 if eid is None:
@@ -155,8 +157,12 @@ class ActiveControlPublisher:
                         name,
                         eid,
                     )
+                    self._duplicate_entities[eid] = f"{seen[eid]} & {name}"
                 else:
                     seen[eid] = name
+        # entity_id -> commanded W that the last verify pass found not applied (write
+        # that didn't stick, e.g. a STREAM base_load the box reverts). For the health card.
+        self._verify_failures: dict[str, float] = {}
 
     @property
     def enabled(self) -> bool:
@@ -234,6 +240,7 @@ class ActiveControlPublisher:
         over BLE so a just-sent value needs time to read back. Logs a warning so a
         setpoint that never sticks is visible, not silent.
         """
+        failures: dict[str, float] = {}
         for entity_id, commanded in list(self._last_power.items()):
             state = self._hass.states.get(entity_id)
             if state is None or state.state in ("unknown", "unavailable"):
@@ -250,7 +257,21 @@ class ActiveControlPublisher:
                     actual,
                     commanded,
                 )
+                failures[entity_id] = commanded
                 await self._write_power(entity_id, commanded, force=True)
+        self._verify_failures = failures
+
+    def verify_failures(self) -> dict[str, float]:
+        """Entities whose last verify found the write not applied (entity_id -> commanded W).
+
+        A STREAM that reverts its ``base_load`` near the box reserve shows up here — so the
+        dashboard can flag "the box isn't honouring the setpoint" without reading the logs.
+        """
+        return dict(self._verify_failures)
+
+    def duplicate_entities(self) -> dict[str, str]:
+        """Setpoint entities written by more than one device (entity_id -> "A & B")."""
+        return dict(self._duplicate_entities)
 
     async def apply(
         self,

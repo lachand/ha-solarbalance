@@ -150,6 +150,7 @@ class EntityReader:
                 if device.battery.cycles_entity
                 else None
             )
+            reason, age_s = self._battery_staleness(device.battery)
             states.append(
                 BatteryState(
                     device_name=device.name,
@@ -158,17 +159,18 @@ class EntityReader:
                     temperature_c=temperature,
                     cycles=cycles,
                     available=available,
-                    stale=self._is_battery_stale(device.battery),
+                    stale=reason is not None,
+                    stale_reason=reason,
+                    stale_age_s=age_s,
                 )
             )
         return tuple(states)
 
-    def _is_battery_stale(self, battery: object) -> bool:
-        """True when the battery's SoC or power source hasn't refreshed within the limit.
+    def _battery_staleness(self, battery: object) -> tuple[str | None, float | None]:
+        """Return ``(reason, age_s)`` when the battery's data is stale, else ``(None, None)``.
 
-        Used to flag a cloud battery whose data lags so its (untrustworthy) SoC/power is
-        ignored by the per-battery guards and the SoC equaliser. ``stale_s <= 0`` disables
-        the check.
+        ``reason`` is ``"soc"`` or ``"power"`` — the signal that timed out — and ``age_s`` its
+        age. Lets the dashboard show *why* a battery is offline. ``stale_s <= 0`` disables it.
 
         SoC is the signal the equaliser and the cloud-charge guards steer on: an unplugged
         cloud station keeps reporting its *last* SoC, so an old SoC alone means stale — its
@@ -177,11 +179,11 @@ class EntityReader:
         cadences), so they flag stale only when *every* present power entity is old.
         """
         if self._stale_s <= 0:
-            return False
+            return (None, None)
         soc_entity = getattr(battery, "soc_entity", None)
         soc_age = self._entity_age_s(soc_entity) if soc_entity else None
         if soc_age is not None and soc_age > self._stale_s:
-            return True
+            return ("soc", soc_age)
         entities = [
             getattr(battery, "power_entity", None),
             getattr(battery, "charge_power_entity", None),
@@ -190,7 +192,9 @@ class EntityReader:
         ages = [age for e in entities if e for age in (self._entity_age_s(e),) if age is not None]
         # Stale only if every present power source is old (a missing entity is not
         # evidence of freshness, but at least one fresh source means not stale).
-        return bool(ages) and min(ages) > self._stale_s
+        if ages and min(ages) > self._stale_s:
+            return ("power", min(ages))
+        return (None, None)
 
     def _entity_age_s(self, entity_id: str) -> float | None:
         """Seconds since the entity last updated, or None if it has no state."""

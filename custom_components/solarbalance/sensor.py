@@ -100,6 +100,7 @@ async def async_setup_entry(
             coordinator, entry, "natural_grid_w", "natural_grid", "mdi:transmission-tower"
         ),
         SolarBalanceRegulationBindingSensor(coordinator, entry),
+        SolarBalanceRegulationDebugSensor(coordinator, entry),
         SolarBalanceConsumptionForecastSensor(coordinator, entry),
         SolarBalanceConsumptionForecastErrorSensor(coordinator, entry),
     ]
@@ -889,16 +890,29 @@ class SolarBalanceBatteryMetricSensor(_SolarBalanceSensor):
         return round(state.temperature_c, 1) if state.temperature_c is not None else None
 
     @property
-    def extra_state_attributes(self) -> dict[str, bool] | None:
-        # Expose staleness so the UI can flag a battery whose SoC/power stopped
-        # refreshing (e.g. a cloud station in timeout) — shown amber on the panel.
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        # Expose staleness (+ why) so the UI can flag a battery whose SoC/power stopped
+        # refreshing (a cloud station in timeout) — amber card with the cause. On the SoC
+        # metric also expose the floor/ceiling and role for the gauge marker + role badge.
         snap: Snapshot | None = self.coordinator.data
         if snap is None:
             return None
         state = next((b for b in snap.batteries if b.device_name == self._device_name), None)
         if state is None:
             return None
-        return {"stale": state.stale}
+        attrs: dict[str, object] = {
+            "stale": state.stale,
+            "stale_reason": state.stale_reason,
+            "stale_age_s": round(state.stale_age_s) if state.stale_age_s is not None else None,
+        }
+        if self._metric == "soc":
+            dev = next((d for d in self.coordinator._devices if d.name == self._device_name), None)
+            if dev is not None and dev.battery is not None:
+                attrs["soc_min_pct"] = dev.battery.soc_min_pct
+                attrs["soc_max_pct"] = dev.battery.soc_max_pct
+                attrs["controllable"] = dev.battery.controllable
+                attrs["role"] = "controllable" if dev.battery.controllable else "cloud"
+        return attrs
 
 
 class SolarBalanceBatterySohSensor(_SolarBalanceSensor):
@@ -1149,6 +1163,70 @@ class SolarBalanceRegulationBindingSensor(_SolarBalanceSensor):
     @property
     def native_value(self) -> str:
         return self.coordinator.diagnostics.regulation_binding
+
+
+class SolarBalanceRegulationDebugSensor(_SolarBalanceSensor):
+    """All per-tick regulation internals in one entity's attributes (diagnostic).
+
+    Mirrors the DEBUG tick log line for the dashboard's live "debug" view and the health
+    card — so a yoyo (and unapplied writes / duplicate devices / stale batteries) is
+    diagnosable without opening the logs. State = the current binding; details in attributes.
+    """
+
+    _attr_translation_key = "regulation_debug"
+    _attr_icon = "mdi:bug-outline"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "diag_regulation_debug")
+
+    @property
+    def native_value(self) -> str:
+        return self.coordinator.diagnostics.regulation_binding
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        d = self.coordinator.diagnostics
+        ac = self.coordinator._active_control
+        balancing = self.coordinator.publisher.latest_balancing
+        per = dict(balancing.per_battery_w) if balancing is not None else {}
+        written = {
+            name: {"charge_w": round(c, 0), "discharge_w": round(dis, 0)}
+            for name, (c, dis) in ac.written_setpoints().items()
+        }
+        stale = [
+            {
+                "device": b.device_name,
+                "reason": b.stale_reason,
+                "age_s": round(b.stale_age_s) if b.stale_age_s is not None else None,
+            }
+            for b in (self.coordinator.data.batteries if self.coordinator.data else ())
+            if b.stale
+        ]
+        return {
+            "binding": d.regulation_binding,
+            "target_w": round(d.fleet_target_w),
+            "loop_base_w": round(d.loop_base_w),
+            "zi_correction_w": round(d.zero_injection_correction_w),
+            "equaliser_offer_w": round(d.equaliser_offer_w),
+            "grid_filtered_w": round(d.grid_filtered_w),
+            "natural_grid_w": round(d.natural_grid_w),
+            "current_fleet_w": round(d.current_fleet_w),
+            "controllable_mppt_w": round(d.controllable_mppt_w),
+            "hidden_pv_w": round(d.eq_hidden_pv_w),
+            "unallocated_w": round(d.unallocated_w),
+            "nc_charge_w": round(d.nc_charge_w),
+            "pv_limit_w": round(d.pv_limit_w),
+            "eq_pv_route_relax": round(d.eq_pv_route_relax, 2),
+            "settle": d.settle_active,
+            "noncontrollable_charging": d.noncontrollable_charging,
+            "regulating": d.regulating,
+            "per_battery_w": {k: round(v) for k, v in per.items()},
+            "written_setpoints": written,
+            "verify_failures": ac.verify_failures(),
+            "duplicate_entities": ac.duplicate_entities(),
+            "stale_batteries": stale,
+        }
 
 
 class SolarBalanceAutotuneKpSensor(_SolarBalanceSensor):

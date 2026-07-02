@@ -366,6 +366,10 @@ class BatteryState:
     # cloud battery whose values lag). Its *power* is then untrustworthy, so the
     # power-based per-battery guards skip it (the grid loop keeps regulating).
     stale: bool = False
+    # Which signal triggered staleness ("soc" or "power") and its age in seconds,
+    # for a human-readable "why" on the dashboard. None when fresh.
+    stale_reason: str | None = None
+    stale_age_s: float | None = None
 
 
 def capacity_weighted_soc_pct(entries: Iterable[tuple[float, float]]) -> float | None:

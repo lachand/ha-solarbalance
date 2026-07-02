@@ -251,6 +251,32 @@ async def test_verify_pv_limit_no_rewrite_when_in_tolerance() -> None:
     assert _calls(hass) == []
 
 
+async def test_verify_failures_exposed_for_dashboard() -> None:
+    from types import SimpleNamespace
+
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_mppt_device("pv", entity="number.pv_limit")])
+    await pub.apply_pv_limits({"pv": 800.0})
+    hass.states.get = lambda eid: SimpleNamespace(state="0")  # didn't land
+    await pub.verify_writes()
+    assert pub.verify_failures() == {"number.pv_limit": 800.0}
+    # Once it applies, the failure clears.
+    hass.states.get = lambda eid: SimpleNamespace(state="800")
+    await pub.verify_writes()
+    assert pub.verify_failures() == {}
+
+
+def test_duplicate_entities_exposed_for_dashboard() -> None:
+    pub = ActiveControlPublisher(
+        _hass(),
+        [
+            _device("stream", entity=None, charge_entity="number.chg_shared"),
+            _device("stream_60605", entity=None, charge_entity="number.chg_shared"),
+        ],
+    )
+    assert pub.duplicate_entities() == {"number.chg_shared": "stream & stream_60605"}
+
+
 async def test_power_write_clamped_to_entity_range() -> None:
     # A STREAM charging_power_limit maxes out below the allocation (e.g. 1050 W): the
     # write must clamp to the entity range, not send 1100 W (which raises

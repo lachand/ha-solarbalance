@@ -801,6 +801,9 @@
       "regulation_binding": {
         "name": "Active clamp"
       },
+      "regulation_debug": {
+        "name": "Regulation debug"
+      },
       "consumption_forecast_now": {
         "name": "Forecast consumption (now)"
       },

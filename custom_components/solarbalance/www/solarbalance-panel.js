@@ -96,6 +96,34 @@ const STR_EN = {
   "Prévision PV": "PV forecast",
   "Solaire seulement": "Solar only",
   "Hors ligne": "Offline",
+  "SoC figé": "SoC frozen",
+  "puissance figée": "power frozen",
+  "hors ligne": "offline",
+  cloud: "cloud",
+  plancher: "floor",
+  "Consigne / mesuré": "Setpoint / measured",
+  "Le boîtier ne suit pas la consigne": "The device is not following the setpoint",
+  "Santé": "Health",
+  "Device en double": "Duplicate device",
+  "Écriture non appliquée": "Write not applied",
+  "Mode dégradé — entités indisponibles": "Degraded mode — entities unavailable",
+  "Baseline négative": "Negative baseline",
+  Cible: "Target",
+  "Parc réel": "Actual fleet",
+  "Bridage PV": "PV curtailment",
+  "bridé": "capped",
+  "PV caché estimé": "Estimated hidden PV",
+  "Debug régulation (live)": "Regulation debug (live)",
+  "Contrôles rapides": "Quick controls",
+  Pause: "Pause",
+  Reprendre: "Resume",
+  "Charger 100%": "Charge to 100%",
+  "Décharger 20%": "Discharge to 20%",
+  "Mode tempête": "Storm mode",
+  "Forcer la charge à 100% ?": "Force charge to 100%?",
+  "Forcer la décharge à 20% ?": "Force discharge to 20%?",
+  "Activer le mode tempête ?": "Activate storm mode?",
+  "SoC par batterie": "SoC per battery",
 };
 
 class SolarBalancePanel extends HTMLElement {
@@ -111,6 +139,8 @@ class SolarBalancePanel extends HTMLElement {
     this._fetching = false;
     this._window = 6; // hours
     this._timer = null;
+    this._regHist = []; // ring buffer {t, target, fleet} for the regulation sparkline
+    this._debugOpen = false; // live-debug section collapsed by default
     this._onClick = this._onClick.bind(this);
   }
 
@@ -118,8 +148,21 @@ class SolarBalancePanel extends HTMLElement {
     this._hass = hass;
     this._buildByKey();
     this._resolveEntities();
+    this._accumulateReg();
     this._maybeFetchHistory();
     this._scheduleRender();
+  }
+
+  /** Append a target/fleet sample for the live regulation sparkline (session ring buffer). */
+  _accumulateReg() {
+    const target = this._attr(this._E.regDebug, "target_w");
+    const fleet = this._attr(this._E.regDebug, "current_fleet_w");
+    if (target == null && fleet == null) return;
+    const last = this._regHist[this._regHist.length - 1];
+    const now = Date.now();
+    if (last && now - last.t < 2000) return; // de-dupe rapid hass updates
+    this._regHist.push({ t: now, target: Number(target) || 0, fleet: Number(fleet) || 0 });
+    if (this._regHist.length > 180) this._regHist.shift(); // ~ last N samples
   }
 
   connectedCallback() {
@@ -148,7 +191,22 @@ class SolarBalancePanel extends HTMLElement {
     // SolarBalance service buttons (e.g. reset the standby-baseline talon).
     const svc = path.find((n) => n.dataset && n.dataset.service);
     if (svc && this._hass) {
-      this._hass.callService("solarbalance", svc.dataset.service, {});
+      let args = {};
+      if (svc.dataset.args) {
+        try {
+          args = JSON.parse(svc.dataset.args);
+        } catch (e) {
+          args = {};
+        }
+      }
+      if (svc.dataset.confirm && !window.confirm(svc.dataset.confirm)) return;
+      this._hass.callService("solarbalance", svc.dataset.service, args);
+      return;
+    }
+    const dbg = path.find((n) => n.dataset && n.dataset.toggleDebug);
+    if (dbg) {
+      this._debugOpen = !this._debugOpen;
+      this._render();
       return;
     }
     const btn = path.find((n) => n.dataset && n.dataset.h);
@@ -260,6 +318,8 @@ class SolarBalancePanel extends HTMLElement {
       ziCorr: id("zi_correction", "sensor.solarbalance_zero_injection_correction"),
       eqOffer: id("equaliser_offer", "sensor.solarbalance_soc_equaliser_offer"),
       pvLimit: id("pv_output_limit", "sensor.solarbalance_pv_output_limit"),
+      binding: id("regulation_binding", "sensor.solarbalance_active_clamp"),
+      regDebug: id("regulation_debug", "sensor.solarbalance_regulation_debug"),
       planPower: id("planner_recommended_power", "sensor.solarbalance_planner_recommended_power_advisory"),
       planCost: id("planner_expected_cost", "sensor.solarbalance_planner_expected_cost_advisory"),
     };
@@ -277,6 +337,22 @@ class SolarBalancePanel extends HTMLElement {
     if (n == null) return "—";
     const a = Math.abs(n);
     return a >= 1000 ? (n / 1000).toFixed(2) + " kW" : Math.round(n) + " W";
+  }
+
+  /** Numeric coercion for a raw attribute value (already a number or a string). */
+  _num2(v) {
+    if (v == null) return null;
+    const n = Number(v);
+    return Number.isNaN(n) ? null : n;
+  }
+
+  /** Human age from seconds, e.g. 302 -> "5 min", 40 -> "40 s". */
+  _age(s) {
+    const v = this._num2(s);
+    if (v == null) return "";
+    if (v < 90) return Math.round(v) + " s";
+    if (v < 5400) return Math.round(v / 60) + " min";
+    return Math.round(v / 3600) + " h";
   }
 
   _deviceName(deviceId) {
@@ -368,7 +444,9 @@ class SolarBalancePanel extends HTMLElement {
     if (this._series && this._series.window === this._window && now - this._histTs < HISTORY_REFRESH_MS) {
       return;
     }
-    const ids = [this._E.pv, this._E.grid, this._E.battery].filter(Boolean);
+    const socDevs = Object.values(this._devices()).filter((k) => k.soc);
+    const socIds = socDevs.map((k) => k.soc);
+    const ids = [this._E.pv, this._E.grid, this._E.battery, ...socIds].filter(Boolean);
     if (!this._hass || !ids.length) return;
     this._fetching = true;
     const startMs =
@@ -385,11 +463,14 @@ class SolarBalancePanel extends HTMLElement {
         significant_changes_only: false,
       })
       .then((res) => {
+        const socByName = {};
+        for (const k of socDevs) socByName[k.name] = this._parseSeries(res[k.soc]);
         this._series = {
           window: win,
           pv: this._parseSeries(res[this._E.pv]),
           grid: this._parseSeries(res[this._E.grid]),
           battery: this._parseSeries(res[this._E.battery]),
+          socByName,
         };
         this._histTs = Date.now();
         this._fetching = false;
@@ -820,6 +901,209 @@ class SolarBalancePanel extends HTMLElement {
       </section>`;
   }
 
+  // ---- B — Santé / Alertes -----------------------------------------------
+  _healthCard() {
+    const rd = this._E.regDebug;
+    const items = [];
+    const stale = this._attr(rd, "stale_batteries");
+    if (Array.isArray(stale)) {
+      for (const b of stale) {
+        const cause =
+          b.reason === "soc"
+            ? this._t("SoC figé")
+            : b.reason === "power"
+            ? this._t("puissance figée")
+            : this._t("hors ligne");
+        items.push({ sev: "warn", txt: `${b.device} — ${cause} (${this._age(b.age_s)})` });
+      }
+    }
+    const dup = this._attr(rd, "duplicate_entities");
+    if (dup && typeof dup === "object") {
+      for (const eid in dup)
+        items.push({ sev: "err", txt: `${this._t("Device en double")} : ${dup[eid]} → ${eid}` });
+    }
+    const vf = this._attr(rd, "verify_failures");
+    if (vf && typeof vf === "object") {
+      for (const eid in vf)
+        items.push({
+          sev: "warn",
+          txt: `${this._t("Écriture non appliquée")} : ${eid} (${this._w(vf[eid])})`,
+        });
+    }
+    if (this._badge(this._E.degraded))
+      items.push({ sev: "err", txt: this._t("Mode dégradé — entités indisponibles") });
+    const base = this._num(this._E.home);
+    if (base != null && base < -100)
+      items.push({ sev: "warn", txt: `${this._t("Baseline négative")} (${this._w(base)}) — mapping ?` });
+    if (!items.length) return "";
+    const rows = items
+      .map((i) => `<div class="health-row ${i.sev}"><span class="hdot"></span>${i.txt}</div>`)
+      .join("");
+    return `<div class="card health-card"><h3>⚠ ${this._t("Santé")}</h3>${rows}</div>`;
+  }
+
+  // ---- C — sparkline cible vs parc réel ----------------------------------
+  _regSparkline() {
+    const h = this._regHist;
+    if (h.length < 3) return "";
+    const W = 320,
+      H = 64,
+      pad = 4;
+    let vMin = 0,
+      vMax = 0;
+    for (const p of h) {
+      vMin = Math.min(vMin, p.target, p.fleet);
+      vMax = Math.max(vMax, p.target, p.fleet);
+    }
+    if (vMax === vMin) vMax = vMin + 1;
+    const n = h.length;
+    const x = (i) => pad + (i / (n - 1)) * (W - 2 * pad);
+    const y = (v) => pad + (1 - (v - vMin) / (vMax - vMin)) * (H - 2 * pad);
+    const path = (key) =>
+      h.map((p, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(p[key]).toFixed(1)).join(" ");
+    const zero =
+      vMin < 0 && vMax > 0
+        ? `<line x1="${pad}" y1="${y(0).toFixed(1)}" x2="${W - pad}" y2="${y(0).toFixed(1)}" class="zero"/>`
+        : "";
+    return `<svg viewBox="0 0 ${W} ${H}" class="spark" preserveAspectRatio="none">${zero}<path d="${path(
+      "target"
+    )}" class="spark-target"/><path d="${path("fleet")}" class="spark-fleet"/></svg>
+      <div class="legend small"><span><i class="sw st"></i>${this._t("Cible")}</span><span><i class="sw sf"></i>${this._t(
+      "Parc réel"
+    )}</span></div>`;
+  }
+
+  // ---- H — bridage PV -----------------------------------------------------
+  _curtailCard() {
+    const devs = Object.values(this._devices()).filter((k) => k.mppt_power || k.mppt_limit);
+    if (!devs.length) return "";
+    const rows = devs
+      .map((k) => {
+        const prod = this._num(k.mppt_power);
+        const lim = this._num(k.mppt_limit);
+        const capped = prod != null && lim != null && lim > 0 && prod >= lim - 20;
+        return this._row(
+          k.name,
+          `${this._w(prod || 0)} / ${lim != null ? this._w(lim) : "∞"}${
+            capped ? ` <span class="mini-warn">${this._t("bridé")}</span>` : ""
+          }`
+        );
+      })
+      .join("");
+    const hidden = this._num2(this._attr(this._E.regDebug, "hidden_pv_w"));
+    const hiddenRow =
+      hidden != null && hidden > 10 ? this._row(this._t("PV caché estimé"), this._w(hidden)) : "";
+    return `<div class="card"><h3>☀️ ${this._t("Bridage PV")}</h3>${rows}${hiddenRow}</div>`;
+  }
+
+  // ---- E — vue debug live -------------------------------------------------
+  _debugCard() {
+    const a = (this._stateObj(this._E.regDebug) || {}).attributes || {};
+    if (!Object.keys(a).length) return "";
+    const head = `<h3 class="dbg-toggle" data-toggle-debug="1">🐛 ${this._t(
+      "Debug régulation (live)"
+    )} ${this._debugOpen ? "▾" : "▸"}</h3>`;
+    if (!this._debugOpen) return `<div class="card debug-card">${head}</div>`;
+    const w = (k) => this._w(this._num2(a[k]));
+    const cells = [
+      ["binding", a.binding],
+      ["cible", w("target_w")],
+      ["loop_base", w("loop_base_w")],
+      ["zi", w("zi_correction_w")],
+      ["eq", w("equaliser_offer_w")],
+      ["parc", w("current_fleet_w")],
+      ["mppt", w("controllable_mppt_w")],
+      ["pv_caché", w("hidden_pv_w")],
+      ["unalloc", w("unallocated_w")],
+      ["nc_charge", w("nc_charge_w")],
+      ["grid_filt", w("grid_filtered_w")],
+      ["nat_grid", w("natural_grid_w")],
+      ["pv_limit", w("pv_limit_w")],
+      ["settle", String(a.settle)],
+      ["nc_charging", String(a.noncontrollable_charging)],
+    ];
+    const tiles = cells
+      .map(([l, v]) => `<div class="dbg"><span class="dbg-l">${l}</span><span class="dbg-v">${v}</span></div>`)
+      .join("");
+    const per = a.per_battery_w || {};
+    const wr = a.written_setpoints || {};
+    const perTxt =
+      Object.keys(per)
+        .map((n) => `${n}: ${Math.round(per[n])}`)
+        .join(" · ") || "—";
+    const wrTxt =
+      Object.keys(wr)
+        .map((n) => `${n}: ${Math.round(wr[n].charge_w)}c/${Math.round(wr[n].discharge_w)}d`)
+        .join(" · ") || "—";
+    return `<div class="card debug-card">${head}<div class="dbg-grid">${tiles}</div>
+      <div class="dbg-line"><b>per</b> ${perTxt}</div>
+      <div class="dbg-line"><b>wr</b> ${wrTxt}</div></div>`;
+  }
+
+  // ---- K — contrôles rapides ---------------------------------------------
+  _controlsCard() {
+    const b = (svc, args, label, confirm) =>
+      `<button class="ctl" data-service="${svc}"${args ? ` data-args='${args}'` : ""}${
+        confirm ? ` data-confirm="${confirm}"` : ""
+      }>${label}</button>`;
+    return `<div class="card"><h3>🎛️ ${this._t("Contrôles rapides")}</h3><div class="ctl-row">
+      ${b("pause", "", "⏸️ " + this._t("Pause"))}
+      ${b("resume", "", "▶️ " + this._t("Reprendre"))}
+      ${b("force_charge", '{"target_soc_pct":100}', "⚡ " + this._t("Charger 100%"), this._t("Forcer la charge à 100% ?"))}
+      ${b("force_discharge", '{"target_soc_pct":20}', "🔋 " + this._t("Décharger 20%"), this._t("Forcer la décharge à 20% ?"))}
+      ${b("activate_storm_mode", "", "⛈️ " + this._t("Mode tempête"), this._t("Activer le mode tempête ?"))}
+    </div></div>`;
+  }
+
+  // ---- F — graphe SoC multi-batteries ------------------------------------
+  _socChartCard() {
+    const s = this._series;
+    if (!s || !s.socByName) return "";
+    const names = Object.keys(s.socByName).filter((n) => s.socByName[n].length);
+    if (!names.length) return "";
+    const now = Date.now();
+    const W = 720,
+      H = 180,
+      padL = 34,
+      padR = 12,
+      padT = 10,
+      padB = 22;
+    const dayMode = this._window === "day";
+    let tMin = dayMode ? this._midnightMs() : now - this._window * 3600 * 1000;
+    let tMax = dayMode ? this._midnightMs() + 24 * 3600 * 1000 : now;
+    for (const n of names) for (const p of s.socByName[n]) {
+      if (p.t < tMin) tMin = p.t;
+      if (p.t > tMax) tMax = p.t;
+    }
+    if (tMax <= tMin) return "";
+    const x = (t) => padL + ((t - tMin) / (tMax - tMin)) * (W - padL - padR);
+    const y = (v) => padT + (1 - v / 100) * (H - padT - padB);
+    const palette = ["#27ae60", "#3d8bff", "#f5a623", "#9b59b6", "#e74c3c"];
+    let grid = "";
+    for (let i = 0; i <= 4; i++) {
+      const v = (100 * i) / 4;
+      const yy = y(v).toFixed(1);
+      grid += `<line x1="${padL}" y1="${yy}" x2="${W - padR}" y2="${yy}" class="grid"/><text x="${
+        padL - 6
+      }" y="${(+yy + 3).toFixed(1)}" class="ylbl">${v}</text>`;
+    }
+    const lines = names
+      .map((n, idx) => {
+        const c = palette[idx % palette.length];
+        const d = s.socByName[n]
+          .map((p, i) => (i ? "L" : "M") + x(p.t).toFixed(1) + " " + y(p.v).toFixed(1))
+          .join(" ");
+        return `<path d="${d}" fill="none" stroke="${c}" stroke-width="2"/>`;
+      })
+      .join("");
+    const legend = names
+      .map((n, idx) => `<span><i class="sw" style="background:${palette[idx % palette.length]}"></i>${n}</span>`)
+      .join("");
+    return `<section class="card chart-card"><h3>${this._t("SoC par batterie")}</h3>
+      <svg viewBox="0 0 ${W} ${H}" class="chart" preserveAspectRatio="none" role="img">${grid}${lines}</svg>
+      <div class="legend">${legend}</div></section>`;
+  }
+
   _content() {
     if (!this._hass) return `<div class="wrap"><p>Chargement…</p></div>`;
     const E = this._E;
@@ -841,21 +1125,45 @@ class SolarBalancePanel extends HTMLElement {
       .map((k) => {
         const soc = this._num(k.soc);
         const rows = [];
-        if (k.power) rows.push(this._row("Puissance", this._fmt(k.power, 0, "W")));
+        // D — consigne vs mesuré côte à côte, avec alerte si l'écrit ne "tient" pas.
+        const measured = this._num(k.power);
+        if (k.setpoint_charge || k.setpoint_discharge) {
+          const sc = this._num(k.setpoint_charge) || 0;
+          const sd = this._num(k.setpoint_discharge) || 0;
+          const cmd = sc > 0 ? sc : -sd; // signed command (+charge / −décharge)
+          const mism =
+            measured != null && Math.abs(cmd) > 60 && Math.abs(cmd - measured) > Math.max(150, Math.abs(cmd) * 0.5);
+          const warn = mism ? ` <span class="mini-warn" title="${this._t("Le boîtier ne suit pas la consigne")}">⚠</span>` : "";
+          rows.push(this._row(this._t("Consigne / mesuré"), `${this._w(cmd)} / ${this._w(measured || 0)}${warn}`));
+        } else if (k.power) {
+          rows.push(this._row("Puissance", this._fmt(k.power, 0, "W")));
+        }
         if (k.mppt_power) rows.push(this._row("Production solaire", this._fmt(k.mppt_power, 0, "W")));
         if (k.mppt_limit) rows.push(this._row("Limite production", this._fmt(k.mppt_limit, 0, "W")));
         if (k.temperature) rows.push(this._row("Température", this._fmt(k.temperature, 1, "°C")));
         if (k.mppt_temperature)
           rows.push(this._row("Température", this._fmt(k.mppt_temperature, 1, "°C")));
-        if (k.setpoint_charge) rows.push(this._row("Consigne charge", this._fmt(k.setpoint_charge, 0, "W")));
-        if (k.setpoint_discharge)
-          rows.push(this._row("Consigne décharge", this._fmt(k.setpoint_discharge, 0, "W")));
         const gauge = soc != null ? `<div class="dev-gauge">${this._gauge(soc)}</div>` : "";
+        // A — badge "hors ligne" avec la cause + depuis combien de temps.
         const stale = !!this._attr(k.soc, "stale");
-        const badge = stale ? `<span class="stale-badge">⚠ ${this._t("Hors ligne")}</span>` : "";
-        return `<div class="card${stale ? " stale" : ""}"><h3>${k.name}${badge}</h3><div class="dev-body">${gauge}<div class="dev-rows">${rows.join(
+        const reason = this._attr(k.soc, "stale_reason");
+        const ageS = this._attr(k.soc, "stale_age_s");
+        const cause = reason === "soc" ? this._t("SoC figé") : reason === "power" ? this._t("puissance figée") : this._t("hors ligne");
+        const age = ageS != null ? " · " + this._age(ageS) : "";
+        const badge = stale
+          ? `<span class="stale-badge" title="${cause}${age}">⚠ ${cause}${age}</span>`
+          : "";
+        // D — badge rôle (cloud / curtailable) et plancher SoC sur la jauge.
+        const role = this._attr(k.soc, "role");
+        const roleBadge = role === "cloud" ? `<span class="role-badge">${this._t("cloud")}</span>` : "";
+        const floor = this._num2(this._attr(k.soc, "soc_min_pct"));
+        const floorMark =
+          soc != null && floor != null
+            ? `<div class="floor-note">${this._t("plancher")} ${Math.round(floor)}%</div>`
+            : "";
+        return `<div class="card${stale ? " stale" : ""}"><h3>${k.name}${roleBadge}${badge}</h3><div class="dev-body">${gauge}<div class="dev-rows">${rows.join(
           ""
-        )}</div></div></div>`;
+        )}${floorMark}</div></div></div>`;
       })
       .join("");
 
@@ -872,6 +1180,8 @@ class SolarBalancePanel extends HTMLElement {
         </header>
 
         ${this._banner()}
+
+        ${this._healthCard()}
 
         <section class="grid two">
           <div class="card flow-card">
@@ -947,13 +1257,23 @@ class SolarBalancePanel extends HTMLElement {
 
           <div class="card">
             <h3>${this._t("Régulation")}</h3>
+            ${this._row("Garde-fou actif", `<b>${this._state(E.binding) || "—"}</b>`)}
             ${this._row("Réseau (filtré)", this._fmt(E.gridFiltered, 0, "W"))}
             ${this._row("Cible parc", this._fmt(E.target, 0, "W"))}
             ${this._row("Correction zéro-injection", this._fmt(E.ziCorr, 0, "W"))}
             ${this._row("Offre équaliseur SoC", this._fmt(E.eqOffer, 0, "W"))}
             ${this._row("Limite de sortie PV", this._fmt(E.pvLimit, 0, "W"))}
+            ${this._regSparkline()}
           </div>
+
+          ${this._curtailCard()}
+
+          ${this._controlsCard()}
         </section>
+
+        ${this._debugCard()}
+
+        ${this._socChartCard()}
 
         <h2>${this._t("Par appareil")}</h2>
         <section class="grid">${devCards || `<div class="card"><p>${this._t("Aucun appareil batterie détecté.")}</p></div>`}</section>
@@ -990,6 +1310,40 @@ class SolarBalancePanel extends HTMLElement {
         .stale-badge { display:inline-block; margin-left:8px; padding:1px 8px; border-radius:10px;
                 font-size:.7rem; font-weight:600; color:#fff; background:var(--warning-color,#f5a623);
                 vertical-align:middle; }
+        .role-badge { display:inline-block; margin-left:8px; padding:1px 8px; border-radius:10px;
+                font-size:.7rem; font-weight:600; color:#fff; background:var(--info-color,#3d8bff);
+                vertical-align:middle; }
+        .floor-note { font-size:.72rem; color:var(--secondary-text-color); margin-top:4px; }
+        .mini-warn { color:var(--warning-color,#f5a623); font-weight:700; }
+        /* B — health card */
+        .health-card { border:1px solid var(--warning-color,#f5a623); }
+        .health-row { display:flex; align-items:center; gap:8px; padding:3px 0; font-size:.85rem; }
+        .health-row .hdot { width:8px; height:8px; border-radius:50%; flex:0 0 auto;
+                background:var(--warning-color,#f5a623); }
+        .health-row.err .hdot { background:var(--error-color,#e74c3c); }
+        /* C — regulation sparkline */
+        .spark { width:100%; height:64px; margin-top:8px; }
+        .spark .zero { stroke:var(--divider-color,#bbb); stroke-width:1; stroke-dasharray:2 2; }
+        .spark-target { fill:none; stroke:var(--info-color,#3d8bff); stroke-width:2; }
+        .spark-fleet { fill:none; stroke:var(--success-color,#27ae60); stroke-width:2; }
+        .legend.small { font-size:.72rem; gap:12px; }
+        .legend .sw.st { background:var(--info-color,#3d8bff); }
+        .legend .sw.sf { background:var(--success-color,#27ae60); }
+        /* E — debug card */
+        .dbg-toggle { cursor:pointer; user-select:none; }
+        .dbg-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:6px;
+                margin-top:8px; }
+        .dbg { display:flex; justify-content:space-between; gap:6px; padding:3px 6px;
+                background:var(--secondary-background-color,rgba(0,0,0,.04)); border-radius:6px;
+                font-size:.78rem; }
+        .dbg-l { color:var(--secondary-text-color); }
+        .dbg-v { font-weight:600; font-variant-numeric:tabular-nums; }
+        .dbg-line { margin-top:6px; font-size:.78rem; font-family:monospace; word-break:break-word; }
+        /* K — quick controls */
+        .ctl-row { display:flex; flex-wrap:wrap; gap:8px; }
+        .ctl { border:none; border-radius:8px; padding:6px 12px; cursor:pointer; font-size:.82rem;
+                background:var(--primary-color,#3d8bff); color:#fff; }
+        .ctl:hover { opacity:.9; }
         .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
         .grid.two { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); margin-bottom:12px; }
 

@@ -37,6 +37,41 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta48] — 2026-07-02
+
+### Added
+
+Dashboard (panneau SolarBalance) — gros lot d'observabilité pour le debug live :
+
+- **A — Cause du timeout batterie.** La carte device passe en ambre avec un badge indiquant
+  *quel* signal est figé (**SoC** ou **puissance**) et **depuis combien de temps** (ex.
+  « ⚠ SoC figé · 5 min »). Nouvel exposé : `stale_reason` + `stale_age_s` (reader →
+  `BatteryState` → attributs du capteur SoC).
+- **B — Carte « Santé ».** Liste en direct ce qui cloche, jusqu'ici seulement dans les logs :
+  batteries périmées (avec cause), **device en double** (deux devices sur la même entité),
+  **écritures non appliquées** (le boîtier n'honore pas la consigne), mode dégradé, baseline
+  négative.
+- **C — Visualisation régulation.** La carte Régulation affiche le **garde-fou actif**
+  (`binding`) + une **sparkline cible parc vs parc réel** (buffer de session) → un yoyo se
+  voit d'un coup d'œil.
+- **D — Cartes device enrichies.** **Consigne vs mesuré** côte à côte (+ ⚠ si l'écrit ne
+  « tient » pas), **plancher SoC** rappelé sous la jauge, **badge rôle** (cloud).
+- **E — Vue « Debug régulation (live) ».** Section repliable avec tous les champs de la ligne
+  de debug (`loop_base`, `zi`, `eq`, `unalloc`, `nc_charge`, `nat_grid`, `per=`, `wr=`…) en
+  temps réel — diagnostiquer un yoyo sans ouvrir les logs. Nouveau capteur diagnostic
+  `regulation_debug` (tout en attributs).
+- **F — Graphe SoC multi-batteries** sur la fenêtre choisie (les timeouts apparaissent en
+  ligne plate/discontinue).
+- **H — Carte « Bridage PV ».** Par MPPT : production vs limite de sortie (+ « bridé ») et
+  **PV caché estimé**.
+- **K — Contrôles rapides.** Boutons de service depuis le dashboard (pause, reprendre, forcer
+  charge/décharge, mode tempête), avec confirmation pour les actions sensibles.
+
+### Changed
+
+- `verify_writes` mémorise les écritures non appliquées (`verify_failures()`) et les collisions
+  d'entités (`duplicate_entities()`) sont exposées — pour la carte Santé.
+
 ## [2.0.8-beta47] — 2026-07-02
 
 ### Fixed
@@ -1760,6 +1795,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta48]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta47...v2.0.8-beta48
 [2.0.8-beta47]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta46...v2.0.8-beta47
 [2.0.8-beta46]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta45...v2.0.8-beta46
 [2.0.8-beta45]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta44...v2.0.8-beta45
