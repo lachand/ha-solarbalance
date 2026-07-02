@@ -37,6 +37,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta46] — 2026-07-02
+
+### Fixed
+
+- **Batterie « stale » : la fraîcheur du SoC est enfin prise en compte.** Le drapeau `stale`
+  (qui fait ignorer une batterie par l'équaliseur SoC et les garde-fous cloud) ne regardait
+  que les entités de **puissance**, jamais le **SoC**. Une station cloud (Jackery) dont le
+  capteur de SoC tombe en timeout tout en continuant à publier sa puissance restait donc
+  `stale=False` : l'équaliseur continuait de piloter sur un **SoC gelé** → l'offre (et toute
+  la chaîne de binding) papillonnait. Le SoC périmé (> seuil) marque désormais la batterie
+  `stale` — c'est le signal sur lequel l'équaliseur s'appuie.
+
+### Added
+
+- **Retour visuel « hors ligne » sur le panneau.** Les capteurs par batterie exposent un
+  attribut `stale` ; la carte du device passe en **ambre** avec un badge « Hors ligne »
+  quand ses données ne se rafraîchissent plus (timeout). La ligne de debug par tick marque
+  déjà ce cas (`!` = stale, `x` = indisponible).
+
 ## [2.0.8-beta45] — 2026-07-02
 
 ### Added
@@ -1724,6 +1743,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta46]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta45...v2.0.8-beta46
 [2.0.8-beta45]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta44...v2.0.8-beta45
 [2.0.8-beta44]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta43...v2.0.8-beta44
 [2.0.8-beta43]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta42...v2.0.8-beta43

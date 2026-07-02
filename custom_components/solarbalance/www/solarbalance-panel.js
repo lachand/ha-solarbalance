@@ -95,6 +95,7 @@ const STR_EN = {
   "Aucune action batterie planifiée": "No battery action planned",
   "Prévision PV": "PV forecast",
   "Solaire seulement": "Solar only",
+  "Hors ligne": "Offline",
 };
 
 class SolarBalancePanel extends HTMLElement {
@@ -850,7 +851,9 @@ class SolarBalancePanel extends HTMLElement {
         if (k.setpoint_discharge)
           rows.push(this._row("Consigne décharge", this._fmt(k.setpoint_discharge, 0, "W")));
         const gauge = soc != null ? `<div class="dev-gauge">${this._gauge(soc)}</div>` : "";
-        return `<div class="card"><h3>${k.name}</h3><div class="dev-body">${gauge}<div class="dev-rows">${rows.join(
+        const stale = !!this._attr(k.soc, "stale");
+        const badge = stale ? `<span class="stale-badge">⚠ ${this._t("Hors ligne")}</span>` : "";
+        return `<div class="card${stale ? " stale" : ""}"><h3>${k.name}${badge}</h3><div class="dev-body">${gauge}<div class="dev-rows">${rows.join(
           ""
         )}</div></div></div>`;
       })
@@ -982,6 +985,11 @@ class SolarBalancePanel extends HTMLElement {
         .banner.err { background:rgba(231,76,60,.15); border:1px solid var(--error-color,#e74c3c); }
         .card { background:var(--card-background-color,#fff); border-radius:var(--ha-card-border-radius,12px);
                 padding:14px; box-shadow:var(--ha-card-box-shadow,0 1px 3px rgba(0,0,0,.1)); }
+        .card.stale { border:1px solid var(--warning-color,#f5a623);
+                background:rgba(245,166,35,.08); }
+        .stale-badge { display:inline-block; margin-left:8px; padding:1px 8px; border-radius:10px;
+                font-size:.7rem; font-weight:600; color:#fff; background:var(--warning-color,#f5a623);
+                vertical-align:middle; }
         .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:12px; }
         .grid.two { grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); margin-bottom:12px; }
 

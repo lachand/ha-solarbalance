@@ -164,13 +164,24 @@ class EntityReader:
         return tuple(states)
 
     def _is_battery_stale(self, battery: object) -> bool:
-        """True when the battery's power source hasn't refreshed within the limit.
+        """True when the battery's SoC or power source hasn't refreshed within the limit.
 
-        Used to flag a cloud battery whose data lags so its (untrustworthy) power
-        is ignored by the per-battery guards. ``stale_s <= 0`` disables the check.
+        Used to flag a cloud battery whose data lags so its (untrustworthy) SoC/power is
+        ignored by the per-battery guards and the SoC equaliser. ``stale_s <= 0`` disables
+        the check.
+
+        SoC is the signal the equaliser and the cloud-charge guards steer on: an unplugged
+        cloud station keeps reporting its *last* SoC, so an old SoC alone means stale — its
+        dead value must not drive PV-routing (else the offer flutters on/off). The power
+        sources keep the "any fresh source = alive" rule (they may update at different
+        cadences), so they flag stale only when *every* present power entity is old.
         """
         if self._stale_s <= 0:
             return False
+        soc_entity = getattr(battery, "soc_entity", None)
+        soc_age = self._entity_age_s(soc_entity) if soc_entity else None
+        if soc_age is not None and soc_age > self._stale_s:
+            return True
         entities = [
             getattr(battery, "power_entity", None),
             getattr(battery, "charge_power_entity", None),

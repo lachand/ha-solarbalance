@@ -888,6 +888,18 @@ class SolarBalanceBatteryMetricSensor(_SolarBalanceSensor):
             return round(state.cycles, 0) if state.cycles is not None else None
         return round(state.temperature_c, 1) if state.temperature_c is not None else None
 
+    @property
+    def extra_state_attributes(self) -> dict[str, bool] | None:
+        # Expose staleness so the UI can flag a battery whose SoC/power stopped
+        # refreshing (e.g. a cloud station in timeout) — shown amber on the panel.
+        snap: Snapshot | None = self.coordinator.data
+        if snap is None:
+            return None
+        state = next((b for b in snap.batteries if b.device_name == self._device_name), None)
+        if state is None:
+            return None
+        return {"stale": state.stale}
+
 
 class SolarBalanceBatterySohSensor(_SolarBalanceSensor):
     """Estimated battery State of Health (%) from the reported cycle count."""
