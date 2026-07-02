@@ -109,6 +109,8 @@ const STR_EN = {
   "Écriture non appliquée": "Write not applied",
   "Mode dégradé — entités indisponibles": "Degraded mode — entities unavailable",
   "Baseline négative": "Negative baseline",
+  "Batterie cloud en décharge (timeout) — baseline plafonnée":
+    "Cloud battery discharging (timeout) — baseline floored",
   Cible: "Target",
   "Parc réel": "Actual fleet",
   "Bridage PV": "PV curtailment",
@@ -933,9 +935,18 @@ class SolarBalancePanel extends HTMLElement {
     }
     if (this._badge(this._E.degraded))
       items.push({ sev: "err", txt: this._t("Mode dégradé — entités indisponibles") });
-    const base = this._num(this._E.home);
-    if (base != null && base < -100)
-      items.push({ sev: "warn", txt: `${this._t("Baseline négative")} (${this._w(base)}) — mapping ?` });
+    // Baseline: an identified cloud-timeout discharge is info (baseline is floored);
+    // a genuine negative (no stale cloud) on the RAW value is a mapping error.
+    const cloudTimeout = this._attr(this._E.home, "cloud_timeout");
+    const rawBase = this._num2(this._attr(this._E.home, "raw_w"));
+    if (cloudTimeout) {
+      items.push({ sev: "info", txt: this._t("Batterie cloud en décharge (timeout) — baseline plafonnée") });
+    } else if (rawBase != null && rawBase < -100) {
+      items.push({
+        sev: "err",
+        txt: `${this._t("Baseline négative")} (${this._w(rawBase)}) — mapping ?`,
+      });
+    }
     if (!items.length) return "";
     const rows = items
       .map((i) => `<div class="health-row ${i.sev}"><span class="hdot"></span>${i.txt}</div>`)
@@ -1319,6 +1330,7 @@ class SolarBalancePanel extends HTMLElement {
         .health-row .hdot { width:8px; height:8px; border-radius:50%; flex:0 0 auto;
                 background:var(--warning-color,#f5a623); }
         .health-row.err .hdot { background:var(--error-color,#e74c3c); }
+        .health-row.info .hdot { background:var(--info-color,#3d8bff); }
         /* C — regulation sparkline */
         .spark { width:100%; height:64px; margin-top:8px; }
         .spark .zero { stroke:var(--divider-color,#bbb); stroke-width:1; stroke-dasharray:2 2; }

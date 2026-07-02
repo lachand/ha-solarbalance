@@ -37,6 +37,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta50] — 2026-07-02
+
+### Fixed
+
+- **Baseline négative faussée par une batterie cloud en timeout.** Quand une batterie
+  non-contrôlable (cloud) est en timeout mais se décharge réellement dans le parc, le réseau
+  voit sa décharge alors que sa puissance **figée** ne la compte pas → `baseline = maison −
+  décharge_non_comptée` devient **négatif** (le « -579 W — mapping ? »). C'est désormais :
+  - **identifié** (baseline sous le plancher **et** une batterie non-contrôlable `stale`) ;
+  - **plafonné avec convergence douce** : la baseline affichée est bornée à
+    `max(0, talon − 50 W)` et **glisse doucement** vers ce plancher au lieu de plonger dans le
+    négatif (elle suit la valeur brute dès qu'elle redevient plausible) ;
+  - **distingué d'une vraie erreur de mapping** : l'alerte « mapping ? » ne se déclenche plus
+    quand la cause est le timeout cloud ; la carte Santé affiche à la place une ligne **info**
+    « batterie cloud en décharge (timeout) ». L'alerte reste pour un négatif persistant *sans*
+    cloud périmé (vraie inversion de signe).
+
+  Le capteur `baseline_consumption` expose `raw_w` (valeur brute) et `cloud_timeout` en
+  attributs. Les usages internes (plan advisory) restent sur la valeur brute.
+
 ## [2.0.8-beta49] — 2026-07-02
 
 ### Fixed
@@ -1808,6 +1828,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta50]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta49...v2.0.8-beta50
 [2.0.8-beta49]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta48...v2.0.8-beta49
 [2.0.8-beta48]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta47...v2.0.8-beta48
 [2.0.8-beta47]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta46...v2.0.8-beta47

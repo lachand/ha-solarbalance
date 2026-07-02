@@ -483,6 +483,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._zi_state: ZeroInjectionState | PerPhaseZeroInjectionState = ZeroInjectionState()
         self._negative_baseline_ticks: int = 0
         self._baseline_notification_sent: bool = False
+        # Smoothed/floored baseline for display + a flag when an implausible baseline is
+        # attributable to a stale (timeout) cloud battery discharging into the fleet.
+        self._baseline_display_w: float | None = None
+        self._baseline_cloud_timeout: bool = False
         self._notifications_enabled = bool(cfg.get(CONF_NOTIFICATIONS_ENABLED, True))
         self._alerts_sent: dict[str, bool] = {}
         self._pv_limits_by_device: dict[str, float] = {}
@@ -1586,7 +1590,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         except Exception as exc:
             raise UpdateFailed(f"EntityReader failed: {exc}") from exc
 
-        # --- Baseline sanity check: negative baseline signals a mapping error ---
+        # --- Baseline: floored/eased display value + negative-mapping sanity check ---
+        self._update_baseline_display(snapshot)
         self._check_baseline(snapshot)
 
         # --- Daily energy integration (fallback when no vendor daily entity) ---
@@ -3262,17 +3267,72 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
     _BASELINE_NEGATIVE_THRESHOLD_W = -100.0
     _BASELINE_NEGATIVE_TICKS_TRIGGER = 3
+    # Display baseline is floored at ``max(0, talon - margin)`` and eases gently toward
+    # that floor when the raw value dips below it (e.g. a stale cloud battery discharging
+    # into the fleet: the grid sees it, its frozen power reading doesn't, so the raw
+    # baseline reads negative). The floor tracks the learned night standby (talon).
+    _BASELINE_FLOOR_MARGIN_W = 50.0
+    _BASELINE_CONVERGE_ALPHA = 0.1  # gentle per-tick easing toward the floor
     _BASELINE_NOTIFICATION_ID = "solarbalance_baseline_negative"
+
+    def _cloud_battery_stale(self, snapshot: Snapshot) -> bool:
+        """True when a non-controllable (cloud) battery is stale (in timeout).
+
+        Its real discharge still moves the grid while its frozen power reading does not,
+        so the raw baseline reads implausibly low — this identifies that cause so the
+        baseline floor and the alert can treat it as a known transient, not a mapping error.
+        """
+        return any(
+            b.stale and b.device_name not in self._controllable_battery_names
+            for b in snapshot.batteries
+        )
+
+    def _update_baseline_display(self, snapshot: Snapshot) -> None:
+        """Compute the floored/eased display baseline (see _BASELINE_FLOOR_MARGIN_W).
+
+        Tracks the raw baseline while it is plausible; when it dips below the floor
+        (``max(0, talon - margin)``) it eases gently toward the floor instead of following
+        a bogus negative (a stale cloud battery discharging into the fleet).
+        """
+        raw = snapshot.baseline_consumption_w
+        talon = self.baseline_night_w
+        floor = max(0.0, talon - self._BASELINE_FLOOR_MARGIN_W) if talon is not None else 0.0
+        self._baseline_cloud_timeout = raw < floor and self._cloud_battery_stale(snapshot)
+        if raw >= floor:
+            self._baseline_display_w = raw  # plausible → track reality, no lag
+            return
+        base = self._baseline_display_w if self._baseline_display_w is not None else max(raw, floor)
+        # Gentle convergence toward the floor (never snap to the bogus raw value).
+        self._baseline_display_w = base + self._BASELINE_CONVERGE_ALPHA * (floor - base)
+
+    @property
+    def baseline_display_w(self) -> float:
+        """Baseline for display/alerts — floored + eased (falls back to raw before first tick)."""
+        if self._baseline_display_w is not None:
+            return self._baseline_display_w
+        snap = self.data
+        return snap.baseline_consumption_w if snap is not None else 0.0
+
+    @property
+    def baseline_cloud_timeout(self) -> bool:
+        """True when the current low baseline is attributed to a stale cloud battery."""
+        return self._baseline_cloud_timeout
 
     def _check_baseline(self, snapshot: Snapshot) -> None:
         """Fire (or dismiss) a persistent notification when baseline is persistently negative.
 
-        A negative baseline means the sign convention of at least one entity is wrong.
+        A negative baseline means the sign convention of at least one entity is wrong —
+        UNLESS it is explained by a stale (timeout) cloud battery discharging into the
+        fleet, which is a known transient (surfaced as info on the dashboard, not an alert).
         We wait for 3 consecutive ticks to avoid spurious alerts during transients.
         """
         from homeassistant.components.persistent_notification import async_create, async_dismiss
 
-        if snapshot.baseline_consumption_w < self._BASELINE_NEGATIVE_THRESHOLD_W:
+        genuine_negative = (
+            snapshot.baseline_consumption_w < self._BASELINE_NEGATIVE_THRESHOLD_W
+            and not self._cloud_battery_stale(snapshot)
+        )
+        if genuine_negative:
             self._negative_baseline_ticks += 1
             if (
                 self._negative_baseline_ticks >= self._BASELINE_NEGATIVE_TICKS_TRIGGER

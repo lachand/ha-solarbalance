@@ -395,8 +395,20 @@ class SolarBalanceBaselineConsumptionSensor(_SolarBalanceSensor):
 
     @property
     def native_value(self) -> float | None:
+        # Floored/eased value: never a bogus negative from a stale cloud battery
+        # discharging into the fleet (the grid sees it, its frozen power reading doesn't).
         snap: Snapshot | None = self.coordinator.data
-        return round(snap.baseline_consumption_w, 1) if snap else None
+        return round(self.coordinator.baseline_display_w, 1) if snap else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        snap: Snapshot | None = self.coordinator.data
+        if snap is None:
+            return None
+        return {
+            "raw_w": round(snap.baseline_consumption_w, 1),
+            "cloud_timeout": self.coordinator.baseline_cloud_timeout,
+        }
 
 
 # ---------------------------------------------------------------------------
