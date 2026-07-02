@@ -53,6 +53,35 @@ def test_enabled_only_when_a_device_declares_entity() -> None:
     assert ActiveControlPublisher(_hass(), [_device("a", active=False)]).enabled is False
 
 
+def test_duplicate_setpoint_entity_warns(caplog) -> None:  # type: ignore[no-untyped-def]
+    import logging
+
+    # Two devices writing to the same charge entity = a stale/duplicate device.
+    with caplog.at_level(logging.WARNING):
+        ActiveControlPublisher(
+            _hass(),
+            [
+                _device("stream", entity=None, charge_entity="number.chg_shared"),
+                _device("stream_60605", entity=None, charge_entity="number.chg_shared"),
+            ],
+        )
+    assert any("both write to number.chg_shared" in r.message for r in caplog.records), caplog.text
+
+
+def test_distinct_setpoint_entities_do_not_warn(caplog) -> None:  # type: ignore[no-untyped-def]
+    import logging
+
+    with caplog.at_level(logging.WARNING):
+        ActiveControlPublisher(
+            _hass(),
+            [
+                _device("a", entity=None, charge_entity="number.chg_a"),
+                _device("b", entity=None, charge_entity="number.chg_b"),
+            ],
+        )
+    assert not any("both write to" in r.message for r in caplog.records)
+
+
 async def test_discharge_allocation_written_as_positive_value() -> None:
     hass = _hass()
     pub = ActiveControlPublisher(hass, [_device("a", entity="number.dis_a")])

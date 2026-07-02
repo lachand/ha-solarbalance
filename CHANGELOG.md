@@ -37,6 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta45] — 2026-07-02
+
+### Added
+
+- **Alerte « device en double »** — au démarrage, si deux devices pilotés pointent vers la
+  **même** entité de consigne (charge/décharge/mode), un WARNING le signale. Cas typique :
+  un ancien device « STREAM entier » resté à côté des deux devices par-batterie ; les deux
+  écrivent le même `number` à chaque tick (le dernier gagne), une allocation est donc
+  silencieusement perdue **et la boucle velocity-form s'enroule** (elle commande plus que
+  le parc ne délivre → `loop_base` très supérieur au parc mesuré). Un groupe de mirror de
+  décharge n'est **pas** concerné (chaque membre a sa propre entité `base_load`).
+
 ## [2.0.8-beta44] — 2026-07-01
 
 ### Fixed
@@ -1712,6 +1724,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta45]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta44...v2.0.8-beta45
 [2.0.8-beta44]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta43...v2.0.8-beta44
 [2.0.8-beta43]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta42...v2.0.8-beta43
 [2.0.8-beta42]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta41...v2.0.8-beta42

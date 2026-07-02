@@ -134,6 +134,29 @@ class ActiveControlPublisher:
                     eid,
                     eid,
                 )
+        # Catch two managed devices pointing at the SAME setpoint entity — a duplicate /
+        # stale device (e.g. an old whole-STREAM device left beside the two per-battery
+        # ones). Both would write the same number every tick, the last write winning, so
+        # one allocation is silently discarded and the velocity-form loop winds up
+        # commanding more than the fleet delivers. A discharge mirror group is *not* this
+        # case: its members each own a distinct base-load entity (the group total is
+        # mirrored across those separate entities).
+        seen: dict[str, str] = {}
+        for name, m in managed.items():
+            for eid in (m.charge_entity, m.discharge_entity, m.mode_entity):
+                if eid is None:
+                    continue
+                if eid in seen:
+                    _LOGGER.warning(
+                        "Active control: devices %r and %r both write to %s — one is a "
+                        "duplicate/stale device; its allocation is discarded (last write "
+                        "wins) and the regulation loop winds up. Remove the extra device.",
+                        seen[eid],
+                        name,
+                        eid,
+                    )
+                else:
+                    seen[eid] = name
 
     @property
     def enabled(self) -> bool:
