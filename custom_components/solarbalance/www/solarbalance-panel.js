@@ -88,6 +88,7 @@ const STR_EN = {
   Température: "Temperature",
   "Consigne charge": "Charge setpoint",
   "Consigne décharge": "Discharge setpoint",
+  "Puissance batterie": "Battery power",
   Historique: "History",
   "derniers jours": "last days",
   "Prédictions (advisory) — 24 h": "Predictions (advisory) — 24 h",
@@ -1125,19 +1126,16 @@ class SolarBalancePanel extends HTMLElement {
       .map((k) => {
         const soc = this._num(k.soc);
         const rows = [];
-        // D — consigne vs mesuré côte à côte, avec alerte si l'écrit ne "tient" pas.
-        const measured = this._num(k.power);
-        if (k.setpoint_charge || k.setpoint_discharge) {
-          const sc = this._num(k.setpoint_charge) || 0;
-          const sd = this._num(k.setpoint_discharge) || 0;
-          const cmd = sc > 0 ? sc : -sd; // signed command (+charge / −décharge)
-          const mism =
-            measured != null && Math.abs(cmd) > 60 && Math.abs(cmd - measured) > Math.max(150, Math.abs(cmd) * 0.5);
-          const warn = mism ? ` <span class="mini-warn" title="${this._t("Le boîtier ne suit pas la consigne")}">⚠</span>` : "";
-          rows.push(this._row(this._t("Consigne / mesuré"), `${this._w(cmd)} / ${this._w(measured || 0)}${warn}`));
-        } else if (k.power) {
-          rows.push(this._row("Puissance", this._fmt(k.power, 0, "W")));
-        }
+        // D — consigne + puissance mesurée. NB : sur une STREAM (solar-first + mirror)
+        // la consigne base_load est une sortie AC = TOTAL du groupe, alors que la
+        // puissance mesurée est la cellule PAR batterie (sortie AC = solaire + cellule) :
+        // les deux ne sont donc pas censées être égales → aucune comparaison ici. Le vrai
+        // « le boîtier n'honore pas » vient de la carte Santé (relecture de l'entité écrite).
+        if (k.power) rows.push(this._row("Puissance batterie", this._fmt(k.power, 0, "W")));
+        const sc = this._num(k.setpoint_charge) || 0;
+        const sd = this._num(k.setpoint_discharge) || 0;
+        if (sc > 0) rows.push(this._row("Consigne charge", this._w(sc)));
+        if (sd > 0) rows.push(this._row("Consigne décharge", this._w(-sd)));
         if (k.mppt_power) rows.push(this._row("Production solaire", this._fmt(k.mppt_power, 0, "W")));
         if (k.mppt_limit) rows.push(this._row("Limite production", this._fmt(k.mppt_limit, 0, "W")));
         if (k.temperature) rows.push(this._row("Température", this._fmt(k.temperature, 1, "°C")));

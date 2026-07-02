@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta49] — 2026-07-02
+
+### Fixed
+
+- **Faux warning « consigne / mesuré » sur les cartes STREAM.** La carte device comparait la
+  consigne `base_load` (une sortie **AC**, et le **total du groupe mirroré**) à la puissance
+  **cellule par batterie** — deux grandeurs non comparables sur un onduleur solar-first
+  (sortie AC = solaire + décharge cellule). Une STREAM qui suivait parfaitement sa consigne
+  (2×(~416 W solaire + ~300 W cellule) ≈ 1.4 kW AC) affichait quand même ⚠. La carte montre
+  désormais **puissance batterie** et **consigne** sur des lignes séparées, sans comparaison ;
+  le vrai signal « le boîtier n'honore pas la consigne » reste dans la carte **Santé**
+  (relecture de l'entité réellement écrite, fiable).
+
 ## [2.0.8-beta48] — 2026-07-02
 
 ### Added
@@ -1795,6 +1808,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta49]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta48...v2.0.8-beta49
 [2.0.8-beta48]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta47...v2.0.8-beta48
 [2.0.8-beta47]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta46...v2.0.8-beta47
 [2.0.8-beta46]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta45...v2.0.8-beta46
