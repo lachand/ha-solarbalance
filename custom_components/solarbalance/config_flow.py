@@ -19,6 +19,7 @@ from homeassistant.helpers import selector
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
+    CONF_BASELINE_FLOOR_MARGIN_W,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
     CONF_DRY_RUN,
@@ -64,6 +65,7 @@ from .const import (
     CONF_ZERO_INJECTION_KP,
     CONF_ZERO_INJECTION_SETPOINT_W,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
+    DEFAULT_BASELINE_FLOOR_MARGIN_W,
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
     DEFAULT_DRY_RUN,
@@ -248,6 +250,10 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
                 vol.Optional(
                     CONF_NONCONTROLLABLE_STALE_S,
                     default=d.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+                vol.Optional(
+                    CONF_BASELINE_FLOOR_MARGIN_W,
+                    default=d.get(CONF_BASELINE_FLOOR_MARGIN_W, DEFAULT_BASELINE_FLOOR_MARGIN_W),
                 ): vol.All(vol.Coerce(int), vol.Range(min=0)),
             }
         ),

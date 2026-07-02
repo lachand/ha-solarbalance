@@ -25,6 +25,7 @@ from .const import (
     AUTOTUNE_ZI_KP_MIN,
     CONF_ACTIVE_CONTROL_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
+    CONF_BASELINE_FLOOR_MARGIN_W,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
     CONF_CURTAILMENT_DEADBAND_W,
@@ -80,6 +81,7 @@ from .const import (
     CONF_ZI_SETTLE_TICKS,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BALANCING_ALPHA,
+    DEFAULT_BASELINE_FLOOR_MARGIN_W,
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
     DEFAULT_COST_MIN_CHEAP_THRESHOLD,
@@ -746,6 +748,9 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 cfg.get(CONF_BASELINE_WINDOW_START_H, DEFAULT_BASELINE_WINDOW_START_H)
             ),
             window_end_h=int(cfg.get(CONF_BASELINE_WINDOW_END_H, DEFAULT_BASELINE_WINDOW_END_H)),
+        )
+        self._baseline_floor_margin_w = float(
+            cfg.get(CONF_BASELINE_FLOOR_MARGIN_W, DEFAULT_BASELINE_FLOOR_MARGIN_W)
         )
         self._store: Store[dict[str, Any]] = Store(hass, STORE_VERSION, STORE_KEY)
 
@@ -3270,8 +3275,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     # Display baseline is floored at ``max(0, talon - margin)`` and eases gently toward
     # that floor when the raw value dips below it (e.g. a stale cloud battery discharging
     # into the fleet: the grid sees it, its frozen power reading doesn't, so the raw
-    # baseline reads negative). The floor tracks the learned night standby (talon).
-    _BASELINE_FLOOR_MARGIN_W = 50.0
+    # baseline reads negative). The margin is configurable (CONF_BASELINE_FLOOR_MARGIN_W);
+    # the floor tracks the learned night standby (talon).
     _BASELINE_CONVERGE_ALPHA = 0.1  # gentle per-tick easing toward the floor
     _BASELINE_NOTIFICATION_ID = "solarbalance_baseline_negative"
 
@@ -3296,7 +3301,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         """
         raw = snapshot.baseline_consumption_w
         talon = self.baseline_night_w
-        floor = max(0.0, talon - self._BASELINE_FLOOR_MARGIN_W) if talon is not None else 0.0
+        floor = max(0.0, talon - self._baseline_floor_margin_w) if talon is not None else 0.0
         self._baseline_cloud_timeout = raw < floor and self._cloud_battery_stale(snapshot)
         if raw >= floor:
             self._baseline_display_w = raw  # plausible → track reality, no lag

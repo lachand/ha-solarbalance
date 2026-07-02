@@ -37,6 +37,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta51] — 2026-07-02
+
+### Added
+
+- **Marge plancher de baseline configurable dans l'UI** (`baseline_floor_margin_w`, section
+  Avancé des options, défaut 50 W). Contrôle le plancher `max(0, talon − marge)` de la
+  baseline affichée (voir beta50) sans avoir à releaser : plus bas = plancher plus proche du
+  talon, plus haut = tolère une conso de fond plus variable avant plafonnement.
+
 ## [2.0.8-beta50] — 2026-07-02
 
 ### Fixed
@@ -1828,6 +1837,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta51]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta50...v2.0.8-beta51
 [2.0.8-beta50]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta49...v2.0.8-beta50
 [2.0.8-beta49]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta48...v2.0.8-beta49
 [2.0.8-beta48]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta47...v2.0.8-beta48

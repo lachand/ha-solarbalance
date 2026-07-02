@@ -50,7 +50,8 @@
               "dry_run": "Dry-run (compute everything, never write to hardware)",
               "baseline_window_start_h": "Talon: night window start (h)",
               "baseline_window_end_h": "Talon: night window end (h)",
-              "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables"
+              "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables",
+              "baseline_floor_margin_w": "Baseline floor margin below talon (W): floor the shown baseline at max(0, talon − margin) so a stale cloud battery discharging can't drive it negative"
             }
           }
         }
@@ -108,7 +109,8 @@
               "dry_run": "Dry-run (compute everything, never write to hardware)",
               "baseline_window_start_h": "Talon: night window start (h)",
               "baseline_window_end_h": "Talon: night window end (h)",
-              "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables"
+              "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables",
+              "baseline_floor_margin_w": "Baseline floor margin below talon (W): floor the shown baseline at max(0, talon − margin) so a stale cloud battery discharging can't drive it negative"
             }
           }
         }

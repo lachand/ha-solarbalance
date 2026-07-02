@@ -50,7 +50,8 @@
               "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
               "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
               "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
-              "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive"
+              "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive",
+              "baseline_floor_margin_w": "Marge plancher baseline sous le talon (W) : plafonne la baseline affichée à max(0, talon − marge) pour qu'une batterie cloud en timeout qui décharge ne la rende pas négative"
             }
           }
         }
@@ -108,7 +109,8 @@
               "dry_run": "Simulation (calcule tout, n'écrit jamais sur le matériel)",
               "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
               "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
-              "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive"
+              "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive",
+              "baseline_floor_margin_w": "Marge plancher baseline sous le talon (W) : plafonne la baseline affichée à max(0, talon − marge) pour qu'une batterie cloud en timeout qui décharge ne la rende pas négative"
             }
           }
         }

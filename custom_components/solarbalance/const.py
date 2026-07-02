@@ -41,6 +41,7 @@ CONF_CURTAILMENT_SETTLE_TICKS: Final = "curtailment_settle_ticks"
 CONF_BACKUP_RESERVE_SOC_PCT: Final = "backup_reserve_soc_pct"
 CONF_BASELINE_WINDOW_START_H: Final = "baseline_window_start_h"
 CONF_BASELINE_WINDOW_END_H: Final = "baseline_window_end_h"
+CONF_BASELINE_FLOOR_MARGIN_W: Final = "baseline_floor_margin_w"
 CONF_LOAD_CONTROL_ENABLED: Final = "load_control_enabled"
 CONF_EVENING_SHED_ENABLED: Final = "evening_shed_enabled"
 CONF_EVENING_SHED_MIN_POWER_W: Final = "evening_shed_min_power_w"
@@ -125,6 +126,10 @@ DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1
 # Night-window over which the standby baseline (talon) is averaged (local hours).
 DEFAULT_BASELINE_WINDOW_START_H: Final = 2
 DEFAULT_BASELINE_WINDOW_END_H: Final = 5
+# Margin below the talon for the displayed-baseline floor: baseline is floored at
+# max(0, talon - margin) so a stale cloud battery discharging into the fleet can't
+# drive it negative. Lower = closer to the talon (more reactive floor).
+DEFAULT_BASELINE_FLOOR_MARGIN_W: Final = 50
 
 # Evening battery-priority shedding: only interruptible loads at or above this
 # power are considered "big" and shed to let the PV charge the batteries.
