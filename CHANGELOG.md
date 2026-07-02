@@ -37,6 +37,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta47] — 2026-07-02
+
+### Fixed
+
+- **Yoyo de décharge matinal à bas SoC (consigne 0 ↔ ~350 W toutes les ~10 s).** L'éligibilité
+  à la décharge était un **seuil dur** à `soc_min + 2 %` : une batterie stationnant pile à ce
+  seuil (SoC quantifié qui oscille 22↔23 %) entrait/sortait de l'éligibilité **à chaque tick**,
+  faisant basculer le `base_load` entre 0 et le plein régime. Remplacé par :
+  - **Taper** — au-dessus du plancher, la décharge autorisée monte en **rampe douce** sur une
+    bande de 4 % (0 % au plancher → 100 % à +4 %) au lieu de sauter 0→max.
+  - **Hystérésis** — une batterie « reposée » au plancher reste à 0 décharge tant que son SoC
+    n'a pas regagné +2 % au-dessus du plancher, donc le bruit de quantification ne peut plus
+    la ré-armer chaque tick.
+
+  Effet de bord bénéfique : SB ne commande plus de décharge dans la zone 22-24 % proche de la
+  réserve boîtier (20 %), ce qui réduit aussi la bagarre « le boîtier annule la sortie ».
+
 ## [2.0.8-beta46] — 2026-07-02
 
 ### Fixed
@@ -1743,6 +1760,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta47]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta46...v2.0.8-beta47
 [2.0.8-beta46]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta45...v2.0.8-beta46
 [2.0.8-beta45]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta44...v2.0.8-beta45
 [2.0.8-beta44]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta43...v2.0.8-beta44

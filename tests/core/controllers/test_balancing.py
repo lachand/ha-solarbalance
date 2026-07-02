@@ -37,6 +37,44 @@ def test_discharge_excluded_within_soc_margin_of_floor() -> None:
     assert clear.per_battery_w["b"] == pytest.approx(-500.0, abs=2.0)
 
 
+def _discharge_dev(name: str = "b", *, soc_min_pct: int = 20) -> Device:
+    return Device(
+        name=name,
+        battery=BatteryRole(
+            capacity_kwh=5.0,
+            max_charge_power_w=2000,
+            max_discharge_power_w=2000,
+            soc_entity="sensor.s",
+            power_entity="sensor.p",
+            soc_min_pct=soc_min_pct,
+            controllable=True,
+        ),
+    )
+
+
+def test_discharge_rate_tapers_above_floor() -> None:
+    # floor = 22 %, taper band 4 % → full at 26 %. At 24 % the cap is (24-22)/4 = 50 %
+    # of the 2000 W rate = 1000 W, so a 1500 W request is clamped to 1000 W (not 0, not
+    # full) — the setpoint eases in near the floor instead of snapping 0<->max.
+    ctrl = BalancingController([_discharge_dev()], alpha=1.0)
+    res = ctrl.allocate(total_power_w=-1500.0, states={"b": _state("b", 24.0)})
+    assert res.per_battery_w["b"] == pytest.approx(-1000.0, abs=2.0)
+    assert res.unallocated_w == pytest.approx(-500.0, abs=2.0)
+
+
+def test_discharge_hysteresis_blocks_rearm_on_soc_flicker() -> None:
+    # The morning yoyo: SoC quantises 22<->23 right at the floor. Once rested at 22 %,
+    # a bounce to 23 % must NOT re-arm discharge (needs floor + rearm = 24 %).
+    ctrl = BalancingController([_discharge_dev()], alpha=1.0)
+    # Drop to the floor → rested (excluded).
+    assert ctrl.allocate(total_power_w=-500.0, states={"b": _state("b", 22.0)}).per_battery_w == {}
+    # Bounce to 23 % → still rested (hysteresis), no discharge.
+    assert ctrl.allocate(total_power_w=-500.0, states={"b": _state("b", 23.0)}).per_battery_w == {}
+    # Recover to 24 % → re-armed, discharge resumes (tapered).
+    resumed = ctrl.allocate(total_power_w=-500.0, states={"b": _state("b", 24.0)})
+    assert resumed.per_battery_w["b"] == pytest.approx(-500.0, abs=2.0)
+
+
 class TestBalancingController:
     @pytest.mark.parametrize("alpha", [-0.1, 1.5])
     def test_alpha_must_be_in_unit_interval(self, alpha: float, ecoflow_device: Device) -> None:

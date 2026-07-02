@@ -26,6 +26,14 @@ _EQUALISER_EPSILON = 1e-3
 # "wants to charge before it can discharge" case). Excluding it early lets the
 # anti-windup relax the command instead.
 _DISCHARGE_SOC_MARGIN_PCT = 2.0
+# Above the margin, ramp the allowed discharge up smoothly over this band instead of
+# snapping 0 -> full: a battery hovering at the margin no longer slams the setpoint
+# 0<->max every tick when its (1 %-quantised) SoC flickers across the boundary.
+_DISCHARGE_TAPER_BAND_PCT = 4.0
+# Hysteresis: once a battery has been rested at/under the margin, keep it at zero
+# discharge until its SoC recovers this far above the margin — so SoC quantisation
+# noise at the boundary cannot re-arm it every tick (the morning discharge yoyo).
+_DISCHARGE_REARM_PCT = 2.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -76,6 +84,9 @@ class BalancingController:
         self._min_dwell_s = min_dwell_s
         self._last_direction: dict[str, int] = {}  # 1=charging, -1=discharging
         self._last_direction_at: dict[str, datetime] = {}
+        # Per-battery discharge-floor hysteresis latch: True once rested at/under the
+        # margin, cleared only when SoC recovers past the re-arm band. See _discharge_scale.
+        self._discharge_rested: dict[str, bool] = {}
 
     def allocate(
         self,
@@ -91,7 +102,10 @@ class BalancingController:
             now: Current timestamp used for the anti-short-cycle guard.
                 When None, the guard is skipped for this tick.
         """
-        eligible = self._eligible_batteries(total_power_w, states, now)
+        # Per-battery discharge caps (SoC taper + hysteresis) — 0 near the floor,
+        # ramping to the full rate over the taper band. Computed once per tick.
+        discharge_caps = self._discharge_caps(total_power_w, states)
+        eligible = self._eligible_batteries(total_power_w, states, now, discharge_caps)
         if not eligible:
             return BalancingResult(per_battery_w={}, unallocated_w=total_power_w, iterations=0)
 
@@ -111,7 +125,10 @@ class BalancingController:
             for name, role in active:
                 share = remaining * (weights[name] / weight_sum)
                 proposed = per_battery[name] + share
-                clamped = self._clamp_to_limits(role, proposed)
+                max_discharge_w = discharge_caps.get(name, float(role.max_discharge_power_w))
+                clamped = self._clamp_to_limits(
+                    float(role.max_charge_power_w), max_discharge_w, proposed
+                )
                 per_battery[name] = clamped
                 if abs(clamped - proposed) > _RESIDUAL_TOLERANCE_W:
                     saturated_now.append(name)
@@ -140,11 +157,13 @@ class BalancingController:
         total_power_w: float,
         states: Mapping[str, BatteryState],
         now: datetime | None = None,
+        discharge_caps: Mapping[str, float] | None = None,
     ) -> list[tuple[str, BatteryRole]]:
         """Drop batteries that cannot accept the requested direction.
 
         Also excludes batteries that reversed direction too recently (anti-short-cycle).
         """
+        caps = discharge_caps or {}
         eligible: list[tuple[str, BatteryRole]] = []
         requested_dir = 1 if total_power_w > 0 else (-1 if total_power_w < 0 else 0)
         for name, role in self._batteries:
@@ -153,7 +172,10 @@ class BalancingController:
                 continue
             if total_power_w > 0 and state.soc_pct >= role.soc_max_pct:
                 continue
-            if total_power_w < 0 and state.soc_pct <= role.soc_min_pct + _DISCHARGE_SOC_MARGIN_PCT:
+            # Discharge: excluded only when the SoC taper has ramped its cap to ~0
+            # (at/under the floor, held there by the re-arm hysteresis). Above the
+            # floor the battery is eligible but rate-limited by discharge_caps.
+            if total_power_w < 0 and caps.get(name, 0.0) <= _RESIDUAL_TOLERANCE_W:
                 continue
             # Anti-short-cycle guard: block direction reversal during dwell window.
             if now is not None and self._min_dwell_s > 0 and requested_dir != 0:
@@ -205,9 +227,47 @@ class BalancingController:
         return weights
 
     @staticmethod
-    def _clamp_to_limits(role: BatteryRole, proposed_w: float) -> float:
+    def _clamp_to_limits(max_charge_w: float, max_discharge_w: float, proposed_w: float) -> float:
         if proposed_w > 0:
-            return min(proposed_w, float(role.max_charge_power_w))
+            return min(proposed_w, max_charge_w)
         if proposed_w < 0:
-            return max(proposed_w, -float(role.max_discharge_power_w))
+            return max(proposed_w, -max_discharge_w)
         return 0.0
+
+    def _discharge_caps(
+        self, total_power_w: float, states: Mapping[str, BatteryState]
+    ) -> dict[str, float]:
+        """Per-battery max discharge (W) after the SoC taper + hysteresis.
+
+        Only computed for a discharge request (``total_power_w < 0``); for a charge the
+        map is empty and the full ``max_discharge_power_w`` applies. Updates the per-battery
+        rest latch as a side effect (once per tick).
+        """
+        caps: dict[str, float] = {}
+        if total_power_w >= 0:
+            return caps
+        for name, role in self._batteries:
+            state = states.get(name)
+            if state is None or not state.available:
+                continue
+            scale = self._discharge_scale(name, role, state.soc_pct)
+            caps[name] = scale * float(role.max_discharge_power_w)
+        return caps
+
+    def _discharge_scale(self, name: str, role: BatteryRole, soc_pct: float) -> float:
+        """Fraction (0..1) of the discharge rate allowed at this SoC.
+
+        Zero at/under ``soc_min + margin`` (the floor), ramping linearly to 1 over the
+        taper band above it. A hysteresis latch keeps a rested battery at 0 until its SoC
+        climbs past ``floor + rearm`` — so a SoC hovering on the 1 %-quantised boundary
+        can't flip the discharge on/off every tick (the morning discharge yoyo).
+        """
+        floor = float(role.soc_min_pct) + _DISCHARGE_SOC_MARGIN_PCT
+        if self._discharge_rested.get(name, False):
+            if soc_pct < floor + _DISCHARGE_REARM_PCT:
+                return 0.0  # stay rested until well clear of the floor
+            self._discharge_rested[name] = False
+        if soc_pct <= floor:
+            self._discharge_rested[name] = True
+            return 0.0
+        return min(1.0, (soc_pct - floor) / _DISCHARGE_TAPER_BAND_PCT)
