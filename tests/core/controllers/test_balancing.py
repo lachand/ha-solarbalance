@@ -52,6 +52,20 @@ def _discharge_dev(name: str = "b", *, soc_min_pct: int = 20) -> Device:
     )
 
 
+def test_charge_cap_limits_allocation_and_reports_saturation() -> None:
+    # The entity accepts at most 1050 W even though max_charge_power_w is 2000: the
+    # allocation is capped at 1050 and the rest is reported as unallocated, so the
+    # velocity-form anti-windup sees the real saturation (no wind-up past the limit).
+    ctrl = BalancingController([_discharge_dev(soc_min_pct=10)], alpha=1.0)
+    res = ctrl.allocate(
+        total_power_w=2000.0,
+        states={"b": _state("b", 50.0)},
+        charge_caps={"b": 1050.0},
+    )
+    assert res.per_battery_w["b"] == pytest.approx(1050.0, abs=2.0)
+    assert res.unallocated_w == pytest.approx(950.0, abs=2.0)
+
+
 def test_discharge_rate_tapers_above_floor() -> None:
     # floor = 22 %, taper band 4 % → full at 26 %. At 24 % the cap is (24-22)/4 = 50 %
     # of the 2000 W rate = 1000 W, so a 1500 W request is clamped to 1000 W (not 0, not

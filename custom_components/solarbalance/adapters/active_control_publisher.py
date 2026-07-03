@@ -189,6 +189,28 @@ class ActiveControlPublisher:
         """
         return dict(self._last_setpoints)
 
+    def charge_limit_w(self, device_name: str) -> float | None:
+        """The device's charge setpoint entity ``max`` (W), or None if unknown.
+
+        Lets the balancer cap a charge allocation at what the hardware will actually
+        accept (e.g. a STREAM ``charging_power_limit`` maxing at 1050 W): commanding more
+        is silently clamped on write, so the velocity-form loop would wind up past the
+        physical limit (``unalloc`` never reflecting the clamp). Reading it back into the
+        allocation keeps ``unalloc`` — and the anti-windup — honest.
+        """
+        m = self._managed.get(device_name)
+        if m is None or m.charge_entity is None:
+            return None
+        state = self._hass.states.get(m.charge_entity)
+        attrs = getattr(state, "attributes", None)
+        if not isinstance(attrs, Mapping):
+            return None
+        hi = attrs.get("max")
+        try:
+            return float(hi) if hi is not None else None
+        except (TypeError, ValueError):
+            return None
+
     async def apply_reserve(self, soc_by_device: Mapping[str, float]) -> None:
         """Write each battery's backup-reserve / min-SoC setpoint (%)."""
         for name, entity_id in self._reserve_entities.items():

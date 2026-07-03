@@ -93,6 +93,7 @@ class BalancingController:
         total_power_w: float,
         states: Mapping[str, BatteryState],
         now: datetime | None = None,
+        charge_caps: Mapping[str, float] | None = None,
     ) -> BalancingResult:
         """Allocate `total_power_w` across batteries (positive = charge).
 
@@ -101,6 +102,10 @@ class BalancingController:
             states: Current battery states keyed by device name.
             now: Current timestamp used for the anti-short-cycle guard.
                 When None, the guard is skipped for this tick.
+            charge_caps: Optional per-battery max *charge* (W), e.g. the hardware
+                setpoint entity's real ceiling. Caps the allocation below
+                ``max_charge_power_w`` so ``unallocated_w`` reflects the true saturation
+                (and the velocity-form anti-windup does not wind past the physical limit).
         """
         # Per-battery discharge caps (SoC taper + hysteresis) — 0 near the floor,
         # ramping to the full rate over the taper band. Computed once per tick.
@@ -126,9 +131,10 @@ class BalancingController:
                 share = remaining * (weights[name] / weight_sum)
                 proposed = per_battery[name] + share
                 max_discharge_w = discharge_caps.get(name, float(role.max_discharge_power_w))
-                clamped = self._clamp_to_limits(
-                    float(role.max_charge_power_w), max_discharge_w, proposed
-                )
+                max_charge_w = float(role.max_charge_power_w)
+                if charge_caps is not None and name in charge_caps:
+                    max_charge_w = min(max_charge_w, charge_caps[name])
+                clamped = self._clamp_to_limits(max_charge_w, max_discharge_w, proposed)
                 per_battery[name] = clamped
                 if abs(clamped - proposed) > _RESIDUAL_TOLERANCE_W:
                     saturated_now.append(name)

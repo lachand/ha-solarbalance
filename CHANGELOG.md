@@ -37,6 +37,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta52] — 2026-07-03
+
+### Fixed
+
+- **Windup de charge (comportement erratique le matin sur gros surplus).** Quand
+  `max_charge_power_w` d'une batterie dépasse la vraie limite de son entité de charge
+  (ex. STREAM `charging_power_limit` plafonnée à 1050 W), le balancer sur-allouait
+  (jusqu'à 2300 W) — les écritures étant silencieusement bornées à 1050 W, `unalloc` ne
+  reflétait pas le clamp et la boucle velocity-form **s'enroulait au-delà du physique**
+  (`loop_base` monté à 3300, cible ~3800). À la fin du surplus, le déroulement lent
+  (slew) provoquait un **dépassement en soutirage → oscillation**. Le balancer lit
+  désormais la vraie limite `max` de l'entité de charge et **plafonne l'allocation
+  dessus** : `unalloc` reflète la saturation réelle et l'anti-windup borne `loop_base` au
+  physique, même si `max_charge_power_w` est mal réglé. Supprime aussi le spam de
+  ré-écriture `charging_power_limit` (on ne commande plus au-delà de la limite).
+
+  **À corriger aussi côté config** : aligner `max_charge_power_w` sur la limite réelle de
+  l'entité (1050 W par batterie STREAM) ; et si le watchdog spamme sur `..._main_battery_level`
+  (SoC BLE rafraîchi ~5 min), monter « Péremption batterie non-pilotable » à ~420 s.
+
 ## [2.0.8-beta51] — 2026-07-02
 
 ### Added
@@ -1837,6 +1857,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
+[2.0.8-beta52]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta51...v2.0.8-beta52
 [2.0.8-beta51]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta50...v2.0.8-beta51
 [2.0.8-beta50]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta49...v2.0.8-beta50
 [2.0.8-beta49]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta48...v2.0.8-beta49

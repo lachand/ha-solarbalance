@@ -2054,10 +2054,26 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         # Dispatch loads using the unallocated surplus
         battery_states = {b.device_name: b for b in snapshot.batteries}
+        # Cap each battery's charge allocation at what its setpoint entity will actually
+        # accept (e.g. a STREAM charging_power_limit maxing at 1050 W). Commanding more is
+        # silently clamped on write, so without this the velocity-form loop winds up past
+        # the physical limit (unalloc never reflecting the clamp). Reading the entity max
+        # into the allocation keeps unalloc — and the anti-windup below — honest.
+        charge_caps: dict[str, float] = {}
+        for device in self._devices:
+            batt = device.battery
+            if batt is None or not batt.controllable:
+                continue
+            cap = float(batt.max_charge_power_w)
+            limit = self._active_control.charge_limit_w(device.name)
+            if limit is not None:
+                cap = min(cap, limit)
+            charge_caps[device.name] = cap
         balancing_result = self._balancing.allocate(
             total_power_w=total_power_w,
             states=battery_states,
             now=snapshot.timestamp,
+            charge_caps=charge_caps,
         )
         # Anti-windup for the velocity-form loop: it integrates on the last *commanded*
         # total, so if the balancer could not place all of it — the command exceeds the
