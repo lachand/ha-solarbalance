@@ -37,6 +37,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta53] — 2026-07-03
+
+> ⚠️ Les changements de la commit « 2.0.8-beta25 » (dwell anti-bascule) n'avaient jamais
+> été publiés : le `manifest.json` était resté à beta52, donc HACS n'installait pas la
+> nouveauté. Cette release les livre réellement.
+
+### Added
+
+- **Dwell anti-bascule charge↔décharge (`fleet_reversal_dwell_s`, Options → Avancé, défaut
+  120 s).** Une STREAM solar-first doit changer de stratégie (`self_powered ↔ scheduled`,
+  lent en BLE) pour passer de charge à décharge ; près de « maison = PV » le signe s'inverse
+  chaque minute → thrash de mode + dépassement. Une fois le parc engagé dans une direction,
+  il la garde (idle plutôt que d'inverser) tant que la demande opposée n'a pas persisté
+  au-delà du dwell. `0` désactive.
+
+### Fixed
+
+- **Windup de charge borné à la vraie limite d'entité** (rappel beta52) : le balancer
+  plafonne l'allocation de charge au `max` réel de l'entité (STREAM `charging_power_limit`),
+  donc `unalloc` reflète la saturation et l'anti-windup ne s'emballe plus.
+
 ## [2.0.8] — 2026-06-25
 
 > Cette version consolide les changements de la pré-release `2.0.8-beta24`.
