@@ -26,6 +26,7 @@ from .const import (
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
     CONF_EXPORT_PRICE,
+    CONF_FLEET_REVERSAL_DWELL_S,
     CONF_FORECAST_SAFETY_FACTOR,
     CONF_HC_END,
     CONF_HC_PRICE,
@@ -71,6 +72,7 @@ from .const import (
     DEFAULT_DRY_RUN,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_EXPORT_PRICE,
+    DEFAULT_FLEET_REVERSAL_DWELL_S,
     DEFAULT_FORECAST_SAFETY_FACTOR,
     DEFAULT_HC_END,
     DEFAULT_HC_PRICE,
@@ -254,6 +256,10 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
                 vol.Optional(
                     CONF_BASELINE_FLOOR_MARGIN_W,
                     default=d.get(CONF_BASELINE_FLOOR_MARGIN_W, DEFAULT_BASELINE_FLOOR_MARGIN_W),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+                vol.Optional(
+                    CONF_FLEET_REVERSAL_DWELL_S,
+                    default=d.get(CONF_FLEET_REVERSAL_DWELL_S, DEFAULT_FLEET_REVERSAL_DWELL_S),
                 ): vol.All(vol.Coerce(int), vol.Range(min=0)),
             }
         ),

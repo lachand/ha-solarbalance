@@ -51,7 +51,8 @@
               "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
               "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
               "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive",
-              "baseline_floor_margin_w": "Marge plancher baseline sous le talon (W) : plafonne la baseline affichée à max(0, talon − marge) pour qu'une batterie cloud en timeout qui décharge ne la rende pas négative"
+              "baseline_floor_margin_w": "Marge plancher baseline sous le talon (W) : plafonne la baseline affichée à max(0, talon − marge) pour qu'une batterie cloud en timeout qui décharge ne la rende pas négative",
+              "fleet_reversal_dwell_s": "Délai anti-bascule charge↔décharge (s) : garder le parc dans une direction ce temps avant d'inverser, pour qu'un onduleur solar-first (STREAM) n'oscille pas self_powered↔scheduled autour de maison=PV ; 0 désactive"
             }
           }
         }
@@ -110,7 +111,8 @@
               "baseline_window_start_h": "Talon : début fenêtre nuit (h)",
               "baseline_window_end_h": "Talon : fin fenêtre nuit (h)",
               "noncontrollable_stale_s": "Péremption batterie non-pilotable (s) : ignorer sa puissance au-delà (ex. batterie cloud en retard) ; 0 désactive",
-              "baseline_floor_margin_w": "Marge plancher baseline sous le talon (W) : plafonne la baseline affichée à max(0, talon − marge) pour qu'une batterie cloud en timeout qui décharge ne la rende pas négative"
+              "baseline_floor_margin_w": "Marge plancher baseline sous le talon (W) : plafonne la baseline affichée à max(0, talon − marge) pour qu'une batterie cloud en timeout qui décharge ne la rende pas négative",
+              "fleet_reversal_dwell_s": "Délai anti-bascule charge↔décharge (s) : garder le parc dans une direction ce temps avant d'inverser, pour qu'un onduleur solar-first (STREAM) n'oscille pas self_powered↔scheduled autour de maison=PV ; 0 désactive"
             }
           }
         }

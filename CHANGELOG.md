@@ -37,430 +37,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
-## [2.0.8-beta52] — 2026-07-03
+## [2.0.8] — 2026-06-25
 
-### Fixed
-
-- **Windup de charge (comportement erratique le matin sur gros surplus).** Quand
-  `max_charge_power_w` d'une batterie dépasse la vraie limite de son entité de charge
-  (ex. STREAM `charging_power_limit` plafonnée à 1050 W), le balancer sur-allouait
-  (jusqu'à 2300 W) — les écritures étant silencieusement bornées à 1050 W, `unalloc` ne
-  reflétait pas le clamp et la boucle velocity-form **s'enroulait au-delà du physique**
-  (`loop_base` monté à 3300, cible ~3800). À la fin du surplus, le déroulement lent
-  (slew) provoquait un **dépassement en soutirage → oscillation**. Le balancer lit
-  désormais la vraie limite `max` de l'entité de charge et **plafonne l'allocation
-  dessus** : `unalloc` reflète la saturation réelle et l'anti-windup borne `loop_base` au
-  physique, même si `max_charge_power_w` est mal réglé. Supprime aussi le spam de
-  ré-écriture `charging_power_limit` (on ne commande plus au-delà de la limite).
-
-  **À corriger aussi côté config** : aligner `max_charge_power_w` sur la limite réelle de
-  l'entité (1050 W par batterie STREAM) ; et si le watchdog spamme sur `..._main_battery_level`
-  (SoC BLE rafraîchi ~5 min), monter « Péremption batterie non-pilotable » à ~420 s.
-
-## [2.0.8-beta51] — 2026-07-02
-
-### Added
-
-- **Marge plancher de baseline configurable dans l'UI** (`baseline_floor_margin_w`, section
-  Avancé des options, défaut 50 W). Contrôle le plancher `max(0, talon − marge)` de la
-  baseline affichée (voir beta50) sans avoir à releaser : plus bas = plancher plus proche du
-  talon, plus haut = tolère une conso de fond plus variable avant plafonnement.
-
-## [2.0.8-beta50] — 2026-07-02
-
-### Fixed
-
-- **Baseline négative faussée par une batterie cloud en timeout.** Quand une batterie
-  non-contrôlable (cloud) est en timeout mais se décharge réellement dans le parc, le réseau
-  voit sa décharge alors que sa puissance **figée** ne la compte pas → `baseline = maison −
-  décharge_non_comptée` devient **négatif** (le « -579 W — mapping ? »). C'est désormais :
-  - **identifié** (baseline sous le plancher **et** une batterie non-contrôlable `stale`) ;
-  - **plafonné avec convergence douce** : la baseline affichée est bornée à
-    `max(0, talon − 50 W)` et **glisse doucement** vers ce plancher au lieu de plonger dans le
-    négatif (elle suit la valeur brute dès qu'elle redevient plausible) ;
-  - **distingué d'une vraie erreur de mapping** : l'alerte « mapping ? » ne se déclenche plus
-    quand la cause est le timeout cloud ; la carte Santé affiche à la place une ligne **info**
-    « batterie cloud en décharge (timeout) ». L'alerte reste pour un négatif persistant *sans*
-    cloud périmé (vraie inversion de signe).
-
-  Le capteur `baseline_consumption` expose `raw_w` (valeur brute) et `cloud_timeout` en
-  attributs. Les usages internes (plan advisory) restent sur la valeur brute.
-
-## [2.0.8-beta49] — 2026-07-02
-
-### Fixed
-
-- **Faux warning « consigne / mesuré » sur les cartes STREAM.** La carte device comparait la
-  consigne `base_load` (une sortie **AC**, et le **total du groupe mirroré**) à la puissance
-  **cellule par batterie** — deux grandeurs non comparables sur un onduleur solar-first
-  (sortie AC = solaire + décharge cellule). Une STREAM qui suivait parfaitement sa consigne
-  (2×(~416 W solaire + ~300 W cellule) ≈ 1.4 kW AC) affichait quand même ⚠. La carte montre
-  désormais **puissance batterie** et **consigne** sur des lignes séparées, sans comparaison ;
-  le vrai signal « le boîtier n'honore pas la consigne » reste dans la carte **Santé**
-  (relecture de l'entité réellement écrite, fiable).
-
-## [2.0.8-beta48] — 2026-07-02
-
-### Added
-
-Dashboard (panneau SolarBalance) — gros lot d'observabilité pour le debug live :
-
-- **A — Cause du timeout batterie.** La carte device passe en ambre avec un badge indiquant
-  *quel* signal est figé (**SoC** ou **puissance**) et **depuis combien de temps** (ex.
-  « ⚠ SoC figé · 5 min »). Nouvel exposé : `stale_reason` + `stale_age_s` (reader →
-  `BatteryState` → attributs du capteur SoC).
-- **B — Carte « Santé ».** Liste en direct ce qui cloche, jusqu'ici seulement dans les logs :
-  batteries périmées (avec cause), **device en double** (deux devices sur la même entité),
-  **écritures non appliquées** (le boîtier n'honore pas la consigne), mode dégradé, baseline
-  négative.
-- **C — Visualisation régulation.** La carte Régulation affiche le **garde-fou actif**
-  (`binding`) + une **sparkline cible parc vs parc réel** (buffer de session) → un yoyo se
-  voit d'un coup d'œil.
-- **D — Cartes device enrichies.** **Consigne vs mesuré** côte à côte (+ ⚠ si l'écrit ne
-  « tient » pas), **plancher SoC** rappelé sous la jauge, **badge rôle** (cloud).
-- **E — Vue « Debug régulation (live) ».** Section repliable avec tous les champs de la ligne
-  de debug (`loop_base`, `zi`, `eq`, `unalloc`, `nc_charge`, `nat_grid`, `per=`, `wr=`…) en
-  temps réel — diagnostiquer un yoyo sans ouvrir les logs. Nouveau capteur diagnostic
-  `regulation_debug` (tout en attributs).
-- **F — Graphe SoC multi-batteries** sur la fenêtre choisie (les timeouts apparaissent en
-  ligne plate/discontinue).
-- **H — Carte « Bridage PV ».** Par MPPT : production vs limite de sortie (+ « bridé ») et
-  **PV caché estimé**.
-- **K — Contrôles rapides.** Boutons de service depuis le dashboard (pause, reprendre, forcer
-  charge/décharge, mode tempête), avec confirmation pour les actions sensibles.
-
-### Changed
-
-- `verify_writes` mémorise les écritures non appliquées (`verify_failures()`) et les collisions
-  d'entités (`duplicate_entities()`) sont exposées — pour la carte Santé.
-
-## [2.0.8-beta47] — 2026-07-02
-
-### Fixed
-
-- **Yoyo de décharge matinal à bas SoC (consigne 0 ↔ ~350 W toutes les ~10 s).** L'éligibilité
-  à la décharge était un **seuil dur** à `soc_min + 2 %` : une batterie stationnant pile à ce
-  seuil (SoC quantifié qui oscille 22↔23 %) entrait/sortait de l'éligibilité **à chaque tick**,
-  faisant basculer le `base_load` entre 0 et le plein régime. Remplacé par :
-  - **Taper** — au-dessus du plancher, la décharge autorisée monte en **rampe douce** sur une
-    bande de 4 % (0 % au plancher → 100 % à +4 %) au lieu de sauter 0→max.
-  - **Hystérésis** — une batterie « reposée » au plancher reste à 0 décharge tant que son SoC
-    n'a pas regagné +2 % au-dessus du plancher, donc le bruit de quantification ne peut plus
-    la ré-armer chaque tick.
-
-  Effet de bord bénéfique : SB ne commande plus de décharge dans la zone 22-24 % proche de la
-  réserve boîtier (20 %), ce qui réduit aussi la bagarre « le boîtier annule la sortie ».
-
-## [2.0.8-beta46] — 2026-07-02
-
-### Fixed
-
-- **Batterie « stale » : la fraîcheur du SoC est enfin prise en compte.** Le drapeau `stale`
-  (qui fait ignorer une batterie par l'équaliseur SoC et les garde-fous cloud) ne regardait
-  que les entités de **puissance**, jamais le **SoC**. Une station cloud (Jackery) dont le
-  capteur de SoC tombe en timeout tout en continuant à publier sa puissance restait donc
-  `stale=False` : l'équaliseur continuait de piloter sur un **SoC gelé** → l'offre (et toute
-  la chaîne de binding) papillonnait. Le SoC périmé (> seuil) marque désormais la batterie
-  `stale` — c'est le signal sur lequel l'équaliseur s'appuie.
-
-### Added
-
-- **Retour visuel « hors ligne » sur le panneau.** Les capteurs par batterie exposent un
-  attribut `stale` ; la carte du device passe en **ambre** avec un badge « Hors ligne »
-  quand ses données ne se rafraîchissent plus (timeout). La ligne de debug par tick marque
-  déjà ce cas (`!` = stale, `x` = indisponible).
-
-## [2.0.8-beta45] — 2026-07-02
-
-### Added
-
-- **Alerte « device en double »** — au démarrage, si deux devices pilotés pointent vers la
-  **même** entité de consigne (charge/décharge/mode), un WARNING le signale. Cas typique :
-  un ancien device « STREAM entier » resté à côté des deux devices par-batterie ; les deux
-  écrivent le même `number` à chaque tick (le dernier gagne), une allocation est donc
-  silencieusement perdue **et la boucle velocity-form s'enroule** (elle commande plus que
-  le parc ne délivre → `loop_base` très supérieur au parc mesuré). Un groupe de mirror de
-  décharge n'est **pas** concerné (chaque membre a sa propre entité `base_load`).
-
-## [2.0.8-beta44] — 2026-07-01
-
-### Fixed
-
-- **Écriture d'une consigne hors plage de l'entité (`ServiceValidationError` en boucle).**
-  Une batterie STREAM dont le `charging_power_limit` plafonne sous l'allocation (p. ex.
-  1050 W alors que le régulateur demandait 1100 W) faisait échouer `number.set_value`
-  (« Value 1100.0 … outside valid range 0 - 1050 ») **à chaque tick** : le latch mémorisait
-  la valeur non appliquée, `verify_writes` relisait 1050, voyait un écart et réécrivait 1100
-  → **spam d'ERROR + réécriture sans fin**. Les écritures de puissance (charge/décharge/PV
-  limit) et de réserve sont désormais **bornées au `min`/`max` déclarés par l'entité** avant
-  l'appel de service ; le latch retient la valeur bornée, donc la vérification se stabilise.
-  À corriger aussi côté config : aligner `max_charge_power_w` du device sur la vraie limite
-  de l'entité, et supprimer un éventuel device STREAM en double pointant la même entité.
-
-## [2.0.8-beta43] — 2026-07-01
-
-### Added
-
-- **`wr=` dans la ligne de debug par tick** — la consigne réellement **écrite** sur chaque
-  batterie (`"<charge>c<décharge>d"`, après la coupe SoC et le mirror de décharge). Plus
-  besoin de croiser avec les lignes `active-control` séparées : le tick complet, décision
-  *et* écriture, tient sur une seule ligne. La ligne est maintenant émise **après** les
-  écritures (le flag `settle` affiché reste celui qui a piloté ce tick).
-
-## [2.0.8-beta42] — 2026-06-25
-
-### Added
-
-- **Ligne de debug complète par tick** (niveau DEBUG sur `custom_components.solarbalance`)
-  pour diagnostiquer la régulation / les yoyo depuis les logs seuls. Une ligne unique par
-  tick, tout corrélé : mode, ZI actif, settle ; réseau brut + naturel + setpoint effectif
-  (avec force-offset & offset cloud) ; fleet mesuré, mppt contrôlable, PV caché ; **SoC +
-  puissance par batterie** (dont cloud, marqueurs stale/indispo) ; charge cloud lissée +
-  latch ; **loop_base** (base velocity-form → montre le windup), correction ZI, offre
-  équaliseur, cloud-relief, plancher décharge, back-off, near_full ; **cible + binding** ;
-  allocations par batterie, non-alloué, limite PV.
-
-## [2.0.8-beta41] — 2026-06-25
-
-### Fixed
-
-- **Yoyo matinal `base ↔ no_charge_floor ↔ no_feed` (auto-oscillation du garde-fou).**
-  Le `no_charge_floor` s'activait dès que le **réseau brut** était ~0 — or le matin le
-  parc **charge son propre surplus PV**, ce qui *maintient* le réseau à ~0 → le garde-fou
-  **forçait la sortie du PV** → export → désactivation → recharge → oscillation (et le
-  `no_feed` apparaissait sur les ticks de sortie forcée). Il tient maintenant compte du
-  **réseau naturel** (`grid − parc`) : si le parc **absorbe un vrai surplus PV** (réseau
-  naturel exportateur **et** PV contrôlable réel), on **ne force plus la sortie**. Le
-  garde-fou anti-round-trip reste actif quand il n'y a **pas de PV** (nuit + cloud qui se
-  décharge) et quand le réseau brut n'exporte pas sans surplus.
-
-## [2.0.8-beta40] — 2026-06-25
-
-### Fixed
-
-- **Windup matinal quand une batterie est près de sa réserve.** Le matin, une batterie
-  juste au-dessus de son plancher (`soc_min`, ou la réserve que la box maintient un peu
-  au-dessus) « veut charger avant de pouvoir décharger » ; SB lui commandait quand même
-  une décharge que la box refuse → la boucle zéro-injection **s'enroulait** (fleet target
-  géant, ex. −1161 W bloqué). Le balancer **exclut désormais la décharge dans une marge
-  de 2 %** au-dessus du plancher → l'anti-windup relâche la commande au lieu de rester
-  coincé. (Aligne aussi le comportement quand `soc_min < backup_reserve`.)
-
-## [2.0.8-beta39] — 2026-06-25
-
-### Fixed
-
-- **STREAM à 2 batteries : la puissance système partagée n'est plus comptée deux fois.**
-  Quand plusieurs devices batterie pointent la **même** entité de puissance (cas STREAM :
-  la puissance est remontée au **niveau système**, pas par batterie), SB la **compte une
-  seule fois** — la lecture est répartie également entre les devices — au lieu de
-  l'additionner une fois par device. Évite un `current_fleet` (et des estimations / ZI)
-  doublés. Les MPPT, déclarés **par batterie** (entités distinctes), restent sommés
-  normalement. Détection **automatique** (même entité), aucune config en plus ; exemple
-  « 2 batteries STREAM » ajouté dans `docs/device-mapping.md`.
-
-## [2.0.8-beta38] — 2026-06-25
-
-### Fixed
-
-- **Les capteurs « consigne de charge/décharge » par batterie affichent la valeur
-  réellement écrite.** Ils montraient la **répartition interne du balancer** (ex. pour
-  un groupe de décharge mirroré : décharge 500 sur une batterie, 300 sur l'autre), alors
-  que SB **écrit le total mirroré** (800 sur **chaque** `base_load`). Les capteurs
-  reflètent désormais la consigne **écrite** (après cut SoC + mirror) → pour un groupe
-  mirroré (ex. STREAM), les deux batteries affichent **la même décharge**. La charge,
-  elle, reste par batterie (valeurs différentes possibles).
-
-## [2.0.8-beta37] — 2026-06-25
-
-### Added
-
-- **Groupe de décharge mirroré (EcoFlow STREAM multi-batteries).** Nouveau champ
-  batterie **`discharge_mirror_group`** : les batteries qui partagent ce libellé voient
-  le **total de décharge du groupe écrit à l'identique sur chaque `base_load`** (800 W
-  sur les deux = 800 W **total**, pas 1600), tandis que la **charge reste répartie par
-  batterie** (valeurs différentes possibles, équilibrage SoC). Permet de déclarer **2
-  devices STREAM** (un par batterie) avec le bon comportement firmware. Une batterie à
-  son plancher SoC est exclue du total. **Opt-in** : champ vide = comportement inchangé.
-
-## [2.0.8-beta36] — 2026-06-25
-
-### Fixed (yoyo de consigne STREAM quand une cloud finit sa charge)
-
-- **La consigne STREAM ne yoyote plus entre charger et sortir son PV.** Une batterie
-  cloud presque pleine charge par **rafales décroissantes** ; l'état interne « la cloud
-  charge » repassait sous le seuil **entre deux rafales**, ce qui faisait basculer
-  `no_charge_floor` (et `no_feed`) à chaque tick → la STREAM était **slammée entre
-  charger (~1200 W) et sortir tout son PV (~−1000 W)**, avec des pics d'injection réseau.
-  Cet état est désormais **latché avec hystérésis + dwell** (s'enclenche au-dessus du
-  seuil, ne se relâche qu'après être resté **bien en dessous** plusieurs ticks) →
-  `no_charge_floor`/`no_feed` ne clignotent plus, la consigne reste stable.
-
-## [2.0.8-beta35] — 2026-06-25
-
-### Fixed (round-trip nuit : la cloud basse se vidait dans la batterie pilotable haute)
-
-- **Anti-round-trip nuit.** Sans PV, une batterie cloud basse (ex. Jackery 28 %) pouvait
-  **se décharger pour charger la batterie pilotable haute** (ex. STREAM 79 %) : la box
-  pilotable absorbe le surplus AC de son côté et le garde-fou *passif* ne peut pas
-  l'arrêter (réseau masqué par la cloud). SB **commande désormais activement la batterie
-  haute à décharger pour couvrir la maison**, de sorte que la cloud basse se repose.
-  - **Plafonné à la consommation maison** → la haute couvre le foyer, **ne charge jamais
-    la cloud** (ce serait un transfert batterie-à-batterie avec pertes).
-  - **Back-off existant** : si la cloud ne réduit pas (l'injection persiste), on bride.
-  - Ne s'active que **équaliseur SoC actif, sans PV, et fleet nettement plus haute** que
-    la cloud (sinon c'est la cloud qui doit couvrir). Nouveau binding **`cloud_relief`**.
-
-## [2.0.8-beta34] — 2026-06-25
-
-### Changed (watchdog adapté aux onduleurs éteints la nuit)
-
-- **Catégorie « optionnelle » pour les MPPT / onduleurs.** Un micro-onduleur éteint la
-  nuit passe `unavailable`/absent — c'est désormais traité comme **« éteint », normal**,
-  plus comme une entité périmée. Plus aucun warning pour ça ; seul un capteur **figé**
-  (valeur présente mais qui ne bouge plus) est signalé. Le **PDL reste le seul critique**
-  (lui seul déclenche le mode dégradé).
-- **Logs du watchdog sur transition (edge-triggered).** Une entité qui tombe ou revient
-  est désormais loggée **une seule fois** (chute, puis retour), au lieu d'un warning **à
-  chaque tick** → fini le spam nocturne (onduleurs éteints, batterie cloud débranchée…).
-
-## [2.0.8-beta33] — 2026-06-25
-
-### Fixed (yoyo du binding équaliseur — deux causes)
-
-- **Batterie cloud débranchée (yoyo du matin).** Une station cloud **non branchée**
-  mais qui reporte encore son dernier SoC (**stale**) faisait calculer une offre sur
-  des données mortes → binding `equaliser ↔ base` au gré du flapping. L'équaliseur
-  **ignore désormais une batterie non pilotable stale** (comme indisponible).
-- **Flutter en bord de bande morte (yoyo de l'après-midi).** L'offre se relâchait à 0
-  **immédiatement** dès que l'écart SoC retombait dans la bande morte ; le SoC cloud
-  étant quantifié (~pas de 1 %), il *dither* autour du bord → l'offre s'effondrait et
-  repartait, faisant flipper toute la cascade (`eq_pv_route ↔ no_feed ↔ equaliser ↔
-  base`). L'offre est maintenant **tenue pendant un dwell** avant de se relâcher, et ce
-  dwell **s'adapte au délai de réponse mesuré** de la batterie non pilotable (plancher
-  3 ticks, plus long si la cloud répond lentement) — plus de flutter, et robuste à un
-  délai variable.
-
-## [2.0.8-beta32] — 2026-06-25
-
-### Added
-
-- **Capteurs « temps avant plein » / « temps avant vide »** (durée, h). Estimation =
-  énergie jusqu'au plafond/plancher SoC ÷ **puissance batterie instantanée lissée**
-  (EMA, comme un BMS). `unknown` quand le parc ne charge/décharge pas (division absurde).
-  Intégrés au **panneau** (deux tuiles) et à l'exemple Lovelace.
-- **Service `reset_baseline_talon`** + bouton **« Recalculer le talon »** dans le
-  panneau : oublie immédiatement le talon de veille (persisté) — utile après une
-  recharge VE de nuit qui l'a faussé — et le ré-estime à la prochaine nuit calme.
-
-### Changed
-
-- **Garde-fou « presque plein » sur le délestage fin de journée.** Plus de délestage
-  quand **toutes les batteries sont à ≤ 10 % de leur plafond** : le dernier ~10 % se
-  remplit de lui-même et couper de gros consommateurs pour ça est disproportionné —
-  c'est exactement là que le bruit talon/prévision faisait basculer la décision à tort.
-
-## [2.0.8-beta31] — 2026-06-25
-
-### Fixed
-
-- **Talon (conso de veille) pollué par un gros consommateur de nuit → délestage à tort.**
-  L'estimateur **moyennait** la conso sur la fenêtre 02:00–05:00 ; une **recharge de
-  voiture électrique** (ou un appareil de nuit) dans cette fenêtre gonflait le talon →
-  le délestage fin de journée croyait qu'il ne restait plus de PV pour charger les
-  batteries et **coupait de gros consommateurs même à 90 % de SoC**. Le talon
-  **redescend désormais librement** vers une nuit plus propre mais **ne monte que de
-  50 W/nuit au maximum** : une nuit « VE » ne le pollue quasiment plus, et la première
-  nuit propre suivante le ramène au vrai talon de veille. (Le talon actuel, déjà pollué,
-  se corrige tout seul à la prochaine nuit sans gros consommateur.)
-
-## [2.0.8-beta30] — 2026-06-25
-
-### Fixed
-
-- **Bridage PV intempestif alors que les batteries sont loin du plein (anti-windup).**
-  La boucle zéro-injection (velocity-form) intégrait sur la consigne **brute**, même
-  quand le balancer ne pouvait pas la placer parce qu'elle **dépassait la puissance de
-  charge max** (le *rythme*, pas le SoC). Tick après tick la consigne **gonflait** → le
-  parc était rapporté « saturé » (`unallocated > 0`) → l'onduleur était **bridé même
-  loin du SoC cible**. La boucle n'intègre désormais **que ce qui est réellement
-  allouable** : plus d'emballement, le bridage ne reflète que le vrai excédent.
-
-## [2.0.8-beta29] — 2026-06-25
-
-### Changed
-
-- **Vérification + retry des écritures étendue aux consignes batterie.** Le verify+retry
-  introduit en beta25 ne couvrait que la **limite de sortie PV** ; il couvre maintenant
-  **toutes les consignes de puissance**, dont le **`charging_power_limit` de la STREAM**.
-  Si la box accepte l'écriture puis **révoque la valeur** (ou si l'entité est
-  intermittente), SB relit la valeur réelle toutes les ~5 ticks et la **réécrit**, avec
-  un warning explicite. Corrige les cas où la consigne de charge « ne passait pas ».
-
-## [2.0.8-beta28] — 2026-06-25
-
-### Added
-
-- **Capteurs diagnostic pour le routing PV « invisible ».** Deux nouveaux capteurs
-  (catégorie *diagnostic*, visibles uniquement si l'équaliseur SoC est actif) rendent
-  le routing observable au lieu d'avoir à le deviner :
-  - **« Équaliseur : PV caché (batterie pleine, est.) »** (W) — le PV qu'une batterie
-    pleine bride et que SB estime via l'onduleur pair, donc routable en décharge.
-  - **« Équaliseur : ouverture du routage PV »** (%) — le facteur de back-off :
-    100 % = routage pleinement ouvert ; baisse quand la batterie cloud n'absorbe pas
-    (le réseau continue d'injecter), jusqu'à 0 % (routage bridé).
-
-## [2.0.8-beta27] — 2026-06-25
-
-### Changed
-
-- **MPPT multi-capteurs : un seul champ.** Le champ de production de l'onduleur (et du
-  device batterie+MPPT) devient un **sélecteur multi-entités unique** « Capteurs de
-  production », au lieu d'un capteur principal + un champ « supplémentaires ». Pour les
-  onduleurs **sans capteur agrégé** (ex. Indevolt), où aucun capteur n'est « principal »,
-  on liste simplement tous les strings — SB les additionne (le premier reste l'entité
-  canonique en interne ; `extra_power_entities` reste l'écriture YAML équivalente).
-
-## [2.0.8-beta26] — 2026-06-25
-
-### Added
-
-- **Compteur à convention inversée (ex. Huawei).** Nouvelle case **« inverser le
-  signe »** sur le compteur : pour un compteur qui compte **+ = injection / − =
-  soutirage** (Huawei), SB **négative la lecture** (agrégat *et* par phase) pour
-  retrouver sa convention + import / − export — **plus besoin d'entité template**.
-- **Onduleurs sans capteur MPPT total (ex. Indevolt).** Nouveau **sélecteur
-  multi-entités** « capteurs de production supplémentaires » sur l'onduleur : SB
-  **additionne plusieurs capteurs** (un par string) en une production unique. Le
-  watchdog surveille chacune des entités ; en YAML : `extra_power_entities: [...]`.
-
-## [2.0.8-beta25] — 2026-06-25
-
-### Added
-
-- **Routing du PV « invisible » d'une batterie pleine.** Quand la STREAM est pleine,
-  elle bride son propre PV → SB lisait 0 W de prod et ne pouvait rien rediriger. SB
-  **estime désormais ce PV caché via l'onduleur pair** (même installation ~1 kWc :
-  prod du pair × ratio de puissance crête, moins ce que l'array bridé montre encore).
-  L'équaliseur peut alors **commander la décharge qui débride ce PV** et le router vers
-  la batterie cloud plus basse (Jackery). L'estimation **suit la prod du pair en temps
-  réel** → quand le soleil baisse, le routage baisse aussi (pas de sur-décharge des
-  cellules), et le back-off existant bride si le cloud n'absorbe pas.
-- **Vérification + retry des écritures de bridage onduleur.** La limite de sortie
-  calculée n'était pas toujours appliquée (entité EcoFlow indisponible/erronée → write
-  silencieusement perdu). SB **relit la limite réelle toutes les ~5 ticks** et la
-  **réécrit si elle a dérivé**, avec un **warning** explicite (un onduleur non piloté
-  n'est plus invisible).
-
-### Changed
-
-- **Garde-fou anti-charge près du plein resserré (suite beta24).** Près du plein, le
-  garde-fou passe de « sortir tout le PV » à « charger jusqu'au PV mais **jamais depuis
-  le réseau/cloud** » (plancher à 0 au lieu de −mppt) : la batterie continue de se
-  remplir doucement de son propre solaire, sans aller-retour réseau (évite qu'une STREAM
-  pleine se charge depuis une Jackery qui se décharge).
-
-## [2.0.8-beta24] — 2026-06-25
+> Cette version consolide les changements de la pré-release `2.0.8-beta24`.
 
 ### Changed (near-full curtailment redesign)
 
@@ -655,7 +234,7 @@ Quatre réglages et une entité de moins : config plus simple, moins de pièges.
 ### Changed
 
 - **Consigne de charge = `(solaire batterie + surplus autres onduleurs) / nombre de
-  batteries`.** La box plafonne la **charge totale des cellules** (PV inclus), donc
+batteries`.** La box plafonne la **charge totale des cellules** (PV inclus), donc
   la consigne doit couvrir le PV que la batterie absorbe elle-même **plus** le
   surplus AC à récupérer des autres onduleurs. Toujours arrondie à 10 W. La consigne
   de décharge est elle aussi divisée par le nombre de batteries.
@@ -718,7 +297,7 @@ Quatre réglages et une entité de moins : config plus simple, moins de pièges.
 
 - **Batterie mode-switch (STREAM) : la consigne de charge était ignorée par la
   box.** Le `select` de mode (`energy_strategy`) était **latché** : SB ne le
-  réécrivait que sur un *changement* de direction. Or une STREAM **repasse
+  réécrivait que sur un _changement_ de direction. Or une STREAM **repasse
   `energy_strategy` en `self_powered` toute seule** (son défaut, après un temps ou
   une reconnexion BLE). SB croyait être resté en `scheduled` et **ne réaffirmait
   jamais** le mode → la box restait en `self_powered` → **`charging_power_limit`
@@ -754,7 +333,7 @@ Quatre réglages et une entité de moins : config plus simple, moins de pièges.
   planner choisit le bon segment pour **chaque créneau** de l'horizon (y compris le
   passage à demain). L'ancien profil persisté (plat) est **migré** dans les deux
   segments.
-- **Capteur d'écart prévu/réel** *« Écart prévu/réel (conso) »* (diagnostic) =
+- **Capteur d'écart prévu/réel** _« Écart prévu/réel (conso) »_ (diagnostic) =
   conso **prévue − réelle** de l'heure courante → tu vois en un coup d'œil si le
   profil colle à la réalité (≈ 0 = bon).
 
@@ -767,8 +346,8 @@ Quatre réglages et une entité de moins : config plus simple, moins de pièges.
   immédiatement la perte** depuis la batterie au lieu d'attendre la boucle PI. Elle
   **réutilise le settle anti-yoyo éprouvé** (gèle le PI → pas de double-comptage,
   feed-forward one-shot borné), ne s'arme que si aucun settle n'est déjà actif, et
-  est **désactivée par défaut**. *Configurer → Régulation → « Compensation chute
-  PV »*.
+  est **désactivée par défaut**. _Configurer → Régulation → « Compensation chute
+  PV »_.
 
 ## [2.0.8-beta3] — 2026-06-24
 
@@ -786,7 +365,7 @@ Quatre réglages et une entité de moins : config plus simple, moins de pièges.
 
 - **Prévision de conso — pré-chargement depuis l'historique (recorder).** Au
   démarrage, le profil de conso est **amorcé depuis les statistiques long-terme**
-  (moyenne horaire) du capteur *consommation de fond* → **précis dès le 1ᵉʳ jour**
+  (moyenne horaire) du capteur _consommation de fond_ → **précis dès le 1ᵉʳ jour**
   pour qui a déjà des semaines de données, au lieu d'attendre l'apprentissage en
   ligne. Ne remplit que les **heures encore inconnues** (le profil appris/persisté
   prime) ; tout échec recorder est un **no-op** (l'apprentissage en ligne prend le
@@ -802,7 +381,7 @@ Quatre réglages et une entité de moins : config plus simple, moins de pièges.
   ~3 jours de mémoire), **persisté** et restauré au redémarrage → le plan
   **anticipe les pics matin/soir** au lieu de supposer une conso constante. Modèle
   pur `ConsumptionProfile` (testé), branché dans `build_forecast_slots`. Nouveau
-  capteur diagnostic *« Conso prévue (heure courante) »* pour voir le profil se
+  capteur diagnostic _« Conso prévue (heure courante) »_ pour voir le profil se
   remplir. Apprentissage **en ligne** pour l'instant ; le **pré-chargement depuis
   l'historique (recorder)** arrivera en beta2 (même modèle).
 
@@ -833,7 +412,7 @@ below). Headline changes since **2.0.6**:
 - **Gradual + settle PV curtailment** (no more 0↔peak sawtooth) and **near-full
   curtailment** when the fleet can no longer absorb a surplus.
 - **Cloud-charge guards**: don’t drain the fleet to feed a self-charging cloud
-  battery; *stop-cloud* acts in **surplus only**, never under a real load (EV).
+  battery; _stop-cloud_ acts in **surplus only**, never under a real load (EV).
 - Local AC-load compensation, non-controllable-battery staleness handling, and
   keeping a mode-switch battery’s opposite direction at 0 every tick (no
   simultaneous charge+discharge).
@@ -891,7 +470,7 @@ below). Headline changes since **2.0.6**:
   pure `resolve_total_power` renvoie désormais **quel garde-fou** a déterminé la
   cible parc ce tick — `base` / `equaliser` / `no_export` / `no_charge_floor` /
   `no_feed` / `stop_cloud` / `grid_import` / `grid_export` — exposé en **capteur
-  diagnostic** *« Garde-fou actif »*. Plus besoin de deviner depuis les courbes :
+  diagnostic** _« Garde-fou actif »_. Plus besoin de deviner depuis les courbes :
   une cible surprenante s'explique d'elle-même (« c'est le no-feed qui plafonne la
   décharge »). Capteur de débogage self-service pour ta carte Debug ZI.
 
@@ -953,8 +532,8 @@ below). Headline changes since **2.0.6**:
   - tient une **fenêtre de stabilisation** (`settle_ticks`, défaut **3**) après
     chaque mouvement, le temps que l'onduleur + la mesure rattrapent → fini la
     boucle dent-de-scie due au temps mort.
-  - Réglages **mode expert** : *Bridage : pas max / bande morte / fenêtre de
-    stabilisation* dans *Configurer → Régulation*.
+  - Réglages **mode expert** : _Bridage : pas max / bande morte / fenêtre de
+    stabilisation_ dans _Configurer → Régulation_.
   - Effet de bord bénéfique : en ne coupant plus la production à 0, le **surplus
     reste disponible** pour charger la batterie pilotable.
 
@@ -978,7 +557,7 @@ below). Headline changes since **2.0.6**:
   entités → jamais affiché. Le panneau collecte désormais aussi `mppt_power` et
   `mppt_limit` → chaque onduleur s'affiche avec **Production solaire** et **Limite
   production** (et un appareil batterie+MPPT combiné montre ces lignes en plus).
-  *(Rafraîchir la page / vider le cache si le panneau ne se met pas à jour.)*
+  _(Rafraîchir la page / vider le cache si le panneau ne se met pas à jour.)_
 
 ## [2.0.7-beta20] — 2026-06-22
 
@@ -999,8 +578,8 @@ below). Headline changes since **2.0.6**:
   (`maximum_output_power`), active le **pilotage actif** et propose `peak_power_w`
   800 W → le **bridage onduleur** (beta15) est câblé en 2 clics.
 - **Presets filtrés par type d'équipement.** Chaque modèle ne s'affiche que pour
-  les flux pertinents : *EcoFlow STREAM* sur batterie / batterie+MPPT, *EcoFlow
-  STREAM (onduleur)* sur onduleur seul. Pas de collision de détection (probe sur
+  les flux pertinents : _EcoFlow STREAM_ sur batterie / batterie+MPPT, _EcoFlow
+  STREAM (onduleur)_ sur onduleur seul. Pas de collision de détection (probe sur
   une entité unique au modèle).
 
 ## [2.0.7-beta18] — 2026-06-22
@@ -1018,8 +597,8 @@ below). Headline changes since **2.0.6**:
 ### Added
 
 - **Assistant « modèle d'appareil » à l'ajout d'une batterie / batterie+MPPT /
-  MPPT.** Une 1ʳᵉ étape propose une **liste déroulante de modèles** (*Générique*,
-  *EcoFlow STREAM*) ; au choix, le formulaire s'ouvre **pré-rempli** :
+  MPPT.** Une 1ʳᵉ étape propose une **liste déroulante de modèles** (_Générique_,
+  _EcoFlow STREAM_) ; au choix, le formulaire s'ouvre **pré-rempli** :
   - **valeurs par défaut** du modèle (puissances, `soc_min`/`soc_max`, convention
     de signe, pilotage actif, options de mode `scheduled`/`self_powered` pour la
     STREAM, `peak_power_w`…) ;
@@ -1028,7 +607,7 @@ below). Headline changes since **2.0.6**:
     (`battery_level`→SoC, `charging_power_limit`→charge, `base_load_power`→décharge,
     `energy_strategy`→mode, `backup_reserve`→réserve, `pv_power_total`→MPPT…) et
     **suggère un nom** (« EcoFlow STREAM xxxxxx ») ;
-  - tu **vérifies/ajustes** puis valides. *Générique* = formulaire vide (inchangé).
+  - tu **vérifies/ajustes** puis valides. _Générique_ = formulaire vide (inchangé).
   - La **reconfiguration** (édition) ne passe pas par l'étape modèle.
   - Architecture **générique** (registre de presets) : ajouter d'autres marques
     consistera à déclarer leurs defaults + patterns de suffixes.
@@ -1040,7 +619,7 @@ below). Headline changes since **2.0.6**:
 - **Contrôle de la charge des batteries « à changement de mode » (générique) —
   1ᵉʳ client : EcoFlow STREAM.** On peut désormais piloter la **charge** d'une
   batterie qui n'expose pas un setpoint signé mais un **sélecteur de mode** (ex.
-  STREAM via l'intégration *Unofficial EcoFlow BLE* : `energy_strategy`
+  STREAM via l'intégration _Unofficial EcoFlow BLE_ : `energy_strategy`
   `scheduled`/`self_powered`). Le `mode_setpoint_entity` (déjà présent) reçoit des
   **options de mode configurables** :
   - `charge_mode_option` (défaut `charge`), `discharge_mode_option` (défaut
@@ -1090,11 +669,11 @@ below). Headline changes since **2.0.6**:
 ### Added
 
 - **Configuration en assistant (wizard) — plus aucun champ inutile.** Les
-  sections *Tarif* et *Régulation* affichent désormais les réglages dépendants
+  sections _Tarif_ et _Régulation_ affichent désormais les réglages dépendants
   **uniquement quand leur option est activée**, en **enchaînant des étapes** (pas
   de réouverture manuelle — tu valides et l'étape suivante apparaît) :
   - **Tarif** : étape 1 = prix + type ; puis selon le type → **HC/HP** (`hc_hp`),
-    **Tempo** (`tempo`) ou **spot** (`spot`). En *flat*, aucune étape en plus.
+    **Tempo** (`tempo`) ou **spot** (`spot`). En _flat_, aucune étape en plus.
   - **Régulation** : après l'écran principal, sous-étapes affichées seulement si
     le toggle correspondant est coché — **internes équaliseur** (équaliseur
     activé), **SoC cible Tempo rouge** (prép. Tempo rouge), **puissance mini
@@ -1107,9 +686,9 @@ below). Headline changes since **2.0.6**:
 
 ### Added
 
-- **Configuration en deux modes (simple / expert).** La section *Régulation* est
+- **Configuration en deux modes (simple / expert).** La section _Régulation_ est
   devenue dense. Elle s'appuie désormais sur le **Mode avancé natif de Home
-  Assistant** (Profil → *Mode avancé*) :
+  Assistant** (Profil → _Mode avancé_) :
   - **Simple** (toujours visible) : activer ZI + consigne, pilotage actif,
     contrôle des charges, puissance souscrite, phases, réserve backup, dry-run,
     notifications, équaliseur on/off, et les **comportements** (compensation prise
@@ -1148,8 +727,8 @@ below). Headline changes since **2.0.6**:
   non-pilotable est jugée **non fiable** : les garde-fous **la sautent** et
   laissent la **ZI** (compteur PDL temps réel, qui reflète son effet réel) tenir
   la barre. L'équaliseur reste actif (basé SoC, qui ne « saute » pas).
-  Réglage *« Péremption batterie non-pilotable (s) »* dans *Configurer →
-  Régulation*.
+  Réglage _« Péremption batterie non-pilotable (s) »_ dans _Configurer →
+  Régulation_.
 
 ## [2.0.7-beta10] — 2026-06-17
 
@@ -1162,7 +741,7 @@ below). Headline changes since **2.0.6**:
   plus que c'est agité** : la batterie suit la **moyenne lente** (autoconso
   conservée) et le **réseau absorbe les à-coups** rapides. Quand c'est calme,
   réactivité normale (pas de retard sur les vraies variations lentes). Réglage
-  *« Amortisseur de volatilité adaptatif »* dans *Configurer → Régulation*.
+  _« Amortisseur de volatilité adaptatif »_ dans _Configurer → Régulation_.
 
 ## [2.0.7-beta9] — 2026-06-17
 
@@ -1172,8 +751,8 @@ below). Headline changes since **2.0.6**:
   exactement aux cycles de la prise AC du stream.** Cause : une charge sur la
   sortie AC du parc est **servie par lui mais invisible au compteur** ; quand elle
   s'allume/s'éteint, la sortie du parc change brusquement → la ZI croit que le
-  parc a bougé et **corrige (petit yoyo)**. Nouveau réglage *« Capteurs de conso
-  prise AC locale »* (multi-entités, ex. `Consommation AC stream`) : SB
+  parc a bougé et **corrige (petit yoyo)**. Nouveau réglage _« Capteurs de conso
+  prise AC locale »_ (multi-entités, ex. `Consommation AC stream`) : SB
   **retranche** cette charge de la **contribution réseau du parc**
   (`current_fleet = (batterie − MPPT) + conso_prise_AC`) → ses cycles **ne
   perturbent plus** la boucle de régulation. Vide par défaut (sans effet).
@@ -1200,7 +779,7 @@ below). Headline changes since **2.0.6**:
 
 ### Fixed
 
-- **Le parc ne nourrit plus, *instantanément*, une batterie cloud qui se charge
+- **Le parc ne nourrit plus, _instantanément_, une batterie cloud qui se charge
   seule.** Le garde-fou existant (2.0.1) passait par le **setpoint ZI** → la rampe
   PI lente (kp ~0,2) laissait le stream **décharger pour alimenter la charge de la
   Jackery** pendant un long transitoire (batterie basse → batterie haute, lossy).
@@ -1260,12 +839,12 @@ below). Headline changes since **2.0.6**:
 
 - **Plus de transfert « batterie cloud → stream » en déficit.** En déficit (maison
   > solaire), le stream **chargeait son propre solaire** au lieu de le sortir, et
-  la Jackery (non pilotable) **sur-déchargeait** pour couvrir maison + charge du
-  stream → aller-retour batterie→batterie avec pertes. Nouveau garde-fou
-  d'autoconsommation : le parc pilotable **ne charge pas sans vrai surplus** — sa
-  sortie est plancher-née à sa **propre production solaire** (output ≥ PV, batterie
-  jamais en charge depuis le réseau / une autre batterie). → le stream sort tout
-  son solaire pour la maison, la Jackery ne décharge plus que le **vrai déficit**.
+  > la Jackery (non pilotable) **sur-déchargeait** pour couvrir maison + charge du
+  > stream → aller-retour batterie→batterie avec pertes. Nouveau garde-fou
+  > d'autoconsommation : le parc pilotable **ne charge pas sans vrai surplus** — sa
+  > sortie est plancher-née à sa **propre production solaire** (output ≥ PV, batterie
+  > jamais en charge depuis le réseau / une autre batterie). → le stream sort tout
+  > son solaire pour la maison, la Jackery ne décharge plus que le **vrai déficit**.
 
 ### Notes
 
@@ -1342,7 +921,7 @@ below). Headline changes since **2.0.6**:
 
 ### Changed
 
-- **README** : suppression de la section *Companion frontend* ; lien HACS corrigé
+- **README** : suppression de la section _Companion frontend_ ; lien HACS corrigé
   vers `github.com/lachand/ha-solarbalance`.
 
 ## [2.0.5] — 2026-06-17
@@ -1352,7 +931,7 @@ below). Headline changes since **2.0.6**:
 - **Capteurs par micro-onduleur / MPPT** — un appareil MPPT (onduleur seul)
   n'avait **aucune entité** associée. Il expose désormais **`PV power`** (sa
   production) et, s'il est bridable (pilotage actif + entité de limite), **`PV
-  output limit`** (la limite réellement appliquée par l'écrêtage). Pour un
+output limit`** (la limite réellement appliquée par l'écrêtage). Pour un
   appareil combiné batterie+onduleur, ces capteurs se rangent sous le même
   appareil. Rend l'écrêtage **observable**.
 
@@ -1375,11 +954,11 @@ below). Headline changes since **2.0.6**:
   `zero_injection_knee_w` (défaut 600 W). → **doux près de l'équilibre** (plus de
   pompage contre le temps mort de l'EcoFlow) et **nerveux sur un gros déficit/une
   grosse injection** (correction rapide, fini les longues minutes pour revenir de
-  −780 W). Deux nouveaux réglages dans *Configurer → Régulation*.
+  −780 W). Deux nouveaux réglages dans _Configurer → Régulation_.
 
 ### Removed
 
-- **Auto-réglage supervisé (autotuner) retiré** — il rabaissait *tout* le gain
+- **Auto-réglage supervisé (autotuner) retiré** — il rabaissait _tout_ le gain
   ZI dès qu'il y avait du pompage en zone basse (kp tombé à ~0,23), rendant les
   gros écarts trop lents. Le gain progressif gère nativement l'anti-pompage, sans
   brider les grosses corrections. Supprime l'option `autotune_enabled`, les
@@ -1394,17 +973,17 @@ below). Headline changes since **2.0.6**:
   projection directe** plafonne la décharge du parc pour que le réseau **ne passe
   pas en export** (`grid ≥ 0` côté batterie) **en un seul tick** — utile quand la
   ZI met trop longtemps à arrêter une sur-décharge (elle suit `puissance mesurée
-  + correction` et l'EcoFlow rampe lentement). Elle ne fait que **réduire une
-  décharge** (jamais forcer une charge) → le **surplus PV continue d'exporter**
-  et, en import, la décharge couvre normalement la maison. **Laissée désactivée**,
-  l'injection reste possible (ex. pour forcer la charge d'une batterie cloud).
+  - correction` et l'EcoFlow rampe lentement). Elle ne fait que **réduire une
+    décharge** (jamais forcer une charge) → le **surplus PV continue d'exporter**
+    et, en import, la décharge couvre normalement la maison. **Laissée désactivée**,
+    l'injection reste possible (ex. pour forcer la charge d'une batterie cloud).
 
 ## [2.0.2] — 2026-06-16
 
 ### Fixed
 
-- **Garde-fou « batterie non-pilotable » : plafonnage sur le réseau *naturel***
-  (correctif de la 2.0.1). Le garde-fou était plafonné par l'import réseau *brut*
+- **Garde-fou « batterie non-pilotable » : plafonnage sur le réseau _naturel_**
+  (correctif de la 2.0.1). Le garde-fou était plafonné par l'import réseau _brut_
   ; or en régime établi, la ZI décharge déjà le parc pour couvrir la batterie
   cloud → le compteur lit ~0 → le garde-fou voyait « pas d'import » et n'agissait
   jamais (stabilité marginale). Il utilise désormais le réseau **sans la
@@ -1424,8 +1003,8 @@ below). Headline changes since **2.0.6**:
   puissance de charge de cette batterie (plafonné à l'import réseau, après le
   feed-forward de charge forcée) → la batterie cloud tire **sur le réseau**
   (une seule conversion) au lieu de **vider le parc**. Activé par défaut, option
-  *« Ne pas décharger le parc pour alimenter une batterie non-pilotable (cloud)
-  qui se recharge seule »* dans *Configurer → Régulation*.
+  _« Ne pas décharger le parc pour alimenter une batterie non-pilotable (cloud)
+  qui se recharge seule »_ dans _Configurer → Régulation_.
 
 ### Changed
 
@@ -1495,7 +1074,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - **Suggestion de réglage par l'auto-tuner** — quand l'auto-réglage ajuste souvent
   un gain et se stabilise nettement loin de la valeur configurée, une notification
   persistante **propose la nouvelle valeur** (`zero_injection_kp` /
-  `soc_equaliser_probe_step_w`) à définir dans *Configurer → Régulation*. Débouncée,
+  `soc_equaliser_probe_step_w`) à définir dans _Configurer → Régulation_. Débouncée,
   retirée quand elle n'a plus lieu d'être.
 
 ### Changed
@@ -1523,8 +1102,8 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 ### Added
 
 - **Filtre des vigilances Météo-France par phénomène (réintégré)** — deux options
-  *Régulation* : `weather_phenomena` (multi-sélection : quels phénomènes
-  déclenchent le mode Tempête — ex. exclure *Canicule*) et `weather_min_level`
+  _Régulation_ : `weather_phenomena` (multi-sélection : quels phénomènes
+  déclenchent le mode Tempête — ex. exclure _Canicule_) et `weather_min_level`
   (`jaune`/`orange`/`rouge`, défaut orange). Lit les **attributs** de l'entité
   Météo-France (`sensor.<dept>_weather_alert`, un par phénomène), avec un
   appariement tolérant (casse/accents/séparateurs). Repli inchangé sur un
@@ -1552,7 +1131,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 ### Fixed
 
 - **Création d'une batterie (et compteur/consommateur) via l'UI échouait** —
-  *« expected int … soc_min_pct »*. Le `NumberSelector` de HA renvoie des floats
+  _« expected int … soc_min_pct »_. Le `NumberSelector` de HA renvoie des floats
   (`10.0`) alors que le loader exigeait un `int` strict. Les champs entiers
   (`soc_min_pct`, `soc_max_pct`, `phases`, `priority`, `hour`) sont désormais
   **coercés** (acceptent int YAML et float UI).
@@ -1572,9 +1151,9 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 
 - **Messages d'erreur de config batterie spécifiques** — au lieu du texte
   générique « Invalid battery configuration… », le formulaire indique désormais la
-  cause exacte : *capteur de puissance manquant* (renseigner Puissance signée OU
-  Charge + Décharge), *pilotage actif sans consigne*, ou *pilotage actif sans
-  batterie pilotable*. (FR/EN, types Batterie et Batterie + onduleur.)
+  cause exacte : _capteur de puissance manquant_ (renseigner Puissance signée OU
+  Charge + Décharge), _pilotage actif sans consigne_, ou _pilotage actif sans
+  batterie pilotable_. (FR/EN, types Batterie et Batterie + onduleur.)
 
 ## [2.0.0-beta.2] — 2026-06-16
 
@@ -1585,8 +1164,8 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 
 - **Capteur `sensor.solarbalance_battery_usable`** — fenêtre d'énergie exploitable
   du parc (kWh) = Σ (SoC_max − SoC_min) × capacité utilisable effective.
-- **Couple de capteurs charge/décharge dans l'UI** — le formulaire *Batterie* (et
-  *Batterie + onduleur*) expose désormais `charge_power_entity` /
+- **Couple de capteurs charge/décharge dans l'UI** — le formulaire _Batterie_ (et
+  _Batterie + onduleur_) expose désormais `charge_power_entity` /
   `discharge_power_entity` en alternative au `power_entity` signé, pour les
   batteries à deux capteurs de puissance distincts. (Déjà géré en YAML ; manquait
   dans le Config Flow.)
@@ -1598,9 +1177,9 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
   capteurs d'énergie utilisent désormais la capacité utilisable **effective**
   (ratio chimie si non explicite) — sans effet sur le SoC moyen (le ratio
   s'annule), mais plus juste en kWh.
-- **Panneau** : capteurs *Restant* et *Exploitable* ajoutés à la carte « Flux
-  instantané » ; sections *Historique (N derniers jours)*, *Coûts & économies
-  (€/jour)* et *Plan prédictif (advisory)* retirées de la vue.
+- **Panneau** : capteurs _Restant_ et _Exploitable_ ajoutés à la carte « Flux
+  instantané » ; sections _Historique (N derniers jours)_, _Coûts & économies
+  (€/jour)_ et _Plan prédictif (advisory)_ retirées de la vue.
 
 ## [2.0.0-beta.1] — 2026-06-16
 
@@ -1615,7 +1194,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
   utilisable) sur les batteries disponibles.
 - **Réglages équaliseur dans l'UI** — `soc_equaliser_cadence_ticks` (cadence,
   plancher de ticks entre mouvements) et `soc_equaliser_adaptive_cadence` (cadence
-  dérivée du retard mesuré) exposés dans *Configurer → Régulation*.
+  dérivée du retard mesuré) exposés dans _Configurer → Régulation_.
 
 ### Fixed
 
@@ -1629,24 +1208,24 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 ### Changed
 
 - **Équaliseur SoC indirect réécrit (anti-pompage)** — sur batterie automatique
-  *cloud* (ex. Jackery), l'ancien équaliseur partait en **cycle limite** : l'offre
+  _cloud_ (ex. Jackery), l'ancien équaliseur partait en **cycle limite** : l'offre
   (intégrateur) montait en rampe jusqu'à son plafond puis s'effondrait, fouettant
   le parc pilotable entre charge et décharge pleines et projetant des pics réseau
   de ±1,3 à 2,7 kW (injection visible) toutes les ~5 min, pour un SoC qui ne
   convergeait pas. La nouvelle version :
   - **offre proportionnelle à l'écart de SoC** (plus d'intégrateur → plus de
     windup) ;
-  - **cadence lente** : l'offre ne bouge que toutes les *N* ticks, *N* étant
+  - **cadence lente** : l'offre ne bouge que toutes les _N_ ticks, _N_ étant
     **dérivé du retard de réponse mesuré** de la batterie cloud
     (`soc_equaliser_adaptive_cadence`, défaut on ; plancher
     `soc_equaliser_cadence_ticks`, défaut 6) ;
   - **anti-windup conscient du temps mort** : un export/import n'est rétracté que
-    s'il **persiste** *et* que la puissance mesurée de la batterie auto **ne
+    s'il **persiste** _et_ que la puissance mesurée de la batterie auto **ne
     progresse pas** (on distingue « fuite réseau » de « la ZI exécute l'offre
     pendant le délai cloud ») ;
   - **pente symétrique** (resets inclus, fini les sauts à 0) et **hystérésis
     d'arrêt** (reprise seulement au-delà de la bande morte + marge).
-  La ZI elle-même (P-seul) était saine et n'est pas modifiée.
+    La ZI elle-même (P-seul) était saine et n'est pas modifiée.
 
 ## [1.11.1] — 2026-06-15
 
@@ -1672,7 +1251,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 
 ### Added
 
-- **Mode simulation (dry-run)** — option *Régulation* `dry_run` : le moteur calcule tout (décisions, consignes, capteurs, panneau) mais **n'écrit jamais** sur le matériel, même contrôle actif/loads armés. Idéal pour observer une journée entière en confiance avant d'activer le pilotage réel. Exposé aussi dans l'export de diagnostic.
+- **Mode simulation (dry-run)** — option _Régulation_ `dry_run` : le moteur calcule tout (décisions, consignes, capteurs, panneau) mais **n'écrit jamais** sur le matériel, même contrôle actif/loads armés. Idéal pour observer une journée entière en confiance avant d'activer le pilotage réel. Exposé aussi dans l'export de diagnostic.
 - **Service `solarbalance.test_mapping`** — vérifie chaque entité configurée (appareils/compteurs/consommateurs + prévision) et renvoie la liste **ok / indisponible / manquante** (données de réponse), pour valider un mapping fraîchement saisi.
 
 ## [1.9.0] — 2026-06-15
@@ -1722,7 +1301,7 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 
 ### Fixed
 
-- **Charge forcée réseau — feed-forward sur la puissance mesurée** — l'offset zéro-injection utilisait la puissance *nominale* du consommateur (calculée avant qu'il ne consomme), ce qui pouvait faire **charger la batterie depuis le réseau** au démarrage (la nuit) ou quand la charge réelle était inférieure au nominal. Il suit désormais la puissance **mesurée** du consommateur forcé (plafonnée au nominal) : la batterie n'est ni déchargée pour l'alimenter, ni chargée depuis le réseau pour « atteindre » la consigne. La batterie continue de couvrir le reste de la maison. Vérifié par un test de tick complet de bout en bout.
+- **Charge forcée réseau — feed-forward sur la puissance mesurée** — l'offset zéro-injection utilisait la puissance _nominale_ du consommateur (calculée avant qu'il ne consomme), ce qui pouvait faire **charger la batterie depuis le réseau** au démarrage (la nuit) ou quand la charge réelle était inférieure au nominal. Il suit désormais la puissance **mesurée** du consommateur forcé (plafonnée au nominal) : la batterie n'est ni déchargée pour l'alimenter, ni chargée depuis le réseau pour « atteindre » la consigne. La batterie continue de couvrir le reste de la maison. Vérifié par un test de tick complet de bout en bout.
 
 ## [1.6.0] — 2026-06-14
 
@@ -1857,34 +1436,6 @@ pré-releases `2.0.0-beta.1` → `2.0.0-beta.13`. Faits marquants depuis la 1.11
 - Modèles : `grid_power_l{1,2,3}_w` sur `Snapshot` ; `per_phase_zi` sur `Meter`.
 - 4 nouveaux tests unitaires ZI triphasé.
 
-[2.0.8-beta52]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta51...v2.0.8-beta52
-[2.0.8-beta51]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta50...v2.0.8-beta51
-[2.0.8-beta50]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta49...v2.0.8-beta50
-[2.0.8-beta49]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta48...v2.0.8-beta49
-[2.0.8-beta48]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta47...v2.0.8-beta48
-[2.0.8-beta47]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta46...v2.0.8-beta47
-[2.0.8-beta46]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta45...v2.0.8-beta46
-[2.0.8-beta45]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta44...v2.0.8-beta45
-[2.0.8-beta44]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta43...v2.0.8-beta44
-[2.0.8-beta43]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta42...v2.0.8-beta43
-[2.0.8-beta42]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta41...v2.0.8-beta42
-[2.0.8-beta41]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta40...v2.0.8-beta41
-[2.0.8-beta40]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta39...v2.0.8-beta40
-[2.0.8-beta39]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta38...v2.0.8-beta39
-[2.0.8-beta38]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta37...v2.0.8-beta38
-[2.0.8-beta37]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta36...v2.0.8-beta37
-[2.0.8-beta36]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta35...v2.0.8-beta36
-[2.0.8-beta35]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta34...v2.0.8-beta35
-[2.0.8-beta34]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta33...v2.0.8-beta34
-[2.0.8-beta33]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta32...v2.0.8-beta33
-[2.0.8-beta32]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta31...v2.0.8-beta32
-[2.0.8-beta31]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta30...v2.0.8-beta31
-[2.0.8-beta30]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta29...v2.0.8-beta30
-[2.0.8-beta29]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta28...v2.0.8-beta29
-[2.0.8-beta28]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta27...v2.0.8-beta28
-[2.0.8-beta27]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta26...v2.0.8-beta27
-[2.0.8-beta26]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta25...v2.0.8-beta26
-[2.0.8-beta25]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta24...v2.0.8-beta25
 [2.0.8-beta24]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta23...v2.0.8-beta24
 [2.0.8-beta23]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta22...v2.0.8-beta23
 [2.0.8-beta22]: https://github.com/lachand/ha-solarbalance/compare/v2.0.8-beta21...v2.0.8-beta22

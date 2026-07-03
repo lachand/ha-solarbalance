@@ -45,6 +45,37 @@ def _make_coordinator(hass: HomeAssistant, **cfg: Any) -> SolarBalanceCoordinato
 
 
 @pytest.mark.asyncio
+async def test_reversal_dwell_blocks_quick_charge_discharge_flip(hass: HomeAssistant) -> None:
+    from datetime import timedelta
+
+    from custom_components.solarbalance.const import CONF_FLEET_REVERSAL_DWELL_S
+
+    coord = _make_coordinator(hass, **{CONF_FLEET_REVERSAL_DWELL_S: 120})
+    t0 = datetime(2026, 7, 3, 9, 0, tzinfo=UTC)
+    # Commit to discharge.
+    assert coord._apply_reversal_dwell(-800.0, t0) == -800.0
+    # A charge demand 30 s later is blocked (idle) — the slow mode must not thrash.
+    assert coord._apply_reversal_dwell(+800.0, t0 + timedelta(seconds=30)) == 0.0
+    # Same direction (more discharge) is always allowed.
+    assert coord._apply_reversal_dwell(-900.0, t0 + timedelta(seconds=35)) == -900.0
+    # Past the dwell, the reversal is allowed.
+    assert coord._apply_reversal_dwell(+800.0, t0 + timedelta(seconds=125)) == 800.0
+
+
+@pytest.mark.asyncio
+async def test_reversal_dwell_disabled_when_zero(hass: HomeAssistant) -> None:
+    from datetime import timedelta
+
+    from custom_components.solarbalance.const import CONF_FLEET_REVERSAL_DWELL_S
+
+    coord = _make_coordinator(hass, **{CONF_FLEET_REVERSAL_DWELL_S: 0})
+    t0 = datetime(2026, 7, 3, 9, 0, tzinfo=UTC)
+    assert coord._apply_reversal_dwell(-800.0, t0) == -800.0
+    # Disabled → immediate reversal passes through.
+    assert coord._apply_reversal_dwell(+800.0, t0 + timedelta(seconds=5)) == 800.0
+
+
+@pytest.mark.asyncio
 async def test_reserve_setpoint_raised_in_storm(hass: HomeAssistant) -> None:
     coord = _make_coordinator(hass)
 

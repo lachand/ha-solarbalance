@@ -35,6 +35,7 @@ from .const import (
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
     CONF_EXPORT_PRICE,
+    CONF_FLEET_REVERSAL_DWELL_S,
     CONF_FORECAST_SAFETY_FACTOR,
     CONF_GRID_FILTER_SAMPLES,
     CONF_HC_END,
@@ -92,6 +93,7 @@ from .const import (
     DEFAULT_DRY_RUN,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_EXPORT_PRICE,
+    DEFAULT_FLEET_REVERSAL_DWELL_S,
     DEFAULT_FORECAST_SAFETY_FACTOR,
     DEFAULT_GRID_FILTER_SAMPLES,
     DEFAULT_HC_END,
@@ -752,6 +754,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._baseline_floor_margin_w = float(
             cfg.get(CONF_BASELINE_FLOOR_MARGIN_W, DEFAULT_BASELINE_FLOOR_MARGIN_W)
         )
+        self._fleet_reversal_dwell_s = float(
+            cfg.get(CONF_FLEET_REVERSAL_DWELL_S, DEFAULT_FLEET_REVERSAL_DWELL_S)
+        )
+        self._fleet_dir = 0  # last committed fleet direction: +1 charge / -1 discharge / 0
+        self._fleet_dir_at: datetime | None = None
         self._store: Store[dict[str, Any]] = Store(hass, STORE_VERSION, STORE_KEY)
 
         self._diagnostics = RegulationDiagnostics()
@@ -2048,6 +2055,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if avg_soc is not None and avg_soc >= self._vacation_soc_max_pct:
                 total_power_w = min(total_power_w, 0.0)
 
+        # Fleet direction-reversal dwell: a solar-first STREAM must physically switch mode
+        # (self_powered <-> scheduled, slow over BLE) to cross charge<->discharge. Near
+        # house == PV the sign flips every ~minute, thrashing the mode and overshooting on
+        # each slow switch. Once the fleet commits to a direction, hold it (idle rather than
+        # reverse) until the opposite demand persists past the dwell, so the mode is stable.
+        total_power_w = self._apply_reversal_dwell(total_power_w, snapshot.timestamp)
+
         # Slew-rate limit: cap how far the command may move per tick. Hard safety
         # belt against limit cycles given the battery's actuation lag.
         total_power_w = apply_slew_limit(total_power_w, self._last_total_power_w, self._max_ramp_w)
@@ -2572,6 +2586,36 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
     def _controllable_avg_soc(self, snapshot: Snapshot) -> float | None:
         """Capacity-weighted SoC of the available controllable battery fleet, or None."""
         return self._weighted_soc(snapshot, controllable_only=True)
+
+    def _apply_reversal_dwell(self, total_power_w: float, now: datetime) -> float:
+        """Block a charge<->discharge reversal until the new direction persists past a dwell.
+
+        A solar-first STREAM must physically switch strategy (self_powered <-> scheduled,
+        slow over BLE) to cross between charging and discharging. Near ``house == PV`` the
+        sign of the target flips every ~minute, thrashing the mode and overshooting on each
+        slow switch. Once the fleet has committed to a direction, hold it — command 0
+        (idle: let the box self-consume) rather than reverse — until the opposite demand has
+        persisted longer than ``fleet_reversal_dwell_s``. A small band (the ZI hysteresis)
+        keeps near-zero targets from counting as a direction. ``dwell <= 0`` disables it.
+        """
+        dwell = self._fleet_reversal_dwell_s
+        if dwell <= 0:
+            return total_power_w
+        band = self._zi_hysteresis_w
+        new_dir = 1 if total_power_w > band else (-1 if total_power_w < -band else 0)
+        if new_dir == 0:
+            return total_power_w  # near zero: no direction commitment, don't reset the clock
+        if (
+            self._fleet_dir != 0
+            and new_dir != self._fleet_dir
+            and self._fleet_dir_at is not None
+            and (now - self._fleet_dir_at).total_seconds() < dwell
+        ):
+            return 0.0  # too soon to reverse the slow mode — idle instead of flipping
+        if new_dir != self._fleet_dir:
+            self._fleet_dir = new_dir
+            self._fleet_dir_at = now
+        return total_power_w
 
     def _cloud_relief_w(self, snapshot: Snapshot, controllable_mppt_w: float) -> float:
         """Discharge (W) a higher-SoC controllable fleet should provide to cover the home.
