@@ -37,6 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta54] — 2026-07-03
+
+### Fixed
+
+- **Puissance batterie STREAM lue à 0/`!` quand l'entité « saute » de device.** L'intégration
+  EcoFlow BLE déplace parfois seule le capteur de puissance **système** de la batterie 1 vers
+  la batterie 2 (et inversement) ; le `power_entity` figé pointait alors vers une entité morte
+  → lecture 0/stale, batteries affichées à 0 alors qu'elles chargent. Une batterie accepte
+  désormais **plusieurs entités de puissance candidates** (`extra_power_entities`) et le lecteur
+  suit **celle qui est vivante**. La dé-duplication ÷N est indexée sur l'ensemble de candidats,
+  donc deux batteries STREAM listant les deux mêmes capteurs comptent toujours la puissance
+  système **une seule fois**, quelle que soit l'entité active.
+
+  Config : sur **chaque** device batterie STREAM, mets les **deux** capteurs de puissance
+  système dans « entités de puissance » (principale + candidates). YAML : `extra_power_entities`.
+
 ## [2.0.8-beta53] — 2026-07-03
 
 > ⚠️ Les changements de la commit « 2.0.8-beta25 » (dwell anti-bascule) n'avaient jamais

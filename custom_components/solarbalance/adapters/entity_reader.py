@@ -71,10 +71,13 @@ class EntityReader:
         # STREAM that reports only a *system* power for its 2 batteries declared as 2
         # devices), the reading is split evenly so the fleet sum counts it once instead
         # of N times (which would double-count current_fleet).
+        # Keyed by the candidate *set* (tuple) so two STREAM devices that list the same
+        # system-power candidates share the count even when the live entity hops between
+        # them (EcoFlow BLE moves the system-power sensor from battery 1 to battery 2).
         self._power_entity_shares = Counter(
-            d.battery.power_entity
+            d.battery.power_entities
             for d in self._devices
-            if d.battery is not None and d.battery.power_entity is not None
+            if d.battery is not None and d.battery.power_entities
         )
 
     def snapshot(self, timestamp: datetime | None = None) -> Snapshot:
@@ -185,7 +188,7 @@ class EntityReader:
         if soc_age is not None and soc_age > self._stale_s:
             return ("soc", soc_age)
         entities = [
-            getattr(battery, "power_entity", None),
+            *getattr(battery, "power_entities", ()),
             getattr(battery, "charge_power_entity", None),
             getattr(battery, "discharge_power_entity", None),
         ]
@@ -207,14 +210,20 @@ class EntityReader:
         battery = device.battery
         assert battery is not None  # guarded by caller
         if battery.power_entity is not None:
-            raw = self._read_float(battery.power_entity, default=None)
+            # Use the first *available* candidate — the STREAM system-power sensor can hop
+            # between the two batteries' entities, so follow whichever is currently live.
+            raw = None
+            for eid in battery.power_entities:
+                raw = self._read_float(eid, default=None)
+                if raw is not None:
+                    break
             if raw is None:
                 return None
             if battery.power_sign_convention is PowerSignConvention.DISCHARGE_POSITIVE:
                 raw = -raw
             # Split a power entity shared by several battery devices (system-level
             # reporting) so the fleet sum counts it once, not once per device.
-            return raw / self._power_entity_shares[battery.power_entity]
+            return raw / self._power_entity_shares[battery.power_entities]
         # Two-entity case.
         charge = self._read_float(battery.charge_power_entity, default=0.0) or 0.0
         discharge = self._read_float(battery.discharge_power_entity, default=0.0) or 0.0

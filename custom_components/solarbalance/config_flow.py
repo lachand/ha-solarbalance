@@ -725,6 +725,9 @@ def _battery_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             ),
             vol.Required("soc_entity", default=d.get("soc_entity")): _entity("sensor"),
             vol.Optional("power_entity", default=d.get("power_entity", "")): _entity("sensor"),
+            vol.Optional(
+                "extra_power_entities", default=d.get("extra_power_entities", [])
+            ): _entity_multi("sensor"),
             vol.Optional("charge_power_entity", default=d.get("charge_power_entity", "")): _entity(
                 "sensor"
             ),
@@ -799,6 +802,7 @@ _BATTERY_ROLE_KEYS = (
     "max_discharge_power_w",
     "soc_entity",
     "power_entity",
+    "extra_power_entities",
     "charge_power_entity",
     "discharge_power_entity",
     "temperature_entity",

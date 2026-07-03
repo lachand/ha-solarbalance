@@ -99,6 +99,11 @@ class BatteryRole:
     max_discharge_power_w: int
     soc_entity: str
     power_entity: str | None = None
+    extra_power_entities: tuple[str, ...] = ()
+    """Fallback battery-power entities. The first *available* one among
+    ``power_entities`` is used — a STREAM reports a single *system* power that the
+    EcoFlow BLE integration may move between the two batteries' sensors, so list both
+    and the reader follows whichever is live."""
     charge_power_entity: str | None = None
     discharge_power_entity: str | None = None
     temperature_entity: str | None = None
@@ -186,6 +191,11 @@ class BatteryRole:
         if self.usable_capacity_kwh is not None:
             return self.usable_capacity_kwh
         return self.capacity_kwh * USABLE_CAPACITY_RATIO[self.chemistry]
+
+    @property
+    def power_entities(self) -> tuple[str, ...]:
+        """Candidate battery-power entities, in priority order (first available wins)."""
+        return tuple(e for e in (self.power_entity, *self.extra_power_entities) if e)
 
 
 @dataclass(slots=True, frozen=True)
