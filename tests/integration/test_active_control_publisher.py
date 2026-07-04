@@ -169,6 +169,67 @@ async def test_charge_cut_near_soc_ceiling() -> None:
     assert _calls(hass) == [("number", "set_value", {"entity_id": "number.chg_a", "value": 0.0})]
 
 
+def _river2(ceiling: int = 100) -> Device:
+    # Charge-only station: max_discharge=0, a charge-power slider + a max-charge-SoC gate.
+    return Device(
+        name="r2",
+        battery=BatteryRole(
+            capacity_kwh=0.256,
+            max_charge_power_w=360,
+            max_discharge_power_w=0,
+            soc_entity="sensor.soc",
+            power_entity="sensor.pow",
+            controllable=True,
+            active_control_enabled=True,
+            charge_power_setpoint_entity="number.speed",
+            charge_limit_soc_setpoint_entity="number.limit",
+            charge_ceiling_soc_pct=ceiling,
+        ),
+    )
+
+
+async def test_river2_charge_gate_on_then_off() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_river2()])
+    # Surplus → gate ON: raise the SoC limit to the ceiling AND drive the power slider.
+    await pub.apply({"r2": 300.0}, {"r2": 45.0})
+    calls = _calls(hass)
+    assert ("number", "set_value", {"entity_id": "number.limit", "value": 100}) in calls
+    assert ("number", "set_value", {"entity_id": "number.speed", "value": 300.0}) in calls
+    # No surplus → gate OFF: drop the limit to floor(SoC) to stop; no new speed write.
+    hass.services.async_call.reset_mock()
+    await pub.apply({"r2": 0.0}, {"r2": 45.7})
+    calls = _calls(hass)
+    assert ("number", "set_value", {"entity_id": "number.limit", "value": 45}) in calls
+    assert not any(c[2]["entity_id"] == "number.speed" for c in calls)
+
+
+async def test_river2_charge_gate_hysteresis_holds() -> None:
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_river2()])
+    await pub.apply({"r2": 300.0}, {"r2": 45.0})  # ON
+    hass.services.async_call.reset_mock()
+    # 80 W is between the OFF (40) and ON (120) thresholds → stays ON, keeps charging.
+    await pub.apply({"r2": 80.0}, {"r2": 45.0})
+    assert ("number", "set_value", {"entity_id": "number.speed", "value": 80.0}) in _calls(hass)
+
+
+def test_charge_only_battery_rejects_discharge_setpoint() -> None:
+    import pytest
+
+    with pytest.raises(ValueError, match="charge-only"):
+        BatteryRole(
+            capacity_kwh=1.0,
+            max_charge_power_w=360,
+            max_discharge_power_w=0,
+            soc_entity="sensor.soc",
+            power_entity="sensor.pow",
+            controllable=True,
+            active_control_enabled=True,
+            discharge_power_setpoint_entity="number.dis",
+        )
+
+
 async def test_mode_select_written() -> None:
     hass = _hass()
     pub = ActiveControlPublisher(

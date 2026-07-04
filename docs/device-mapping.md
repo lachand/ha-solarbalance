@@ -350,6 +350,49 @@ exports past its setpoint, and raises it again when the batteries can absorb
 again or the grid imports. The limit is released (set to peak) in degraded mode.
 Watch the `PV output limit` diagnostic sensor while tuning.
 
+## Recipe — EcoFlow River 2 (charge-only surplus sink)
+
+A **River 2** portable station (via the *EcoFlow BLE (Unofficial)* integration, domain
+`ef_ble`) can charge from the grid and from its own solar input, and powers isolated
+appliances on its AC socket — but it **cannot inject back to the grid**. Model it as a
+**charge-only** controllable battery: SolarBalance charges it from surplus (export) and
+**never** commands it to discharge.
+
+```yaml
+- name: river2_garage
+  roles:
+    battery:
+      capacity_kwh: 0.256            # River 2 base (Max 0.512, Pro 0.768)
+      max_charge_power_w: 360        # AC input max: base 360, Max 660, Pro 940
+      max_discharge_power_w: 0       # ← charge-only (never discharges to grid/house)
+      soc_entity: sensor.ef_r60xxxx_battery_level
+      power_entity: sensor.ef_r60xxxx_ac_input_power   # grid-facing charge draw (+ = charge)
+      power_sign_convention: charge_positive
+      controllable: true
+      active_control_enabled: true
+      charge_power_setpoint_entity: number.ef_r60xxxx_ac_charging_power   # 100–940 W slider
+      charge_limit_soc_setpoint_entity: number.ef_r60xxxx_max_charge_level  # % gate
+      charge_ceiling_soc_pct: 100    # charge up to this when there IS surplus (default soc_max)
+```
+
+Why these two setpoints: the `ef_ble` **AC charging power** slider floors at **100 W**, so
+SolarBalance can't command 0. Instead it gates charging with the **max-charge-SoC limit**:
+when there's surplus it raises the limit to `charge_ceiling_soc_pct` and drives the power
+slider; when there's no surplus it drops the limit to the current SoC so the box stops (no
+phantom ~100 W grid draw). The gate is hysteretic so a near-zero target doesn't flap it.
+
+Notes:
+
+- **Do not** declare the River 2's own solar as an `mppt` role — it charges the battery on
+  the DC side and never reaches the grid; declaring it would inflate grid-facing PV. It just
+  charges the River 2 "for free" in the background; SolarBalance only sees the grid-side draw.
+- **Do not** add appliances on the River 2's AC socket to `local_ac_load_entities` — they're
+  powered internally (isolated) and appear on neither the house meter nor `ac_input_power`.
+  Exception: if the station runs in **EPS/passthrough** so grid flows *through* it to the load,
+  a small phantom may appear in `ac_input_power` — only then compensate.
+- Leave `discharge_power_setpoint_entity` and `mode_setpoint_entity` unset (a charge-only
+  battery rejects a discharge setpoint).
+
 ## Verifying your mapping
 
 After applying the YAML and reloading SolarBalance, check `sensor.solarbalance_baseline_consumption`:

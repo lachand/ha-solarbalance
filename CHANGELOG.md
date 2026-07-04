@@ -37,6 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta55] — 2026-07-03
+
+### Added
+
+- **Support des batteries « charge-only » (ex. EcoFlow River 2).** Une station qui charge
+  (réseau + solaire) mais ne réinjecte pas se déclare simplement avec `max_discharge_power_w: 0`
+  et une consigne de charge : le balancer ne lui alloue jamais de décharge, le publisher n'écrit
+  que la charge en respectant le plafond SoC. Aucun nouveau « type » requis. Un garde-fou
+  interdit désormais une consigne de décharge sur une batterie à `max_discharge_power_w=0`.
+- **Charge-gate par limite SoC** (`charge_limit_soc_setpoint_entity` + `charge_ceiling_soc_pct`).
+  Le slider « AC charging power » d'ef_ble (River 2) a un plancher de 100 W, donc impossible de
+  commander 0. SolarBalance pilote alors la **limite de charge %** comme un interrupteur :
+  surplus → limite au plafond + pilotage de la puissance ; plus de surplus → limite abaissée au
+  SoC courant pour stopper (pas d'import fantôme ~100 W). Gate hystérétique pour ne pas clignoter.
+  Recette complète : `docs/device-mapping.md` (« EcoFlow River 2 »).
+
 ## [2.0.8-beta54] — 2026-07-03
 
 ### Fixed

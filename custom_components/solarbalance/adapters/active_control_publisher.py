@@ -39,6 +39,12 @@ _CHARGE_STEP_W = 10.0
 # this (W) is re-written (verify+retry) — catches a write that silently didn't land
 # (a wrong/intermittent entity, or an inverter that reverted it).
 _WRITE_VERIFY_TOLERANCE_W = 20.0
+# Charge-gate hysteresis (for a charge-only station whose charge-power slider floors at
+# 100 W): open the gate (allow charging) above _ON, close it (stop via the SoC limit)
+# below _OFF, hold in between — so a charge target hovering near zero doesn't flap the
+# slow BLE SoC-limit write.
+_CHARGE_GATE_ON_W = 120.0
+_CHARGE_GATE_OFF_W = 40.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -55,6 +61,11 @@ class _Managed:
     soc_floor: float
     soc_ceiling: float
     discharge_mirror_group: str | None
+    # Charge-gate (charge-only station whose charge-power slider floors at 100 W and so
+    # can't be commanded to 0): drop this max-charge-SoC limit to the current SoC to stop
+    # charging, or raise it to ``charge_ceiling_pct`` to allow it. None = no gate.
+    charge_limit_entity: str | None = None
+    charge_ceiling_pct: float = 100.0
 
 
 class ActiveControlPublisher:
@@ -78,6 +89,12 @@ class ActiveControlPublisher:
                 soc_floor=float(battery.soc_min_pct) + _SOC_MARGIN_PCT,
                 soc_ceiling=float(battery.soc_max_pct) - _SOC_MARGIN_PCT,
                 discharge_mirror_group=battery.discharge_mirror_group or None,
+                charge_limit_entity=battery.charge_limit_soc_setpoint_entity,
+                charge_ceiling_pct=float(
+                    battery.charge_ceiling_soc_pct
+                    if battery.charge_ceiling_soc_pct is not None
+                    else battery.soc_max_pct
+                ),
             )
         self._managed = managed
         # Groups whose discharge is a shared total mirrored to each member (e.g. the two
@@ -103,6 +120,8 @@ class ActiveControlPublisher:
         self._last_power: dict[str, float] = {}
         self._last_mode: dict[str, str] = {}
         self._last_reserve: dict[str, float] = {}
+        self._last_charge_limit: dict[str, float] = {}
+        self._charge_gate_on: dict[str, bool] = {}
         # Final (charge_w, discharge_w) actually commanded per device — post SoC-cut and
         # post discharge-mirror — so a diagnostic shows what was *written*, not the raw
         # balancer split (mirrored group members read the same discharge, e.g. STREAM).
@@ -351,11 +370,62 @@ class ActiveControlPublisher:
             )
             if m.mode_entity is not None:
                 await self._apply_mode_battery(m, charge_w, discharge_w)
+            elif m.charge_limit_entity is not None:
+                await self._apply_charge_gate(name, m, charge_w, soc_by_device.get(name))
             else:
                 if m.discharge_entity is not None:
                     await self._write_power(m.discharge_entity, discharge_w)
                 if m.charge_entity is not None:
                     await self._write_power(m.charge_entity, charge_w)
+
+    async def _apply_charge_gate(
+        self, name: str, m: _Managed, charge_w: float, soc: float | None
+    ) -> None:
+        """Charge a charge-only station via a SoC-limit gate + a power slider.
+
+        Its charge-power number floors at 100 W (can't be commanded to 0), so the on/off
+        is done with the max-charge-SoC limit: raise it to the ceiling to allow charging,
+        or drop it to the current SoC to stop. Hysteretic so a near-zero target doesn't
+        flap the slow BLE limit write.
+        """
+        assert m.charge_limit_entity is not None
+        on = self._charge_gate_on.get(name, False)
+        if charge_w > _CHARGE_GATE_ON_W:
+            on = True
+        elif charge_w < _CHARGE_GATE_OFF_W:
+            on = False
+        self._charge_gate_on[name] = on
+        if on:
+            await self._write_charge_limit(name, m.charge_limit_entity, m.charge_ceiling_pct)
+            if m.charge_entity is not None:
+                await self._write_power(m.charge_entity, charge_w)
+        elif soc is not None:
+            # Cap the max-charge SoC at (a floor of) the current level so the box stops —
+            # tracking SoC down keeps it from trickling the 100 W minimum back in.
+            await self._write_charge_limit(name, m.charge_limit_entity, float(int(soc)))
+
+    async def _write_charge_limit(self, name: str, entity_id: str, value_pct: float) -> None:
+        value_pct = self._clamp_to_entity_range(entity_id, value_pct)
+        last = self._last_charge_limit.get(name)
+        if last is not None and abs(last - value_pct) < 0.5:
+            return
+        if not self._entity_available(entity_id):
+            return
+        service_domain = "input_number" if entity_id.startswith("input_number.") else "number"
+        try:
+            await self._hass.services.async_call(
+                service_domain,
+                "set_value",
+                {"entity_id": entity_id, "value": round(value_pct)},
+                blocking=False,
+            )
+        except Exception:
+            _LOGGER.exception(
+                "Active control: failed to set %s charge-limit = %.0f%%", entity_id, value_pct
+            )
+            return
+        self._last_charge_limit[name] = value_pct
+        _LOGGER.debug("Active control: %s <- charge-limit %.0f%%", entity_id, value_pct)
 
     async def _apply_mode_battery(self, m: _Managed, charge_w: float, discharge_w: float) -> None:
         """Drive a mode-based battery (e.g. STREAM): one direction at a time.

@@ -134,6 +134,16 @@ class BatteryRole:
     """HA entity (number/input_number) receiving the discharge power setpoint (W)."""
     charge_power_setpoint_entity: str | None = None
     """HA entity (number/input_number) receiving the charge power setpoint (W)."""
+    charge_limit_soc_setpoint_entity: str | None = None
+    """HA entity (number/input_number) receiving the battery's *max-charge* SoC limit (%).
+
+    Used as an on/off charge gate for a charge-only station (EcoFlow River 2) whose charge
+    *power* number cannot be driven to 0 (its slider floors at 100 W). When SolarBalance
+    wants no charge, the publisher writes this limit down to the current SoC to stop the
+    box; when there is surplus it writes ``charge_ceiling_soc_pct`` and drives the power."""
+    charge_ceiling_soc_pct: int | None = None
+    """SoC (%) the charge-gate raises ``charge_limit_soc_setpoint_entity`` to when charging
+    is allowed. ``None`` falls back to ``soc_max_pct``."""
     mode_setpoint_entity: str | None = None
     """HA select/input_select receiving the operating mode. The publisher writes
     ``charge_mode_option`` / ``discharge_mode_option`` / ``idle_mode_option`` to it.
@@ -184,6 +194,14 @@ class BatteryRole:
                     "discharge_power_setpoint_entity, charge_power_setpoint_entity, "
                     "mode_setpoint_entity"
                 )
+        # A charge-only battery (max_discharge_power_w == 0, e.g. an EcoFlow River 2 that
+        # cannot feed back to the grid) must not have a discharge setpoint wired — nothing
+        # should ever command it to discharge.
+        if self.max_discharge_power_w == 0 and self.discharge_power_setpoint_entity is not None:
+            raise ValueError(
+                "a charge-only battery (max_discharge_power_w=0) must not set "
+                "discharge_power_setpoint_entity"
+            )
 
     @property
     def effective_usable_capacity_kwh(self) -> float:
