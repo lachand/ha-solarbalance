@@ -972,6 +972,34 @@ _PRESETS: dict[str, _DevicePreset] = {
         mppt_entities={"power_entity": ("sensor", "pv_power_total")},
         prefix_probe=("select", "energy_strategy"),
     ),
+    # EcoFlow River 2 (base/Max/Pro) — a CHARGE-ONLY station: charges from grid/solar,
+    # never injects. max_discharge_power_w=0 makes it a pure surplus sink; charging is
+    # gated via the max-charge-SoC limit (its AC-charge slider floors at 100 W). Adjust
+    # capacity/max_charge for Max (0.512/660) or Pro (0.768/940). Do NOT declare its solar.
+    "river2": _DevicePreset(
+        name="EcoFlow River 2",
+        applies_to=("battery",),
+        battery={
+            "capacity_kwh": 0.256,
+            "max_charge_power_w": 360,
+            "max_discharge_power_w": 0,
+            "soc_min_pct": 5,
+            "soc_max_pct": 100,
+            "power_sign_convention": "charge_positive",
+            "controllable": True,
+            "active_control_enabled": True,
+            "charge_ceiling_soc_pct": 100,
+        },
+        mppt={},
+        battery_entities={
+            "soc_entity": ("sensor", "battery_level"),
+            "power_entity": ("sensor", "ac_input_power"),
+            "charge_power_setpoint_entity": ("number", "ac_charging_power"),
+            "charge_limit_soc_setpoint_entity": ("number", "max_charge_level"),
+        },
+        mppt_entities={},
+        prefix_probe=("number", "ac_charging_power"),
+    ),
     # The STREAM's micro-inverter is a separate BLE device (prefix ef_bk…). Added
     # as an inverter only; carries the curtailment knob (maximum_output_power).
     "stream_inverter": _DevicePreset(

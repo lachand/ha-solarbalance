@@ -77,14 +77,50 @@ def test_stream_inverter_preset_autodetects_curtailment() -> None:
     assert "roles" not in d  # flat shape for the mppt kind
 
 
+_RIVER2_IDS = [
+    "sensor.ef_r60xxxx_battery_level",
+    "sensor.ef_r60xxxx_ac_input_power",
+    "number.ef_r60xxxx_ac_charging_power",
+    "number.ef_r60xxxx_max_charge_level",
+]
+
+
+def test_river2_preset_autodetects_charge_only() -> None:
+    h = _handler(BatterySubentryFlowHandler, _RIVER2_IDS)
+    d = h._preset_defaults("river2")
+    assert d["name"] == "EcoFlow River 2 r60xxxx"
+    assert d["soc_entity"] == "sensor.ef_r60xxxx_battery_level"
+    assert d["power_entity"] == "sensor.ef_r60xxxx_ac_input_power"
+    assert d["charge_power_setpoint_entity"] == "number.ef_r60xxxx_ac_charging_power"
+    assert d["charge_limit_soc_setpoint_entity"] == "number.ef_r60xxxx_max_charge_level"
+    assert d["max_discharge_power_w"] == 0
+    assert d["active_control_enabled"] is True
+    # Assembling + building yields a valid charge-only device (no discharge setpoint).
+    device = _battery_input_to_device(d)
+    build_device_from_dict(device)  # must not raise (charge-only guard passes)
+    b = device["roles"]["battery"]
+    assert b["max_discharge_power_w"] == 0
+    assert "discharge_power_setpoint_entity" not in b
+
+
+def test_river2_preset_without_entities_keeps_charge_only_defaults() -> None:
+    h = _handler(BatterySubentryFlowHandler, ["sensor.shelly_3em_power"])
+    d = h._preset_defaults("river2")
+    assert d["name"] == "EcoFlow River 2"
+    assert "soc_entity" not in d
+    assert d["max_discharge_power_w"] == 0  # static charge-only default still applied
+
+
 def test_preset_options_are_filtered_by_kind() -> None:
     def by_kind(kind: str) -> list[str]:
         return [k for k, p in _PRESETS.items() if kind in p.applies_to]
 
     assert "stream" in by_kind("battery")
+    assert "river2" in by_kind("battery")
     assert "stream_inverter" not in by_kind("battery")
     assert by_kind("mppt") == ["stream_inverter"]
     assert "stream" in by_kind("battery_mppt")
+    assert "river2" not in by_kind("battery_mppt")
 
 
 def test_generic_preset_is_blank() -> None:

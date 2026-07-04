@@ -37,6 +37,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta56] — 2026-07-03
+
+### Added
+
+- **Preset « EcoFlow River 2 » dans l'assistant d'ajout** (comme la STREAM). Il pré-remplit la
+  config charge-only (`max_discharge_power_w=0`, `charge_positive`, contrôlable, contrôle actif,
+  capacité/puissance de la River 2 base ; ajuste pour Max/Pro) et **auto-détecte** les 4 entités
+  ef_ble (`battery_level`, `ac_input_power`, `ac_charging_power`, `max_charge_level`) à partir du
+  préfixe du device. Si le nommage diffère (autre intégration), les valeurs statiques restent
+  appliquées et tu renseignes les entités à la main.
+
 ## [2.0.8-beta55] — 2026-07-03
 
 ### Added

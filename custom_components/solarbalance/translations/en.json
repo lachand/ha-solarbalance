@@ -632,7 +632,8 @@
       "options": {
         "generic": "Generic (blank form)",
         "stream": "EcoFlow STREAM",
-        "stream_inverter": "EcoFlow STREAM inverter"
+        "stream_inverter": "EcoFlow STREAM inverter",
+        "river2": "EcoFlow River 2 (charge-only)"
       }
     }
   },
