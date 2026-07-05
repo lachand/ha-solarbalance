@@ -370,8 +370,8 @@ appliances on its AC socket — but it **cannot inject back to the grid**. Model
       power_sign_convention: charge_positive
       controllable: true
       active_control_enabled: true
-      charge_power_setpoint_entity: number.ef_r60xxxx_ac_charging_power   # 100–940 W slider
-      charge_limit_soc_setpoint_entity: number.ef_r60xxxx_max_charge_level  # % gate
+      charge_power_setpoint_entity: number.ef_r60xxxx_ac_charging_speed   # "AC Charging Speed" slider
+      charge_limit_soc_setpoint_entity: number.ef_r60xxxx_max_charge_limit  # "Max Charge Limit" %
       charge_ceiling_soc_pct: 100    # charge up to this when there IS surplus (default soc_max)
 ```
 

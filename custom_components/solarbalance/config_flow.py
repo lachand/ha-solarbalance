@@ -994,11 +994,11 @@ _PRESETS: dict[str, _DevicePreset] = {
         battery_entities={
             "soc_entity": ("sensor", "battery_level"),
             "power_entity": ("sensor", "ac_input_power"),
-            "charge_power_setpoint_entity": ("number", "ac_charging_power"),
-            "charge_limit_soc_setpoint_entity": ("number", "max_charge_level"),
+            "charge_power_setpoint_entity": ("number", "ac_charging_speed"),
+            "charge_limit_soc_setpoint_entity": ("number", "max_charge_limit"),
         },
         mppt_entities={},
-        prefix_probe=("number", "ac_charging_power"),
+        prefix_probe=("number", "ac_charging_speed"),
     ),
     # The STREAM's micro-inverter is a separate BLE device (prefix ef_bk…). Added
     # as an inverter only; carries the curtailment knob (maximum_output_power).

@@ -37,6 +37,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta57] — 2026-07-04
+
+### Fixed
+
+- **Preset River 2 : bons noms d'entités ef_ble.** L'auto-détection visait `ac_charging_power`
+  et `max_charge_level` ; les vrais sliders ef_ble sont **« AC Charging Speed »**
+  (`ac_charging_speed`) et **« Max Charge Limit »** (`max_charge_limit`). Le preset (et la
+  recette doc) sont corrigés — sans ça, les 2 consignes n'étaient pas auto-remplies et la
+  charge ne s'écrivait nulle part.
+
 ## [2.0.8-beta56] — 2026-07-03
 
 ### Added

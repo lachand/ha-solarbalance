@@ -80,8 +80,8 @@ def test_stream_inverter_preset_autodetects_curtailment() -> None:
 _RIVER2_IDS = [
     "sensor.ef_r60xxxx_battery_level",
     "sensor.ef_r60xxxx_ac_input_power",
-    "number.ef_r60xxxx_ac_charging_power",
-    "number.ef_r60xxxx_max_charge_level",
+    "number.ef_r60xxxx_ac_charging_speed",
+    "number.ef_r60xxxx_max_charge_limit",
 ]
 
 
@@ -91,8 +91,8 @@ def test_river2_preset_autodetects_charge_only() -> None:
     assert d["name"] == "EcoFlow River 2 r60xxxx"
     assert d["soc_entity"] == "sensor.ef_r60xxxx_battery_level"
     assert d["power_entity"] == "sensor.ef_r60xxxx_ac_input_power"
-    assert d["charge_power_setpoint_entity"] == "number.ef_r60xxxx_ac_charging_power"
-    assert d["charge_limit_soc_setpoint_entity"] == "number.ef_r60xxxx_max_charge_level"
+    assert d["charge_power_setpoint_entity"] == "number.ef_r60xxxx_ac_charging_speed"
+    assert d["charge_limit_soc_setpoint_entity"] == "number.ef_r60xxxx_max_charge_limit"
     assert d["max_discharge_power_w"] == 0
     assert d["active_control_enabled"] is True
     # Assembling + building yields a valid charge-only device (no discharge setpoint).
