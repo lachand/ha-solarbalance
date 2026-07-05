@@ -66,6 +66,59 @@ def test_charge_cap_limits_allocation_and_reports_saturation() -> None:
     assert res.unallocated_w == pytest.approx(950.0, abs=2.0)
 
 
+def _priority_pair() -> list[Device]:
+    small = Device(
+        name="river",
+        battery=BatteryRole(
+            capacity_kwh=0.256,
+            max_charge_power_w=360,
+            max_discharge_power_w=0,
+            soc_entity="s1",
+            power_entity="p1",
+            soc_min_pct=5,
+            soc_max_pct=100,
+            controllable=True,
+            charge_priority_target_soc_pct=90,
+        ),
+    )
+    big = Device(
+        name="stream",
+        battery=BatteryRole(
+            capacity_kwh=3.84,
+            max_charge_power_w=2000,
+            max_discharge_power_w=2000,
+            soc_entity="s2",
+            power_entity="p2",
+            soc_min_pct=10,
+            controllable=True,
+        ),
+    )
+    return [small, big]
+
+
+def test_charge_priority_fills_priority_battery_first() -> None:
+    # The River (0.256 kWh) would normally get ~6 % of the surplus; with a charge-priority
+    # target it takes the surplus first, up to its 360 W cap, before the big STREAM.
+    ctrl = BalancingController(_priority_pair(), alpha=1.0)
+    res = ctrl.allocate(
+        total_power_w=1000.0,
+        states={"river": _state("river", 50.0), "stream": _state("stream", 50.0)},
+    )
+    assert res.per_battery_w["river"] == pytest.approx(360.0, abs=2.0)
+    assert res.per_battery_w["stream"] == pytest.approx(640.0, abs=2.0)
+
+
+def test_charge_priority_inactive_at_target() -> None:
+    # At/above its target SoC the priority no longer applies → normal ~6 % share.
+    ctrl = BalancingController(_priority_pair(), alpha=1.0)
+    res = ctrl.allocate(
+        total_power_w=1000.0,
+        states={"river": _state("river", 90.0), "stream": _state("stream", 50.0)},
+    )
+    assert res.per_battery_w["river"] < 100.0
+    assert res.per_battery_w["stream"] > 900.0
+
+
 def test_discharge_rate_tapers_above_floor() -> None:
     # floor = 22 %, taper band 4 % → full at 26 %. At 24 % the cap is (24-22)/4 = 50 %
     # of the 2000 W rate = 1000 W, so a 1500 W request is clamped to 1000 W (not 0, not

@@ -37,6 +37,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta58] — 2026-07-04
+
+### Added
+
+- **Priorité de charge (`charge_priority_target_soc_pct`).** Une petite batterie qu'on veut
+  garder pleine (River 2 pour alimenter une box) se remplit **en premier** depuis le surplus,
+  avant le reste du parc, tant que son SoC est sous la cible — au lieu de sa part minuscule au
+  prorata de la capacité (~6 % face à la STREAM, qui n'ouvrait jamais le charge-gate). Elle
+  sature à sa limite puis le reste du surplus repart vers le parc. Le preset River 2 met la
+  cible à 90 %.
+
 ## [2.0.8-beta57] — 2026-07-04
 
 ### Fixed

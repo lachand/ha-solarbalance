@@ -144,6 +144,11 @@ class BatteryRole:
     charge_ceiling_soc_pct: int | None = None
     """SoC (%) the charge-gate raises ``charge_limit_soc_setpoint_entity`` to when charging
     is allowed. ``None`` falls back to ``soc_max_pct``."""
+    charge_priority_target_soc_pct: int | None = None
+    """When set, this battery is charged **first** from surplus (before the rest of the
+    fleet) until its SoC reaches this target — for a small station (EcoFlow River 2) you
+    want topped up rather than given its tiny capacity-weighted share. ``None`` = no
+    priority (normal capacity/SoC-weighted allocation)."""
     mode_setpoint_entity: str | None = None
     """HA select/input_select receiving the operating mode. The publisher writes
     ``charge_mode_option`` / ``discharge_mode_option`` / ``idle_mode_option`` to it.

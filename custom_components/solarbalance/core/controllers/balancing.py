@@ -34,6 +34,10 @@ _DISCHARGE_TAPER_BAND_PCT = 4.0
 # discharge until its SoC recovers this far above the margin — so SoC quantisation
 # noise at the boundary cannot re-arm it every tick (the morning discharge yoyo).
 _DISCHARGE_REARM_PCT = 2.0
+# Additive weight for a charge-priority battery below its target SoC. Dominates the normal
+# weights (which sum to ~1) so it takes the surplus first; it then saturates at its cap and
+# the saturation loop redistributes the remainder to the rest of the fleet.
+_CHARGE_PRIORITY_WEIGHT = 1000.0
 
 
 @dataclass(slots=True, frozen=True)
@@ -229,7 +233,18 @@ class BalancingController:
                 eq_weight = max(0.0, soc_mean - soc + _EQUALISER_EPSILON)
             else:
                 eq_weight = max(0.0, soc - soc_mean + _EQUALISER_EPSILON)
-            weights[name] = self._alpha * cap_weight + (1.0 - self._alpha) * eq_weight
+            weight = self._alpha * cap_weight + (1.0 - self._alpha) * eq_weight
+            # Charge priority: a small station you want topped up first (River 2) grabs the
+            # surplus before the rest of the fleet — a dominating additive weight until it
+            # reaches its target SoC. It saturates at its rate/entity cap and the saturation
+            # loop then hands the remainder to the others.
+            if (
+                charging
+                and role.charge_priority_target_soc_pct is not None
+                and soc < role.charge_priority_target_soc_pct
+            ):
+                weight += _CHARGE_PRIORITY_WEIGHT
+            weights[name] = weight
         return weights
 
     @staticmethod
