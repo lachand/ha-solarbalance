@@ -371,15 +371,20 @@ appliances on its AC socket — but it **cannot inject back to the grid**. Model
       controllable: true
       active_control_enabled: true
       charge_power_setpoint_entity: number.ef_r60xxxx_ac_charging_speed   # "AC Charging Speed" slider
-      charge_limit_soc_setpoint_entity: number.ef_r60xxxx_max_charge_limit  # "Max Charge Limit" %
+      charge_limit_soc_setpoint_entity: number.ef_r60xxxx_backup_reserve  # "Backup Reserve Level" %
       charge_ceiling_soc_pct: 100    # charge up to this when there IS surplus (default soc_max)
+      charge_priority_target_soc_pct: 90   # fill the River first from surplus, before the fleet
 ```
 
-Why these two setpoints: the `ef_ble` **AC charging power** slider floors at **100 W**, so
-SolarBalance can't command 0. Instead it gates charging with the **max-charge-SoC limit**:
-when there's surplus it raises the limit to `charge_ceiling_soc_pct` and drives the power
-slider; when there's no surplus it drops the limit to the current SoC so the box stops (no
+Why these setpoints: the `ef_ble` **AC Charging Speed** slider floors at **100 W**, so
+SolarBalance can't command 0. Instead it gates charging with a **SoC-limit** entity — on the
+River 2 the lever that actually starts/stops grid charging is the **Backup Reserve Level**
+(with *Energy Backup*/EPS enabled in the EcoFlow app), not "Max Charge Limit". When there's
+surplus SolarBalance raises it to `charge_ceiling_soc_pct` (so the box charges) and drives the
+speed slider; when there's no surplus it drops it to the current SoC so the box stops (no
 phantom ~100 W grid draw). The gate is hysteretic so a near-zero target doesn't flap it.
+`charge_priority_target_soc_pct` fills the small River first from surplus (before the big
+fleet) so it actually crosses the gate's open threshold instead of getting a tiny share.
 
 Notes:
 
@@ -392,6 +397,10 @@ Notes:
   a small phantom may appear in `ac_input_power` — only then compensate.
 - Leave `discharge_power_setpoint_entity` and `mode_setpoint_entity` unset (a charge-only
   battery rejects a discharge setpoint).
+- Leave `reserve_soc_setpoint_entity` unset — the charge-gate already drives the Backup
+  Reserve; wiring it to storm mode as well would fight the gate over the same entity.
+- Enable **Energy Backup / EPS** on the River in the EcoFlow app, otherwise the Backup Reserve
+  Level does nothing and charging won't gate.
 
 ## Verifying your mapping
 

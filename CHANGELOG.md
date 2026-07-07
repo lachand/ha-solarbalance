@@ -37,6 +37,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta59] — 2026-07-04
+
+### Fixed
+
+- **River 2 : le gate de charge se pilote via « Backup Reserve Level », pas « Max Charge
+  Limit ».** Sur la River 2, le levier qui démarre/arrête réellement la charge réseau est la
+  réserve de secours (Energy Backup/EPS actif). Le preset River 2 mappe donc désormais
+  `charge_limit_soc_setpoint_entity` → `backup_reserve`. La logique du gate est inchangée
+  (monter pour charger / redescendre au SoC courant pour stopper) — elle marche avec
+  n'importe quelle entité %.
+- **Libellés UI des nouveaux champs batterie.** `charge_limit_soc_setpoint_entity`,
+  `charge_ceiling_soc_pct` et `charge_priority_target_soc_pct` ont enfin des labels/descriptions
+  clairs (FR/EN), et la description de « Réserve / SoC mini » précise que **ce n'est pas** le
+  gate de charge (à laisser vide sur une River 2 charge-only). Le gate et la priorité restent
+  **opt-in par batterie** : aucune incidence sur les batteries qui ne les utilisent pas (STREAM,
+  cloud).
+
 ## [2.0.8-beta58] — 2026-07-04
 
 ### Added

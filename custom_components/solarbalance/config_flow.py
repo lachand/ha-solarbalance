@@ -978,9 +978,12 @@ _PRESETS: dict[str, _DevicePreset] = {
         prefix_probe=("select", "energy_strategy"),
     ),
     # EcoFlow River 2 (base/Max/Pro) — a CHARGE-ONLY station: charges from grid/solar,
-    # never injects. max_discharge_power_w=0 makes it a pure surplus sink; charging is
-    # gated via the max-charge-SoC limit (its AC-charge slider floors at 100 W). Adjust
-    # capacity/max_charge for Max (0.512/660) or Pro (0.768/940). Do NOT declare its solar.
+    # never injects. max_discharge_power_w=0 makes it a pure surplus sink. Its AC-charge
+    # slider floors at 100 W (can't be 0), so charging is gated via a SoC-limit entity: on
+    # the River 2 the lever that actually starts/stops grid charging is the **backup-reserve
+    # level** (with Energy Backup/EPS enabled) — the gate raises it to charge, lowers it to
+    # the current SoC to stop. Adjust capacity/max_charge for Max (0.512/660) / Pro
+    # (0.768/940). Do NOT declare its solar; leave reserve_soc_setpoint_entity unset.
     "river2": _DevicePreset(
         name="EcoFlow River 2",
         applies_to=("battery",),
@@ -1001,7 +1004,7 @@ _PRESETS: dict[str, _DevicePreset] = {
             "soc_entity": ("sensor", "battery_level"),
             "power_entity": ("sensor", "ac_input_power"),
             "charge_power_setpoint_entity": ("number", "ac_charging_speed"),
-            "charge_limit_soc_setpoint_entity": ("number", "max_charge_limit"),
+            "charge_limit_soc_setpoint_entity": ("number", "backup_reserve"),
         },
         mppt_entities={},
         prefix_probe=("number", "ac_charging_speed"),
