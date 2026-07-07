@@ -2017,6 +2017,24 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Near-full latch (hysteretic), shared by the no-charge-floor skip (charge
         # gently toward 100 %) and the PV curtailment (trim the excess to baseline).
         near_full = self._fleet_near_full(snapshot)
+        # Charge-priority pull: when a low charge-priority battery (River 2) is below its
+        # target and there is genuine PV surplus (natural export), force the fleet to charge
+        # that surplus so the balancer routes it to the priority battery first — instead of
+        # it being soaked by the big fleet in self-powered mode or spent on an equaliser
+        # discharge. Zero otherwise (no incidence on setups without a priority battery).
+        charge_priority_pull_w = 0.0
+        if zi_regulating and natural_grid_w < -self._zi_hysteresis_w:
+            soc_by_name = {b.device_name: b for b in snapshot.batteries}
+            if any(
+                d.battery is not None
+                and d.battery.controllable
+                and d.battery.charge_priority_target_soc_pct is not None
+                and (bs := soc_by_name.get(d.name)) is not None
+                and bs.available
+                and bs.soc_pct < d.battery.charge_priority_target_soc_pct
+                for d in self._devices
+            ):
+                charge_priority_pull_w = -natural_grid_w
         regulation_result = resolve_total_power(
             RegulationInputs(
                 zi_regulating=zi_regulating,
@@ -2034,6 +2052,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 steering_w=steering_w,
                 eq_bias_w=eq_bias_w,
                 eq_discharge_floor_w=eq_discharge_floor_w,
+                charge_priority_pull_w=charge_priority_pull_w,
                 fleet_near_full=near_full,
                 grid_filtered_w=grid_filtered_w,
                 controllable_mppt_w=controllable_mppt_w,

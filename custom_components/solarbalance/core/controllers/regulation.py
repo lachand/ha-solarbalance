@@ -185,6 +185,12 @@ class RegulationInputs:
     scaled by a back-off). When set, the no-export / grid-export floors are lowered to
     it so the fleet can output its PV toward a lower-SoC cloud battery (the battery is
     never drained). ``None`` → strict anti-export (no equaliser PV-routing)."""
+    charge_priority_pull_w: float = 0.0
+    """Positive W the fleet must charge to fill a low charge-priority battery (River 2)
+    from the available PV surplus. Forces the target to charge (overriding an equaliser
+    discharge or a stale loop base) so the balancer routes the surplus to the priority
+    battery first — and the rest of the fleet switches to a bounded charge instead of
+    soaking it. 0 when no priority battery is below target or there is no surplus."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,6 +280,13 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
             if inp.eq_discharge_floor_w is not None:
                 no_feed_floor = min(no_feed_floor, inp.eq_discharge_floor_w)
             pin(max(total_w, no_feed_floor), "no_feed")
+        # Charge-priority pull (last word in the ZI block): a low charge-priority battery
+        # (River 2) claims the PV surplus first. Force the fleet to charge it — overriding
+        # an equaliser discharge / a stale loop base / the no-charge floor — so the balancer
+        # routes it to the priority battery and the rest of the fleet takes a *bounded*
+        # charge (scheduled) instead of soaking the surplus in self-powered mode.
+        if inp.charge_priority_pull_w > 0.0:
+            pin(max(total_w, inp.charge_priority_pull_w), "charge_priority")
     # Grid constraints (honour the breaker/contract regardless of the regulator).
     if inp.max_import_w is not None:
         pin(

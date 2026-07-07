@@ -37,6 +37,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta60] — 2026-07-07
+
+### Fixed
+
+- **La River (charge-priority) reçoit enfin le surplus PV, au lieu qu'il soit gobé par les
+  STREAM.** La priorité de charge (beta58) ne s'appliquait qu'à la *répartition* d'une cible
+  déjà positive ; or quand les grosses STREAM absorbent le surplus en self_powered (ou que
+  l'équaliseur pousse une décharge pour alimenter une batterie cloud), la cible parc n'était
+  jamais positive → la River restait à `+0`. Nouveau **charge-priority pull** : quand une
+  batterie charge-priority est **sous sa cible** et qu'il y a un **surplus PV naturel**
+  (export naturel), SolarBalance force la cible parc à **charger ce surplus** (override de la
+  décharge équaliseur / d'un loop_base figé / du no-charge-floor). Le balancer route alors le
+  surplus vers la River **en premier**, et le reste du parc passe en charge *bornée*
+  (scheduled) au lieu de tout gober. Binding `charge_priority` dans la ligne de debug.
+  Inactif (0) sans batterie charge-priority ou sans surplus → aucune incidence sur les autres
+  setups.
+
 ## [2.0.8-beta59] — 2026-07-04
 
 ### Fixed

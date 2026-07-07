@@ -59,6 +59,29 @@ class TestResolveTotalPower:
         assert out.total_w == pytest.approx(600.0)  # charges (500 + 100), not floored
         assert out.binding == "base"
 
+    def test_charge_priority_pull_overrides_equaliser_discharge(self) -> None:
+        # An equaliser discharge (eq_bias) + no-charge floor would push the fleet to output
+        # its PV; a low charge-priority battery (River 2) pulls the target back to CHARGE
+        # the surplus so the balancer can route it there first.
+        out = resolve_total_power(
+            _inp(
+                grid_filtered_w=0.0,
+                eq_bias_w=400.0,
+                controllable_mppt_w=600.0,
+                charge_priority_pull_w=468.0,
+            )
+        )
+        assert out.total_w == pytest.approx(468.0)
+        assert out.binding == "charge_priority"
+
+    def test_charge_priority_pull_never_reduces_a_larger_charge(self) -> None:
+        # It is a floor (max), so a genuine larger charge from the ZI loop wins.
+        out = resolve_total_power(
+            _inp(grid_filtered_w=-1000.0, zi_correction_w=1000.0, charge_priority_pull_w=300.0)
+        )
+        assert out.total_w == pytest.approx(1000.0)
+        assert out.binding == "base"
+
     def test_no_charge_floor_fires_without_pv_even_if_natural_grid_exports(self) -> None:
         # No PV (a cloud battery discharging at night looks like a surplus on the natural
         # grid): the floor must still fire to block a round-trip, not allow charging.
