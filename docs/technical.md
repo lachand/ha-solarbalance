@@ -1,6 +1,6 @@
 # SolarBalance — Documentation Technique
 
-> Version cible : **0.1.x (v1)**  
+> Version cible : **0.1.x (v1)**
 > Home Assistant : **2026.1+** — Python : **3.13+**
 
 ---
@@ -614,3 +614,58 @@ Déclenché par le watchdog quand une entité critique est stale depuis plus de 
 $$\text{baseline}_{\text{W}} = P_{\text{grid}} + P_{\text{PV}} - P_{\text{bat}} - P_{\text{loads}}$$
 
 Si `baseline_w < -100 W` pendant 3 ticks consécutifs → notification persistante HA suggérant de vérifier `power_sign_convention`. Une valeur négative signifie que le bilan d'énergie est incohérent (plus d'énergie sortante que d'entrante comptabilisée).
+
+## 12. Bridage PV anticipé (bilan de puits)
+
+Le bridage réactif (§ `CurtailmentController`) ne peut baisser la limite PV qu'**après** un
+export mesuré : entre le départ de l'export et la convergence de la limite s'empilent le filtre
+médian grille (~30 s), la fenêtre de settle (3 ticks) et la rampe (150 W/mouvement). Sur une
+montée solaire rapide vers un parc quasi-plein, cette latence se voit sous forme d'un gros
+transitoire d'export.
+
+Le module `core/controllers/anticipation.py` (pur) ferme cet écart.
+
+### 12.1 Bilan de puits
+
+Un **puits** est tout ce qui peut encore absorber du surplus :
+
+- les batteries **controllables** (débit = le cap que le balancer honore, entité incluse) ;
+- les batteries **cloud / non-controllables** — on ne peut pas les commander, mais on connaît
+  leur capacité de charge (`ac_charge_limit_w` ou `max_charge_power_w`) et leur SoC : une cloud
+  qui charge encore est un vrai puits. L'ignorer reviendrait à brider du solaire qu'elle aurait
+  absorbé. Une cloud **stale** est exclue (on ne mise pas sur une mesure à laquelle on ne peut
+  pas se fier) ;
+- les **loads pilotables** (puissance restante = nominal − ce qu'ils tirent déjà).
+
+Chaque puits est **moyenné sur l'horizon** :
+
+$$\text{absorb}_{\text{eff}} = \min\left(\text{absorb}_{\text{W}},\ \frac{\text{headroom}_{\text{kWh}}}{h} \times 1000\right)$$
+
+C'est ce `min` qui rend le frein **anticipatif**. Une batterie presque pleine annonce toujours
+son plein *débit*, mais son énergie restante s'effondre : sur 12 min elle ne vaut plus que
+quelques centaines de watts. Sa contribution tombe donc vers 0 **avant** que le SoC n'atteigne
+`soc_max` → la limite PV descend pendant qu'elle charge encore, au lieu d'attendre qu'elle soit
+pleine. Un load n'a pas de plafond d'énergie sur cet horizon (`headroom = ∞`) et compte toujours
+pour sa pleine puissance.
+
+### 12.2 Décision
+
+$$\text{surplus} = \text{PV}_{\text{prévue}} - \text{conso}_{\text{apprise}} \qquad
+\text{export}_{\text{projeté}} = \text{surplus} - \text{budget}$$
+
+Si `export_projeté > marge`, on émet un plafond `preemptive_limit_w = conso + budget` que le
+contrôleur de bridage atteint via sa machinerie sticky/rampe/settle — l'onduleur est donc déjà
+bridé quand le surplus arrive. Les deux freins se composent en `min` : un export réellement
+mesuré peut encore raboter sous le plafond.
+
+### 12.3 Garanties
+
+- **On ne jette jamais de solaire tant qu'un puits a de la place** : `surplus ≤ budget + marge`
+  → aucun bridage (`reason = "sinks_have_room"`).
+- **Jamais d'import ni d'export forcé** : le plafond n'est jamais sous la consommation, et le
+  frein ne fait que **baisser** la limite PV (un seul actionneur, un seul sens).
+- **Pas de double-comptage** : les charges seulement *observées* (voiture qui charge hors Home
+  Assistant, `local_ac_load`, talon) ne sont **pas** des puits — leur consommation est déjà
+  dans la conso prévue à laquelle le budget est comparé.
+- **Dégradation propre** : sans entité de prévision PV, `forecast_available = False` → retour au
+  bridage réactif pur. Opt-in, désactivé par défaut.

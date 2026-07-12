@@ -36,6 +36,9 @@ Complete reference of every SolarBalance option. Two places hold configuration:
 | `evening_shed_min_power_w` | 500 | Min power of an interruptible load to be considered "big". |
 | `overload_protection_enabled` | false | Shed/reduce loads (lowest priority first) when grid import exceeds 95 % of the subscribed power, to avoid tripping the breaker. |
 | `predictive_control_enabled` | false | Let the planner steer batteries (cheap charge / peak discharge). Inert on a flat tariff. |
+| `anticipatory_curtailment_enabled` | false | Pre-brake the array from the forecast, before the sinks saturate (see below). **Needs a PV forecast entity** and a curtailable inverter; inert otherwise. |
+| `anticipation_horizon_min` | 12 | How far ahead the sink budget is projected (5–30). Longer = brakes earlier. |
+| `anticipation_margin_w` | 100 | Forecast export must beat the sink budget by this much before pre-curtailing (guards against forecast noise). |
 | `notifications_enabled` | true | Persistent notifications (degraded, overload, shedding). |
 | `tempo_red_prep_enabled` | false | Pre-charge the fleet before a Tempo red day (off-peak). |
 | `tempo_red_prep_soc_pct` | 100 | Target SoC for the red-day pre-charge. |

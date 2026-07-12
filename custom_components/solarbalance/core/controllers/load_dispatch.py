@@ -49,7 +49,7 @@ def _time_in_window(t: time, start: time, end: time) -> bool:
     return t >= start or t < end
 
 
-def _load_eligible(
+def load_eligible(
     load: Load,
     state: LoadState | None,
     now: datetime,
@@ -143,7 +143,7 @@ class LoadDispatchController:
         for load in self._loads:
             state = states.get(load.name)
             currently_on = state is not None and state.actual_power_w > 0.0
-            eligible = _load_eligible(load, state, now)
+            eligible = load_eligible(load, state, now)
 
             if load.control_type is LoadControlType.ON_OFF:
                 cmd = self._dispatch_on_off(load, state, remaining, currently_on, eligible, now)

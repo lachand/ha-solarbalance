@@ -2,6 +2,7 @@
 
 import contextlib
 import logging
+import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
@@ -24,6 +25,9 @@ from .const import (
     AUTOTUNE_EQ_STEP_MIN_W,
     AUTOTUNE_ZI_KP_MIN,
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_ANTICIPATION_HORIZON_MIN,
+    CONF_ANTICIPATION_MARGIN_W,
+    CONF_ANTICIPATORY_CURTAILMENT_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_FLOOR_MARGIN_W,
     CONF_BASELINE_WINDOW_END_H,
@@ -80,6 +84,8 @@ from .const import (
     CONF_ZERO_INJECTION_SETPOINT_W,
     CONF_ZI_SETTLE_MIN_DROP_W,
     CONF_ZI_SETTLE_TICKS,
+    DEFAULT_ANTICIPATION_HORIZON_MIN,
+    DEFAULT_ANTICIPATION_MARGIN_W,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BALANCING_ALPHA,
     DEFAULT_BASELINE_FLOOR_MARGIN_W,
@@ -137,6 +143,16 @@ from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.autotuner import RegulationAutoTuner
 from .core.baseline import NightBaselineEstimator
 from .core.consumption_profile import ConsumptionProfile, segment_for
+from .core.controllers.anticipation import (
+    SINK_CLOUD_BATTERY,
+    SINK_CONTROLLABLE_BATTERY,
+    SINK_LOAD,
+    AnticipationInputs,
+    AnticipationResult,
+    Sink,
+    compute_sink_budget,
+    evaluate_anticipation,
+)
 from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
 from .core.controllers.deadline import DeadlineDecision, evaluate_deadline
@@ -146,7 +162,7 @@ from .core.controllers.evening_shed import (
     ShedDecision,
     evaluate_evening_shed,
 )
-from .core.controllers.load_dispatch import LoadCommand, LoadDispatchController
+from .core.controllers.load_dispatch import LoadCommand, LoadDispatchController, load_eligible
 from .core.controllers.load_settle import SettleState, advance_settle, arm_settle
 from .core.controllers.overload import SheddableLoad, relieve_overload
 from .core.controllers.pv_drop import PvDropDetector
@@ -354,6 +370,12 @@ class RegulationDiagnostics:
     nc_charge_w: float = 0.0  # smoothed non-controllable (cloud) charge
     settle_active: bool = False
     noncontrollable_charging: bool = False
+    # Anticipatory curtailment (forecast pre-brake):
+    sink_budget_w: float = 0.0  # what the sinks can absorb over the horizon
+    forecast_surplus_w: float = 0.0  # forecast PV - predicted consumption
+    anticipation_active: bool = False
+    preemptive_pv_limit_w: float = 0.0  # ceiling handed to curtailment (0 = none)
+    time_to_saturation_s: float | None = None  # when the sinks run out, at this rate
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -671,6 +693,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if self._curtailable_mppts
             else None
         )
+        # Anticipatory curtailment: pre-brake the array from the forecast, before the
+        # sinks saturate. Opt-in; inert without a curtailable inverter to brake.
+        self._anticipation_enabled = bool(
+            cfg.get(CONF_ANTICIPATORY_CURTAILMENT_ENABLED, False)
+        ) and bool(self._curtailable_mppts)
+        self._anticipation_horizon_s = (
+            float(cfg.get(CONF_ANTICIPATION_HORIZON_MIN, DEFAULT_ANTICIPATION_HORIZON_MIN)) * 60.0
+        )
+        self._anticipation_margin_w = float(
+            cfg.get(CONF_ANTICIPATION_MARGIN_W, DEFAULT_ANTICIPATION_MARGIN_W)
+        )
+        self._anticipation: AnticipationResult | None = None
 
         zi_enabled = bool(cfg.get(CONF_ZERO_INJECTION_ENABLED, True))
         self._zi_enabled = zi_enabled
@@ -2117,10 +2151,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # the integrator can wind up at most to the physical rate.
         self._last_total_power_w = total_power_w - balancing_result.unallocated_w
 
+        # Anticipatory curtailment: from the forecast and the sink budget (batteries —
+        # cloud ones included — plus the commandable loads), decide whether the surplus
+        # about to arrive has anywhere to go. Reuses this tick's charge_caps so the
+        # controllable batteries' absorb ceiling matches what the balancer honours.
+        anticipation = self._evaluate_anticipation(snapshot, charge_caps)
+        self._anticipation = anticipation
+
         # PV curtailment: zero-injection's last resort when the batteries cannot
         # absorb the surplus. Computes a per-inverter output limit (W).
         pv_limits, pv_limit_total = self._compute_pv_limits(
-            snapshot, total_power_w, balancing_result, grid_filtered_w, near_full
+            snapshot, total_power_w, balancing_result, grid_filtered_w, near_full, anticipation
         )
         # Expose the per-inverter applied limit for the per-MPPT diagnostic sensor.
         self._pv_limits_by_device = dict(pv_limits)
@@ -2146,6 +2187,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             nc_charge_w=nc_charge_w,
             settle_active=self._settle_state.active,
             noncontrollable_charging=self._nc_charging_latch,
+            sink_budget_w=anticipation.sink_budget_w,
+            forecast_surplus_w=anticipation.forecast_surplus_w,
+            anticipation_active=anticipation.active,
+            preemptive_pv_limit_w=anticipation.preemptive_limit_w or 0.0,
+            time_to_saturation_s=anticipation.time_to_saturation_s,
         )
         self._autotune_suggestions()
 
@@ -2232,7 +2278,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 "(force=%.0f nc_off=%.0f) | fleet=%.0f mppt=%.0f hidden=%.0f batt=%s | "
                 "nc=%.0f latch=%s | loop_base=%.0f zi=%.0f eq=%.0f relief=%.0f floor=%s "
                 "relax=%.2f nearfull=%s | target=%.0f bind=%s | per=%s unalloc=%.0f "
-                "pvlim=%.0f | wr=%s",
+                "pvlim=%.0f | antic=%s budget=%.0f fsurp=%.0f prelim=%s t2sat=%s | wr=%s",
                 self._mode.value,
                 zi_regulating,
                 settle_active_dbg,
@@ -2259,6 +2305,19 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 {k: round(v) for k, v in balancing_result.per_battery_w.items()},
                 balancing_result.unallocated_w,
                 pv_limit_total,
+                anticipation.reason,
+                anticipation.sink_budget_w,
+                anticipation.forecast_surplus_w,
+                (
+                    f"{anticipation.preemptive_limit_w:.0f}"
+                    if anticipation.preemptive_limit_w is not None
+                    else "-"
+                ),
+                (
+                    f"{anticipation.time_to_saturation_s / 60.0:.0f}m"
+                    if anticipation.time_to_saturation_s is not None
+                    else "-"
+                ),
                 wr,
             )
         self._check_alerts(snapshot)
@@ -2535,6 +2594,120 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 )
             )
         return needs
+
+    def _collect_sinks(self, snapshot: Snapshot, charge_caps: Mapping[str, float]) -> list[Sink]:
+        """Everything that can still absorb PV surplus, right now.
+
+        Unlike :meth:`_battery_charge_needs` this counts the **non-controllable
+        (cloud) batteries too**: we cannot command them, but we do know how much they
+        can take, and a cloud battery still charging is a real sink — pre-curtailing
+        as if it were not there would throw away solar it would have absorbed.
+
+        Loads that are merely *observed* (an EV charging outside Home Assistant, the
+        local AC load, the standby talon) are deliberately absent: their draw already
+        sits inside the consumption forecast the budget is compared against, so
+        listing them here would count them twice.
+        """
+        sinks: list[Sink] = []
+        battery_states = {b.device_name: b for b in snapshot.batteries}
+        for device in self._devices:
+            battery = device.battery
+            if battery is None:
+                continue
+            state = battery_states.get(device.name)
+            if state is None or not state.available:
+                continue
+            if state.soc_pct >= float(battery.soc_max_pct):
+                continue  # at its ceiling: no longer a sink
+            headroom_kwh = (
+                (float(battery.soc_max_pct) - state.soc_pct)
+                / 100.0
+                * battery.effective_usable_capacity_kwh
+            )
+            if device.name in self._controllable_battery_names:
+                # The cap the balancer itself honours (entity max included).
+                absorb_w = charge_caps.get(device.name, float(battery.max_charge_power_w))
+                kind = SINK_CONTROLLABLE_BATTERY
+            else:
+                if state.stale:
+                    continue  # cannot trust its SoC/power — don't bank on it absorbing
+                absorb_w = float(
+                    battery.ac_charge_limit_w
+                    if battery.ac_charge_limit_w is not None
+                    else battery.max_charge_power_w
+                )
+                kind = SINK_CLOUD_BATTERY
+            sinks.append(
+                Sink(
+                    name=device.name,
+                    kind=kind,
+                    absorb_w=max(0.0, absorb_w),
+                    headroom_kwh=max(0.0, headroom_kwh),
+                )
+            )
+
+        load_states = {ls.name: ls for ls in snapshot.loads}
+        for load in self._loads:
+            state_l = load_states.get(load.name)
+            if not load_eligible(load, state_l, snapshot.timestamp):
+                continue
+            drawn_w = state_l.actual_power_w if state_l is not None else 0.0
+            spare_w = _load_nominal_w(load) - max(0.0, drawn_w)
+            if spare_w <= 0.0:
+                continue
+            sinks.append(
+                Sink(
+                    name=load.name,
+                    kind=SINK_LOAD,
+                    absorb_w=spare_w,
+                    # A load has no energy ceiling on an anticipation horizon: it can
+                    # keep drawing its power for as long as it is on.
+                    headroom_kwh=math.inf,
+                )
+            )
+        return sinks
+
+    def _forecast_pv_horizon_w(self, snapshot: Snapshot) -> float | None:
+        """PV power (W) expected over the anticipation horizon, or None if unknown.
+
+        Returns the worst (highest) of the hours the horizon spans: the brake exists
+        for the surplus that is *about* to arrive, so straddling the top of the hour
+        must not average the coming peak away.
+        """
+        pv_by_hour = self._forecast_pv_by_hour(snapshot)
+        if not pv_by_hour:
+            return None  # no forecast configured → stay purely reactive
+        local_now = dt_util.as_local(snapshot.timestamp)
+        horizon_h = self._anticipation_horizon_s / 3600.0
+        spans_next_hour = local_now.minute / 60.0 + horizon_h > 1.0
+        if spans_next_hour and len(pv_by_hour) > 1:
+            return max(pv_by_hour[0], pv_by_hour[1])
+        return pv_by_hour[0]
+
+    def _evaluate_anticipation(
+        self, snapshot: Snapshot, charge_caps: Mapping[str, float]
+    ) -> AnticipationResult:
+        """Decide whether to pre-curtail the array from the forecast."""
+        budget = compute_sink_budget(
+            self._collect_sinks(snapshot, charge_caps),
+            horizon_s=self._anticipation_horizon_s,
+        )
+        pv_horizon_w = self._forecast_pv_horizon_w(snapshot) if self._anticipation_enabled else None
+        consumption_w = self.predicted_consumption_now_w
+        if consumption_w is None:
+            consumption_w = max(0.0, self._baseline_ema_w or snapshot.baseline_consumption_w)
+        net_charge_w = sum(b.power_w for b in snapshot.batteries if b.available and b.power_w > 0.0)
+        return evaluate_anticipation(
+            AnticipationInputs(
+                enabled=self._anticipation_enabled,
+                forecast_available=pv_horizon_w is not None,
+                forecast_pv_w=pv_horizon_w or 0.0,
+                predicted_consumption_w=max(0.0, consumption_w),
+                budget=budget,
+                current_net_charge_w=net_charge_w,
+                margin_w=self._anticipation_margin_w,
+            )
+        )
 
     def _weighted_soc(self, snapshot: Snapshot, *, controllable_only: bool) -> float | None:
         """Capacity-weighted mean SoC (%) of available batteries, or None.
@@ -3129,6 +3302,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         balancing_result: BalancingResult,
         grid_w: float,
         near_full: bool,
+        anticipation: AnticipationResult | None = None,
     ) -> tuple[dict[str, float], float]:
         """Per-inverter PV output limits and the aggregate limit (W).
 
@@ -3136,6 +3310,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         demand (saturated) and the grid is exporting past its setpoint. ``near_full``
         (the shared, hysteretic latch) treats a battery that can't absorb anymore as
         saturated even when the balancer still reports it allocated (charge tapering).
+
+        That reactive path can only move once an export has been *measured*.
+        ``anticipation`` adds a forecast-derived ceiling that lowers the limit before
+        the surplus lands; the two compose as a ``min`` (both only ever lower it).
         """
         if self._curtailment is None:
             return {}, 0.0
@@ -3147,6 +3325,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             grid_w=grid_w,
             setpoint_w=self._zi_setpoint_w,
             batteries_saturated=saturated,
+            preemptive_limit_w=(anticipation.preemptive_limit_w if anticipation else None),
         )
         limits = dict(distribute_pv_limit(result.limit_total_w, self._curtailable_mppts))
         return limits, result.limit_total_w

@@ -32,7 +32,8 @@
           "pv_forecast_entity": "PV forecast entity (optional)",
           "pv_forecast_tomorrow_entity": "PV forecast entity tomorrow (optional)",
           "forecast_safety_factor": "Forecast safety factor (0-1)",
-          "weather_warning_entity": "Météo-France warning entity (optional)"
+          "weather_warning_entity": "Météo-France warning entity (optional)",
+          "anticipatory_curtailment_enabled": "Anticipatory PV curtailment (pre-brake from the forecast, before the batteries fill)"
         },
         "data_description": {
           "zero_injection_setpoint_w": "Target grid power in watts. 0 = exactly zero injection. Negative values allow a small safety export buffer.",
@@ -52,7 +53,9 @@
               "baseline_window_end_h": "Talon: night window end (h)",
               "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables",
               "baseline_floor_margin_w": "Baseline floor margin below talon (W): floor the shown baseline at max(0, talon − margin) so a stale cloud battery discharging can't drive it negative",
-              "fleet_reversal_dwell_s": "Charge↔discharge reversal dwell (s): keep the fleet in one direction this long before reversing, so a solar-first box (STREAM) doesn't thrash self_powered↔scheduled near house=PV; 0 disables"
+              "fleet_reversal_dwell_s": "Charge↔discharge reversal dwell (s): keep the fleet in one direction this long before reversing, so a solar-first box (STREAM) doesn't thrash self_powered↔scheduled near house=PV; 0 disables",
+              "anticipation_horizon_min": "Anticipation horizon (min): how far ahead the sink budget is projected. Longer = brakes earlier",
+              "anticipation_margin_w": "Anticipation margin (W): forecast export must beat the sink budget by this much before pre-curtailing (guards against forecast noise)"
             }
           }
         }
@@ -97,7 +100,8 @@
           "overload_protection_enabled": "Active overload protection (shed loads before the breaker trips)",
           "no_battery_export": "Strict self-consumption: never discharge the battery into the grid (blocks injection)",
           "local_ac_load_entities": "Local AC-load sensors behind the fleet (e.g. STREAM AC sockets) — excluded from the grid loop so their cycling doesn't disturb it",
-          "pv_drop_compensation_enabled": "PV-drop compensation: on a sudden PV drop (cloud), discharge the lost PV immediately (faster than the loop)"
+          "pv_drop_compensation_enabled": "PV-drop compensation: on a sudden PV drop (cloud), discharge the lost PV immediately (faster than the loop)",
+          "anticipatory_curtailment_enabled": "Anticipatory PV curtailment (pre-brake from the forecast, before the batteries fill)"
         },
         "sections": {
           "advanced": {
@@ -112,7 +116,9 @@
               "baseline_window_end_h": "Talon: night window end (h)",
               "noncontrollable_stale_s": "Non-controllable battery staleness limit (s): ignore its power past this (e.g. a lagging cloud battery); 0 disables",
               "baseline_floor_margin_w": "Baseline floor margin below talon (W): floor the shown baseline at max(0, talon − margin) so a stale cloud battery discharging can't drive it negative",
-              "fleet_reversal_dwell_s": "Charge↔discharge reversal dwell (s): keep the fleet in one direction this long before reversing, so a solar-first box (STREAM) doesn't thrash self_powered↔scheduled near house=PV; 0 disables"
+              "fleet_reversal_dwell_s": "Charge↔discharge reversal dwell (s): keep the fleet in one direction this long before reversing, so a solar-first box (STREAM) doesn't thrash self_powered↔scheduled near house=PV; 0 disables",
+              "anticipation_horizon_min": "Anticipation horizon (min): how far ahead the sink budget is projected. Longer = brakes earlier",
+              "anticipation_margin_w": "Anticipation margin (W): forecast export must beat the sink budget by this much before pre-curtailing (guards against forecast noise)"
             }
           }
         }
@@ -832,6 +838,9 @@
       },
       "consumption_forecast_error": {
         "name": "Forecast error (consumption)"
+      },
+      "sink_budget": {
+        "name": "Sink budget"
       }
     },
     "select": {
@@ -893,6 +902,9 @@
       },
       "pv_drop": {
         "name": "PV drop"
+      },
+      "anticipatory_curtailment": {
+        "name": "Anticipatory curtailment"
       }
     }
   },

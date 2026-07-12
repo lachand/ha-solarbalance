@@ -18,6 +18,9 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_ANTICIPATION_HORIZON_MIN,
+    CONF_ANTICIPATION_MARGIN_W,
+    CONF_ANTICIPATORY_CURTAILMENT_ENABLED,
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_FLOOR_MARGIN_W,
     CONF_BASELINE_WINDOW_END_H,
@@ -65,6 +68,8 @@ from .const import (
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_KP,
     CONF_ZERO_INJECTION_SETPOINT_W,
+    DEFAULT_ANTICIPATION_HORIZON_MIN,
+    DEFAULT_ANTICIPATION_MARGIN_W,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
     DEFAULT_BASELINE_FLOOR_MARGIN_W,
     DEFAULT_BASELINE_WINDOW_END_H,
@@ -193,6 +198,10 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
             CONF_PREDICTIVE_CONTROL_ENABLED, default=d.get(CONF_PREDICTIVE_CONTROL_ENABLED, False)
         ): bool,
         vol.Optional(
+            CONF_ANTICIPATORY_CURTAILMENT_ENABLED,
+            default=d.get(CONF_ANTICIPATORY_CURTAILMENT_ENABLED, False),
+        ): bool,
+        vol.Optional(
             CONF_OVERLOAD_PROTECTION_ENABLED,
             default=d.get(CONF_OVERLOAD_PROTECTION_ENABLED, DEFAULT_OVERLOAD_PROTECTION_ENABLED),
         ): bool,
@@ -261,6 +270,14 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
                     CONF_FLEET_REVERSAL_DWELL_S,
                     default=d.get(CONF_FLEET_REVERSAL_DWELL_S, DEFAULT_FLEET_REVERSAL_DWELL_S),
                 ): vol.All(vol.Coerce(int), vol.Range(min=0)),
+                vol.Optional(
+                    CONF_ANTICIPATION_HORIZON_MIN,
+                    default=d.get(CONF_ANTICIPATION_HORIZON_MIN, DEFAULT_ANTICIPATION_HORIZON_MIN),
+                ): vol.All(vol.Coerce(int), vol.Range(min=5, max=30)),
+                vol.Optional(
+                    CONF_ANTICIPATION_MARGIN_W,
+                    default=d.get(CONF_ANTICIPATION_MARGIN_W, DEFAULT_ANTICIPATION_MARGIN_W),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=2000)),
             }
         ),
         {"collapsed": True},

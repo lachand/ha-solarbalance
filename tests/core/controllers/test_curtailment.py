@@ -105,3 +105,125 @@ def test_distribute_zero_peak_is_zero() -> None:
 def test_invalid_params_rejected(peak: float, deadband: float, ramp: float) -> None:
     with pytest.raises(ValueError):
         CurtailmentController(peak_total_w=peak, deadband_w=deadband, ramp_w=ramp)
+
+
+# --------------------------------------- anticipatory pre-limit (forecast brake)
+
+
+def test_preemptive_limit_lowers_without_any_measured_export() -> None:
+    # The whole point: the reactive branch cannot move before an export is measured
+    # (grid at setpoint here, batteries free). The forecast ceiling still brakes.
+    c = _ctrl()
+    r = c.step(
+        pv_total_w=1000.0,
+        grid_w=0.0,
+        setpoint_w=0.0,
+        batteries_saturated=False,
+        preemptive_limit_w=400.0,
+    )
+    assert r.limit_total_w == 800.0  # one ramp step down (1000 - 200)
+    assert r.curtailing is True
+    assert r.preemptive is True
+
+
+def test_preemptive_limit_descends_by_at_most_one_ramp_per_move() -> None:
+    c = _ctrl()
+    for expected in (800.0, 600.0, 400.0, 400.0):
+        r = c.step(
+            pv_total_w=1000.0,
+            grid_w=0.0,
+            setpoint_w=0.0,
+            batteries_saturated=False,
+            preemptive_limit_w=400.0,
+        )
+        assert r.limit_total_w == pytest.approx(expected)
+
+
+def test_preemptive_limit_honours_the_settle_window() -> None:
+    c = _ctrl(settle_ticks=3)
+    first = c.step(
+        pv_total_w=1000.0,
+        grid_w=0.0,
+        setpoint_w=0.0,
+        batteries_saturated=False,
+        preemptive_limit_w=400.0,
+    )
+    assert first.limit_total_w == 800.0
+    # Held for the settle window — no second move yet.
+    for _ in range(2):
+        held = c.step(
+            pv_total_w=1000.0,
+            grid_w=0.0,
+            setpoint_w=0.0,
+            batteries_saturated=False,
+            preemptive_limit_w=400.0,
+        )
+        assert held.limit_total_w == 800.0
+
+
+def test_relax_cannot_climb_back_above_the_preemptive_ceiling() -> None:
+    c = _ctrl()
+    # Brake down to the ceiling.
+    for _ in range(4):
+        c.step(
+            pv_total_w=1000.0,
+            grid_w=0.0,
+            setpoint_w=0.0,
+            batteries_saturated=False,
+            preemptive_limit_w=400.0,
+        )
+    assert c.limit_w == pytest.approx(400.0)
+    # Importing hard (relax branch wants to raise) — but the ceiling still holds.
+    r = c.step(
+        pv_total_w=400.0,
+        grid_w=500.0,
+        setpoint_w=0.0,
+        batteries_saturated=False,
+        preemptive_limit_w=400.0,
+    )
+    assert r.limit_total_w == pytest.approx(400.0)
+
+
+def test_measured_export_still_trims_below_the_preemptive_ceiling() -> None:
+    # The two brakes compose as a min: a real export past the setpoint keeps biting.
+    c = _ctrl()
+    for _ in range(4):
+        c.step(
+            pv_total_w=1000.0,
+            grid_w=0.0,
+            setpoint_w=0.0,
+            batteries_saturated=False,
+            preemptive_limit_w=400.0,
+        )
+    assert c.limit_w == pytest.approx(400.0)
+    r = c.step(
+        pv_total_w=400.0,
+        grid_w=-300.0,
+        setpoint_w=0.0,
+        batteries_saturated=True,
+        preemptive_limit_w=400.0,
+    )
+    assert r.limit_total_w == pytest.approx(200.0)  # trimmed below the ceiling
+
+
+def test_releasing_the_ceiling_lets_the_limit_relax_again() -> None:
+    c = _ctrl()
+    for _ in range(4):
+        c.step(
+            pv_total_w=1000.0,
+            grid_w=0.0,
+            setpoint_w=0.0,
+            batteries_saturated=False,
+            preemptive_limit_w=400.0,
+        )
+    assert c.limit_w == pytest.approx(400.0)
+    # Forecast says the surplus fits again → no ceiling; relax back toward peak.
+    r = c.step(
+        pv_total_w=400.0,
+        grid_w=100.0,
+        setpoint_w=0.0,
+        batteries_saturated=False,
+        preemptive_limit_w=None,
+    )
+    assert r.limit_total_w == pytest.approx(600.0)
+    assert r.preemptive is False

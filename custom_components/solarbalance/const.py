@@ -38,6 +38,9 @@ CONF_ZI_SETTLE_MIN_DROP_W: Final = "zi_settle_min_drop_w"
 CONF_CURTAILMENT_RAMP_W: Final = "curtailment_ramp_w"
 CONF_CURTAILMENT_DEADBAND_W: Final = "curtailment_deadband_w"
 CONF_CURTAILMENT_SETTLE_TICKS: Final = "curtailment_settle_ticks"
+CONF_ANTICIPATORY_CURTAILMENT_ENABLED: Final = "anticipatory_curtailment_enabled"
+CONF_ANTICIPATION_HORIZON_MIN: Final = "anticipation_horizon_min"
+CONF_ANTICIPATION_MARGIN_W: Final = "anticipation_margin_w"
 CONF_BACKUP_RESERVE_SOC_PCT: Final = "backup_reserve_soc_pct"
 CONF_BASELINE_WINDOW_START_H: Final = "baseline_window_start_h"
 CONF_BASELINE_WINDOW_END_H: Final = "baseline_window_end_h"
@@ -120,6 +123,13 @@ DEFAULT_ZI_SETTLE_MIN_DROP_W: Final = 300
 DEFAULT_CURTAILMENT_RAMP_W: Final = 150
 DEFAULT_CURTAILMENT_DEADBAND_W: Final = 50
 DEFAULT_CURTAILMENT_SETTLE_TICKS: Final = 3
+# Anticipatory curtailment: how far ahead the sink budget is projected. Long enough
+# that a nearly-full battery stops counting as a sink before it actually fills, short
+# enough that the hourly forecast still describes the surplus about to arrive.
+DEFAULT_ANTICIPATION_HORIZON_MIN: Final = 12
+# Projected export must beat the sink budget by this much before pre-curtailing —
+# keeps forecast noise from braking the array for nothing.
+DEFAULT_ANTICIPATION_MARGIN_W: Final = 100
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1

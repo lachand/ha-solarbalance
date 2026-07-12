@@ -110,6 +110,11 @@ async def async_setup_entry(
                 coordinator, entry, "pv_limit_w", "pv_output_limit", "mdi:solar-power-variant"
             )
         )
+        entities.append(
+            SolarBalanceRegulationDiagnosticSensor(
+                coordinator, entry, "sink_budget_w", "sink_budget", "mdi:battery-charging-70"
+            )
+        )
     if coordinator._zi_tuner is not None:
         entities.append(SolarBalanceAutotuneKpSensor(coordinator, entry))
     if coordinator._eq_tuner is not None:
@@ -1229,6 +1234,13 @@ class SolarBalanceRegulationDebugSensor(_SolarBalanceSensor):
             "unallocated_w": round(d.unallocated_w),
             "nc_charge_w": round(d.nc_charge_w),
             "pv_limit_w": round(d.pv_limit_w),
+            "sink_budget_w": round(d.sink_budget_w),
+            "forecast_surplus_w": round(d.forecast_surplus_w),
+            "anticipation_active": d.anticipation_active,
+            "preemptive_pv_limit_w": round(d.preemptive_pv_limit_w),
+            "time_to_saturation_min": (
+                round(d.time_to_saturation_s / 60.0) if d.time_to_saturation_s is not None else None
+            ),
             "eq_pv_route_relax": round(d.eq_pv_route_relax, 2),
             "settle": d.settle_active,
             "noncontrollable_charging": d.noncontrollable_charging,

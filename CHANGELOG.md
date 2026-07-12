@@ -37,6 +37,39 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta61] — 2026-07-12
+
+### Added
+
+- **Bridage PV anticipé (pré-frein depuis la prévision)** — nouveau `core/controllers/anticipation.py`
+  + option **Bridage PV anticipé** (opt-in, désactivé par défaut). Le bridage actuel est
+  **purement réactif** : il ne réduit la PV qu'**après** un export mesuré, derrière le filtre
+  médian grille (~30 s), la fenêtre de settle (3 ticks) et la rampe (150 W/mouvement) — soit
+  près d'une minute de latence. Sur une montée solaire rapide vers un parc quasi-plein, ça
+  produit un gros **transitoire d'export** (observé : **−2687 W** à midi).
+  SolarBalance calcule maintenant un **bilan de puits** — tout ce qui peut encore absorber :
+  batteries controllables **+ batteries cloud** (non pilotables mais on connaît leur capacité de
+  charge) **+ loads pilotables** — et le compare au **surplus prévu** (prévision PV − consommation
+  apprise). Chaque puits est **moyenné sur l'horizon** : une batterie presque pleine garde son
+  plein *débit* mais son énergie restante s'effondre, donc elle cesse de compter **avant**
+  d'atteindre `soc_max` → le frein descend pendant qu'elle charge encore, pas une fois pleine.
+  Quand le surplus prévu dépasse le bilan de puits (d'au moins la marge), un **plafond
+  `preemptive_limit_w`** (= conso + bilan de puits) est passé au contrôleur de bridage, qui
+  l'atteint via sa machinerie sticky/rampe/settle habituelle — l'onduleur est donc **déjà bridé
+  quand le surplus arrive**.
+  Garanties : **on ne jette jamais de solaire tant qu'un puits a de la place** (surplus ≤ budget
+  → aucun bridage) ; le plafond n'est **jamais** sous la consommation, et le frein **ne fait que
+  baisser** la limite PV → il ne peut **jamais** forcer un import ou un export. Les charges
+  seulement *observées* (voiture qui charge hors Home Assistant, `local_ac_load`, talon) ne sont
+  **pas** des puits : elles sont déjà dans la consommation prévue (pas de double-comptage).
+  Sans entité de prévision PV, retour au comportement réactif pur.
+- **Diagnostics** — capteur **Bilan de puits** (`sink_budget`), binaire **Bridage anticipé**
+  (avec `sink_budget_w` / `forecast_surplus_w` / `preemptive_pv_limit_w` /
+  `time_to_saturation_min`), mêmes champs dans le capteur `regulation_debug`, et
+  `antic= budget= fsurp= prelim= t2sat=` dans la ligne de log par tick.
+- **Options** — *Horizon d'anticipation* (min, défaut **12**, 5–30) et *Marge d'anticipation*
+  (W, défaut **100**) dans la section avancée.
+
 ## [2.0.8-beta60] — 2026-07-07
 
 ### Fixed

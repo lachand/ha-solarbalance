@@ -39,6 +39,7 @@ async def async_setup_entry(
             EvFastChargeBinarySensor(coordinator, entry),
             PvDropBinarySensor(coordinator, entry),
             ConfigHealthBinarySensor(coordinator, entry),
+            AnticipatoryCurtailmentBinarySensor(coordinator, entry),
         ]
     )
 
@@ -188,6 +189,38 @@ class EvFastChargeBinarySensor(_SBBinarySensor):
                 for name, dl in deadlines.items()
             }
         return attrs
+
+
+class AnticipatoryCurtailmentBinarySensor(_SBBinarySensor):
+    """True when the array is being pre-curtailed from the forecast.
+
+    On means the forecast surplus beats what every sink (batteries — cloud ones
+    included — plus the commandable loads) can absorb, so the PV limit is being
+    brought down *before* the surplus lands rather than after the export shows up.
+    """
+
+    _attr_translation_key = "anticipatory_curtailment"
+    _attr_icon = "mdi:solar-power-variant-outline"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "anticipatory_curtailment")
+
+    @property
+    def is_on(self) -> bool:
+        return self.coordinator.diagnostics.anticipation_active
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        d = self.coordinator.diagnostics
+        return {
+            "sink_budget_w": round(d.sink_budget_w),
+            "forecast_surplus_w": round(d.forecast_surplus_w),
+            "preemptive_pv_limit_w": round(d.preemptive_pv_limit_w),
+            "time_to_saturation_min": (
+                round(d.time_to_saturation_s / 60.0) if d.time_to_saturation_s is not None else None
+            ),
+        }
 
 
 class ConfigHealthBinarySensor(_SBBinarySensor):
