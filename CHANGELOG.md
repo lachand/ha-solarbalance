@@ -37,6 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta64] — 2026-07-21
+
+### Changed
+
+- **Dashboard : les pics capteur d'un seul tick ne cassent plus le graphe de puissance.**
+  Le compteur réseau rapporte parfois un pic ponctuel physiquement impossible (ex. un
+  « export » de −2 kW alors qu'il n'y a que 1,6 kW de PV et que la batterie *charge*) qui
+  écrasait toute l'auto-échelle. Le panneau **dé-glitche l'affichage** : un pic est masqué
+  de la courbe **et** de l'échelle seulement s'il **récupère en ≤ ~2 ticks** (blip
+  capteur). Une excursion plus longue — une vraie charge, ou **une batterie cloud qui
+  cesse de remonter ses données** pendant plusieurs ticks — n'est **pas** un glitch et
+  reste affichée telle quelle. Les pics masqués restent **identifiables** : un petit
+  losange sur la courbe (survol = valeur brute + heure), un compteur « N pic(s) masqué(s) »
+  dans la légende, et un bouton **« Afficher les pics bruts »** pour tout revoir.
+  **Affichage uniquement** — la régulation, elle, les filtrait déjà (médian-de-3 + settle).
+
 ## [2.0.8-beta63] — 2026-07-21
 
 ### Added

@@ -21,6 +21,17 @@ const HISTORY_REFRESH_MS = 60000; // re-fetch history at most this often
 const TICK_MS = 30000; // periodic re-render (freshness + history refresh)
 const FUTURE_CAP_H = 12; // how far ahead to draw the PV forecast
 
+// Display-only de-glitching of the power chart. The grid meter occasionally reports a
+// physically-impossible one-off spike (e.g. a −2 kW "export" with only 1.6 kW of PV and
+// the battery charging) that ruins the auto-scale. We hide such spikes from the drawn
+// line and the scale but MARK them so they stay identifiable — never touching the
+// control loop, which already filters them (median-of-3 + settle). A spike is a glitch
+// only when it recovers within GLITCH_MAX_MS: a longer excursion is real data (a genuine
+// load, or a cloud battery that stops reporting for several ticks) and is left untouched.
+const GLITCH_DEV_W = 600; // deviation from the surrounding baseline to be an excursion
+const GLITCH_RECOVERY_W = 300; // must return within this of the pre-excursion baseline
+const GLITCH_MAX_MS = 20000; // and within ~2 ticks; longer = real, kept as-is
+
 // English translations keyed by the in-source French label. `_t()` returns the
 // French source as-is, or this mapping when Home Assistant runs in English.
 const STR_EN = {
@@ -40,6 +51,12 @@ const STR_EN = {
   "Éco. cette année": "Savings (year)",
   Puissance: "Power",
   "Flux instantané": "Instant flow",
+  "Pic capteur masqué": "Hidden sensor spike",
+  "Pics capteur d'un seul tick, masqués pour lisibilité (le contrôle les filtre déjà)":
+    "Single-tick sensor spikes, hidden for readability (the control loop already filters them)",
+  "pic(s) masqué(s)": "spike(s) hidden",
+  "Masquer les pics": "Hide spikes",
+  "Afficher les pics bruts": "Show raw spikes",
   Réseau: "Grid",
   Solaire: "Solar",
   Batteries: "Batteries",
@@ -142,6 +159,7 @@ class SolarBalancePanel extends HTMLElement {
     this._fetching = false;
     this._window = 6; // hours
     this._timer = null;
+    this._showRaw = false; // when true, show raw sensor spikes on the chart (no de-glitch)
     this._regHist = []; // ring buffer {t, target, fleet} for the regulation sparkline
     this._debugOpen = false; // live-debug section collapsed by default
     this._onClick = this._onClick.bind(this);
@@ -209,6 +227,12 @@ class SolarBalancePanel extends HTMLElement {
     const dbg = path.find((n) => n.dataset && n.dataset.toggleDebug);
     if (dbg) {
       this._debugOpen = !this._debugOpen;
+      this._render();
+      return;
+    }
+    const rawBtn = path.find((n) => n.dataset && n.dataset.toggleRaw);
+    if (rawBtn) {
+      this._showRaw = !this._showRaw;
       this._render();
       return;
     }
@@ -516,6 +540,48 @@ class SolarBalancePanel extends HTMLElement {
 
   // ---- SVG chart ----------------------------------------------------------
 
+  /**
+   * Split a power series into a de-glitched line and the spikes removed from it.
+   * A spike is an excursion of >GLITCH_DEV_W from the pre-excursion baseline that
+   * returns to within GLITCH_RECOVERY_W of it inside GLITCH_MAX_MS — i.e. a one-off
+   * sensor blip. Its points are replaced by a straight interpolation across the gap
+   * (so the line and the auto-scale ignore it) and listed in `glitches` so it stays
+   * identifiable. A sustained excursion (a real load, or a cloud battery that stops
+   * reporting for several ticks) does not recover in time and is left untouched.
+   * Returns `{ clean: [{t,v,glitch?}], glitches: [{t, v, cy}] }` (cy = the on-line y-value).
+   */
+  _deglitch(series) {
+    const n = series.length;
+    if (n < 3) return { clean: series.map((p) => ({ ...p })), glitches: [] };
+    const clean = series.map((p) => ({ ...p }));
+    const glitches = [];
+    let i = 1;
+    while (i < n - 1) {
+      const base = series[i - 1].v;
+      if (Math.abs(series[i].v - base) <= GLITCH_DEV_W) {
+        i++;
+        continue;
+      }
+      let j = i;
+      while (j < n && Math.abs(series[j].v - base) > GLITCH_DEV_W) j++;
+      const recovered = j < n && Math.abs(series[j].v - base) <= GLITCH_RECOVERY_W;
+      const endT = j < n ? series[j].t : series[n - 1].t;
+      if (recovered && endT - series[i - 1].t <= GLITCH_MAX_MS) {
+        const after = series[j].v;
+        const span = series[j].t - series[i - 1].t || 1;
+        for (let k = i; k < j; k++) {
+          const f = (series[k].t - series[i - 1].t) / span;
+          const cy = base + (after - base) * f;
+          clean[k].v = cy;
+          clean[k].glitch = true;
+          glitches.push({ t: series[k].t, v: series[k].v, cy });
+        }
+      }
+      i = j > i ? j : i + 1;
+    }
+    return { clean, glitches };
+  }
+
   _chart() {
     const s = this._series;
     if (!s || (!s.pv.length && !s.grid.length)) {
@@ -529,7 +595,22 @@ class SolarBalancePanel extends HTMLElement {
     const padR = 12;
     const padT = 12;
     const padB = 22;
-    const all = [...s.pv, ...s.grid, ...s.battery, ...fc];
+    // De-glitch the three power series for display (unless the user asked for raw).
+    // The cleaned series drive both the drawn line and the auto-scale, so a −2 kW
+    // sensor blip no longer squashes the whole chart. Removed spikes are marked.
+    const dg = (arr) => (this._showRaw ? { clean: arr, glitches: [] } : this._deglitch(arr));
+    const pvS = dg(s.pv);
+    const gridS = dg(s.grid);
+    const battS = dg(s.battery);
+    const pvC = pvS.clean;
+    const gridC = gridS.clean;
+    const battC = battS.clean;
+    const glitches = [
+      ...gridS.glitches.map((g) => ({ ...g, cls: "grid" })),
+      ...battS.glitches.map((g) => ({ ...g, cls: "batt" })),
+      ...pvS.glitches.map((g) => ({ ...g, cls: "pv" })),
+    ];
+    const all = [...pvC, ...gridC, ...battC, ...fc];
     const dayMode = this._window === "day";
     let tMin = dayMode ? this._midnightMs() : now - this._window * 3600 * 1000;
     let tMax = dayMode ? this._midnightMs() + 24 * 3600 * 1000 : now;
@@ -557,11 +638,11 @@ class SolarBalancePanel extends HTMLElement {
 
     const y0 = y(0);
     let pvArea = "";
-    if (s.pv.length) {
+    if (pvC.length) {
       pvArea =
-        "M" + x(s.pv[0].t).toFixed(1) + " " + y0.toFixed(1) + " " +
-        s.pv.map((p) => "L" + x(p.t).toFixed(1) + " " + y(p.v).toFixed(1)).join(" ") +
-        " L" + x(s.pv[s.pv.length - 1].t).toFixed(1) + " " + y0.toFixed(1) + " Z";
+        "M" + x(pvC[0].t).toFixed(1) + " " + y0.toFixed(1) + " " +
+        pvC.map((p) => "L" + x(p.t).toFixed(1) + " " + y(p.v).toFixed(1)).join(" ") +
+        " L" + x(pvC[pvC.length - 1].t).toFixed(1) + " " + y0.toFixed(1) + " Z";
     }
 
     const ticks = 4;
@@ -596,14 +677,32 @@ class SolarBalancePanel extends HTMLElement {
       )
       .join("");
 
+    // Markers where a spike was hidden — small hollow diamonds on the cleaned line, so a
+    // filtered glitch stays visible and inspectable (hover shows its raw value + time).
+    const glitchMarks = glitches
+      .filter((g) => g.t >= tMin && g.t <= tMax)
+      .map((g) => {
+        const gx = x(g.t).toFixed(1);
+        const gy = y(g.cy).toFixed(1);
+        const when = fmtT(g.t);
+        return (
+          `<path d="M${gx} ${(+gy - 4).toFixed(1)} L${(+gx + 4).toFixed(1)} ${gy} ` +
+          `L${gx} ${(+gy + 4).toFixed(1)} L${(+gx - 4).toFixed(1)} ${gy} Z" ` +
+          `class="glitch-mark ${g.cls}"><title>${this._t("Pic capteur masqué")}: ` +
+          `${Math.round(g.v)} W · ${when}</title></path>`
+        );
+      })
+      .join("");
+
     return `
       <svg viewBox="0 0 ${W} ${H}" class="chart" preserveAspectRatio="none" role="img">
         ${grid}${zero}${nowLine}
         ${pvArea ? `<path d="${pvArea}" class="pv-area"/>` : ""}
         ${fc.length ? `<path d="${line(fc)}" class="fc-line"/>` : ""}
-        ${s.pv.length ? `<path d="${line(s.pv)}" class="pv-line"/>` : ""}
-        ${s.grid.length ? `<path d="${line(s.grid)}" class="grid-line"/>` : ""}
-        ${s.battery.length ? `<path d="${line(s.battery)}" class="batt-line"/>` : ""}
+        ${pvC.length ? `<path d="${line(pvC)}" class="pv-line"/>` : ""}
+        ${gridC.length ? `<path d="${line(gridC)}" class="grid-line"/>` : ""}
+        ${battC.length ? `<path d="${line(battC)}" class="batt-line"/>` : ""}
+        ${glitchMarks}
         ${xlbls}
       </svg>
       <div class="legend">
@@ -611,6 +710,20 @@ class SolarBalancePanel extends HTMLElement {
         <span><i class="sw grid"></i>${this._t("Réseau")}</span>
         <span><i class="sw batt"></i>${this._t("Batteries")}</span>
         ${fc.length ? `<span><i class="sw fc"></i>${this._t("Prévision PV")}</span>` : ""}
+        ${
+          glitches.length
+            ? `<span class="glitch-note" title="${this._t(
+                "Pics capteur d'un seul tick, masqués pour lisibilité (le contrôle les filtre déjà)"
+              )}"><i class="sw glitch"></i>${glitches.length} ${this._t("pic(s) masqué(s)")}</span>`
+            : ""
+        }
+        ${
+          glitches.length || this._showRaw
+            ? `<button class="raw-toggle ${this._showRaw ? "on" : ""}" data-toggle-raw>${this._t(
+                this._showRaw ? "Masquer les pics" : "Afficher les pics bruts"
+              )}</button>`
+            : ""
+        }
       </div>`;
   }
 
@@ -1418,6 +1531,10 @@ class SolarBalancePanel extends HTMLElement {
                    stroke-dasharray:5 4; opacity:.65; }
         .batt-line { fill:none; stroke:var(--success-color,#27ae60); stroke-width:1.5;
                      stroke-dasharray:4 3; opacity:.8; }
+        .glitch-mark { fill:var(--card-background-color,#fff); stroke:var(--error-color,#e74c3c);
+                       stroke-width:1.3; opacity:.9; cursor:help; }
+        .glitch-mark.pv { stroke:var(--warning-color,#f5a623); }
+        .glitch-mark.grid { stroke:var(--info-color,#3d8bff); }
         line.grid { stroke:var(--divider-color,#e0e0e0); stroke-width:1; }
         .zero { stroke:var(--secondary-text-color,#888); stroke-width:1; stroke-dasharray:2 2; }
         .nowline { stroke:var(--secondary-text-color,#888); stroke-width:1; opacity:.5; }
@@ -1431,6 +1548,15 @@ class SolarBalancePanel extends HTMLElement {
         .legend .sw.grid { background:var(--info-color,#3d8bff); }
         .legend .sw.batt { background:var(--success-color,#27ae60); }
         .legend .sw.fc { background:var(--warning-color,#f5a623); opacity:.6; }
+        .legend .sw.glitch { width:8px; height:8px; border-radius:0; transform:rotate(45deg);
+                             background:var(--card-background-color,#fff);
+                             border:1.3px solid var(--error-color,#e74c3c); }
+        .legend .glitch-note { cursor:help; color:var(--error-color,#e74c3c); }
+        .raw-toggle { background:none; border:1px solid var(--divider-color,#ccc);
+                      color:var(--secondary-text-color); border-radius:10px; padding:1px 8px;
+                      font-size:.72rem; cursor:pointer; }
+        .raw-toggle.on { background:var(--error-color,#e74c3c); color:#fff;
+                         border-color:var(--error-color,#e74c3c); }
 
         /* Tiles & rows */
         .tiles { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
