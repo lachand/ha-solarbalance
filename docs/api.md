@@ -82,6 +82,24 @@ No parameters. No-op if the HEMS is not paused.
 
 ---
 
+### `solarbalance.capture_debug`
+
+Dump the rolling per-tick regulation history (grid, fleet target, `binding`,
+per-battery setpoints, battery staleness, anticipation…) to a JSONL file under
+`config/solarbalance_debug/`, for offline replay of a glitch. The buffer holds ~2 h,
+so call it *after* you notice something — the data is already captured.
+
+```yaml
+service: solarbalance.capture_debug
+data:
+  minutes: 20   # optional: keep only the most recent N minutes (blank = whole buffer)
+```
+
+Returns `{ path, ticks, from, to }` (response data). One JSON object per tick, one per
+line.
+
+---
+
 ### `solarbalance.set_mode`
 
 Directly set the global operating mode.

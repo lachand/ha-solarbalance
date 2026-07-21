@@ -37,6 +37,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta63] — 2026-07-21
+
+### Added
+
+- **Service `solarbalance.capture_debug` + historique de ticks structuré.** Le
+  coordinateur garde en mémoire un **ring buffer** des ~720 derniers ticks (≈ 2 h à
+  10 s), rempli à chaque tick avec l'état complet de régulation (grid, cible parc,
+  `binding`, consignes par batterie, **staleness** de chaque batterie, anticipation,
+  loop_base, zi, eq…). Le service `capture_debug` le **vide dans un JSONL** sous
+  `config/solarbalance_debug/` (un objet JSON par ligne, un par tick) et renvoie
+  `{path, ticks, from, to}`. Champ optionnel `minutes` pour ne garder que la fenêtre
+  récente. But : capturer un incident **après** l'avoir remarqué (les données sont déjà
+  bufferisées) pour le **rejouer hors-ligne** contre les contrôleurs purs — sans avoir
+  à surveiller en direct ni activer le log DEBUG.
+
 ## [2.0.8-beta62] — 2026-07-21
 
 ### Fixed

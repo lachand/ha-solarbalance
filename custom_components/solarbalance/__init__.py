@@ -283,6 +283,13 @@ def _register_services(hass: HomeAssistant) -> None:
                 ok.append(eid)
         return {"ok": ok, "unavailable": unavailable, "missing": missing}
 
+    async def handle_capture_debug(call: ServiceCall) -> dict[str, Any]:
+        coord = _get_coordinator(hass)
+        if coord is None:
+            return {"path": None, "ticks": 0}
+        minutes = call.data.get("minutes")
+        return await coord.capture_debug(minutes=float(minutes) if minutes is not None else None)
+
     async def handle_activate_storm_mode(call: ServiceCall) -> None:
         coord = _get_coordinator(hass)
         if coord:
@@ -315,6 +322,9 @@ def _register_services(hass: HomeAssistant) -> None:
     )
     hass.services.async_register(
         DOMAIN, "replay", handle_replay, supports_response=SupportsResponse.ONLY
+    )
+    hass.services.async_register(
+        DOMAIN, "capture_debug", handle_capture_debug, supports_response=SupportsResponse.ONLY
     )
 
 

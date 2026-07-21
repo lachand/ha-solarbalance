@@ -3,6 +3,7 @@
 import contextlib
 import logging
 import math
+from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
@@ -228,6 +229,9 @@ _STORE_SAVE_DELAY_S = 60.0
 # Advisory predictive plan re-run cadence (in ticks). The plan changes slowly and
 # the DP is cheap; ~15 min at the default 10 s tick is plenty.
 _PLAN_EVERY_TICKS = 90
+# Ring-buffer depth of the per-tick debug history (the capture_debug service). ~2 h at
+# the default 10 s tick — enough to grab an event that happened a while before.
+_TICK_HISTORY_MAXLEN = 720
 # Smoothing factor of the background-load estimate fed to the advisory planner.
 _BASELINE_EMA_ALPHA = 0.05
 # SoC margin below soc_max at which a controllable battery is treated as unable to
@@ -516,6 +520,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._notifications_enabled = bool(cfg.get(CONF_NOTIFICATIONS_ENABLED, True))
         self._alerts_sent: dict[str, bool] = {}
         self._pv_limits_by_device: dict[str, float] = {}
+        # Rolling ring buffer of structured per-tick records for offline replay of a
+        # regulation glitch (the `capture_debug` service dumps it to a JSONL). Sized to
+        # hold ~2 h at the default 10 s tick so an event can be captured well after it
+        # happened, without any live watching. Cheap: one small dict appended per tick.
+        self._tick_history: deque[dict[str, Any]] = deque(maxlen=_TICK_HISTORY_MAXLEN)
         self._autotune_suggested: dict[str, float] = {}
         self._event_edges: dict[str, bool] = {}
         self._daily_history: list[dict[str, Any]] = []
@@ -1460,6 +1469,45 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         await self.async_persist_now()
         _LOGGER.info("SolarBalance: night-baseline talon reset on request")
 
+    async def capture_debug(self, *, minutes: float | None = None) -> dict[str, Any]:
+        """Dump the rolling per-tick history to a JSONL file for offline replay.
+
+        The buffer fills every tick (~2 h deep), so an event can be captured well
+        after it happened — call this once you notice a glitch. Returns the written
+        path and the covered span so the service response is self-explanatory.
+        ``minutes`` optionally keeps only the most recent window.
+        """
+        import json
+        import os
+
+        records = list(self._tick_history)
+        if minutes is not None and minutes > 0:
+            cutoff = dt_util.now() - timedelta(minutes=minutes)
+            records = [
+                r for r in records if (ts := dt_util.parse_datetime(r["t"])) is None or ts >= cutoff
+            ]
+        if not records:
+            return {"path": None, "ticks": 0, "from": None, "to": None}
+
+        directory = self.hass.config.path("solarbalance_debug")
+        path = os.path.join(directory, f"tick-{dt_util.now():%Y%m%dT%H%M%S}.jsonl")
+
+        def _write() -> None:
+            os.makedirs(directory, exist_ok=True)
+            with open(path, "w", encoding="utf-8") as fh:
+                for rec in records:
+                    fh.write(json.dumps(rec, default=str))
+                    fh.write("\n")
+
+        await self.hass.async_add_executor_job(_write)
+        _LOGGER.info("SolarBalance: captured %d ticks to %s", len(records), path)
+        return {
+            "path": path,
+            "ticks": len(records),
+            "from": records[0]["t"],
+            "to": records[-1]["t"],
+        }
+
     def force_charge_load_active(self, load_name: str) -> bool:
         """True when a manual 'charge now' request is active for this load."""
         return load_name in self._force_charge_req
@@ -2252,6 +2300,72 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._publisher.publish(result, balancing_result=balancing_result)
         soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}
         await self._apply_active_control(balancing_result.per_battery_w, soc_by_device, pv_limits)
+
+        # Structured per-tick record for the rolling debug history (dumped by the
+        # capture_debug service). Kept unconditionally — the point is to have the data
+        # already in memory when a glitch is noticed, without DEBUG logging on. Raw
+        # numbers only (no formatting) so it round-trips cleanly to JSONL.
+        self._tick_history.append(
+            {
+                "t": dt_util.as_local(snapshot.timestamp).isoformat(),
+                "mode": self._mode.value,
+                "zi_reg": zi_regulating,
+                "settle": settle_active_dbg,
+                "grid": round(grid_filtered_w, 1),
+                "nat": round(natural_grid_w, 1),
+                "setpt": round(effective_setpoint_w, 1),
+                "force_off": round(force_offset_w, 1),
+                "nc_off": round(nc_charge_offset_w, 1),
+                "fleet": round(current_fleet_w, 1),
+                "mppt": round(controllable_mppt_w, 1),
+                "hidden_pv": round(hidden_pv_w, 1),
+                "nc_charge": round(nc_charge_w, 1),
+                "nc_latch": self._nc_charging_latch,
+                "loop_base": round(self._last_total_power_w, 1),
+                "zi": round(zi_correction_w, 1),
+                "eq": round(eq_bias_w, 1),
+                "relief": round(cloud_relief_w, 1),
+                "eq_floor": (
+                    round(eq_discharge_floor_w, 1) if eq_discharge_floor_w is not None else None
+                ),
+                "relax": round(self._eq_pv_relax, 3),
+                "nearfull": near_full,
+                "target": round(total_power_w, 1),
+                "bind": regulation_result.binding,
+                "unalloc": round(balancing_result.unallocated_w, 1),
+                "pvlim": round(pv_limit_total, 1),
+                "antic": anticipation.reason,
+                "sink_budget": round(anticipation.sink_budget_w, 1),
+                "fsurp": round(anticipation.forecast_surplus_w, 1),
+                "prelim": (
+                    round(anticipation.preemptive_limit_w, 1)
+                    if anticipation.preemptive_limit_w is not None
+                    else None
+                ),
+                "t2sat_s": (
+                    round(anticipation.time_to_saturation_s)
+                    if anticipation.time_to_saturation_s is not None
+                    else None
+                ),
+                "per": {k: round(v, 1) for k, v in balancing_result.per_battery_w.items()},
+                "wr": {
+                    n: {"c": round(c, 1), "d": round(d, 1)}
+                    for n, (c, d) in self._active_control.written_setpoints().items()
+                },
+                "batt": [
+                    {
+                        "name": b.device_name,
+                        "soc": b.soc_pct,
+                        "power": b.power_w,
+                        "stale": b.stale,
+                        "avail": b.available,
+                        "stale_reason": b.stale_reason,
+                        "stale_age_s": b.stale_age_s,
+                    }
+                    for b in snapshot.batteries
+                ],
+            }
+        )
 
         # One comprehensive per-tick line for debugging the regulation (enable DEBUG on
         # custom_components.solarbalance). Everything that decides the fleet target and

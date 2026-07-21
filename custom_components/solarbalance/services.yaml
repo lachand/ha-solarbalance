@@ -179,3 +179,22 @@ import_config:
       required: true
       selector:
         object:
+
+capture_debug:
+  name: Capture debug tick history
+  description: >
+    Dump the last ~2 hours of per-tick regulation records (grid, fleet target,
+    binding, per-battery setpoints, battery staleness, anticipation…) to a JSONL
+    file under config/solarbalance_debug/, for offline replay of a glitch. Call it
+    after you notice something — the data is already buffered.
+  fields:
+    minutes:
+      name: Minutes
+      description: Keep only the most recent N minutes (blank = the whole buffer).
+      required: false
+      example: 20
+      selector:
+        number:
+          min: 1
+          max: 120
+          unit_of_measurement: min
