@@ -17,6 +17,14 @@ Pure module — no Home Assistant imports.
 
 from dataclasses import dataclass
 
+# A clamp claims the ``binding`` label only when it moves the target by more than
+# this (W). A discharge sitting exactly on the ``-controllable_mppt`` no-charge floor
+# lands within a watt or two of the base target, so ``min()`` would otherwise flip the
+# binding base<->no_charge_floor every tick on sub-watt noise — spamming the logbook
+# and masking the real binding — with zero effect on the command actually written.
+# Below this the clamp is still *applied*; it just does not rename the binding.
+_BINDING_DEADBAND_W = 10.0
+
 
 def resolve_fleet_target_w(
     *,
@@ -232,9 +240,14 @@ def resolve_total_power(inp: RegulationInputs) -> RegulationResult:
 
     def pin(value: float, name: str) -> None:
         nonlocal total_w, binding
-        if abs(value - total_w) > 1e-6:
-            total_w = value
+        if abs(value - total_w) <= 1e-6:
+            return
+        # Always apply the clamp; only rename the binding when it *materially* moves
+        # the target (see _BINDING_DEADBAND_W) so a clamp grazing the current value
+        # doesn't thrash the label with no control effect.
+        if abs(value - total_w) > _BINDING_DEADBAND_W:
             binding = name
+        total_w = value
 
     if inp.zi_regulating:
         # SoC-equaliser offer as a direct floor/ceiling on the fleet target.

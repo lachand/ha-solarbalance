@@ -37,6 +37,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta62] — 2026-07-21
+
+### Fixed
+
+- **Le binding ne clignote plus `base ↔ no_charge_floor` en régime stable.** En
+  décharge stable (le parc couvre la maison), la cible se pose à ~2 W du plancher
+  `−controllable_mppt` ; `min()` changeait alors d'étiquette **à chaque tick** sur du
+  bruit sub-watt — spam du logbook, fausses alertes, et surtout **le vrai binding
+  masqué** — alors que la commande écrite ne bougeait pas d'un watt (observé en live le
+  21/07 : `base ↔ no_charge_floor` pendant 9 min avec grid tenu à 0). Un clamp ne
+  **revendique** désormais le label `binding` que s'il déplace réellement la cible de
+  plus de **10 W** (`_BINDING_DEADBAND_W`) ; en dessous il est **toujours appliqué**,
+  il ne renomme simplement pas le binding. **Aucun impact sur le contrôle** — c'est
+  purement l'observabilité.
+
 ## [2.0.8-beta61] — 2026-07-12
 
 ### Added

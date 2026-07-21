@@ -45,6 +45,24 @@ class TestResolveTotalPower:
         )
         assert out.total_w == pytest.approx(-200.0)
 
+    def test_no_charge_floor_grazing_the_target_does_not_thrash_the_binding(self) -> None:
+        # Real steady-state case: the fleet discharges ~825 W to cover the house, and
+        # the -controllable_mppt floor sits ~2 W away. The floor *applies* (clamps to
+        # -825) but must NOT claim the binding on a sub-deadband move — otherwise the
+        # label flips base<->no_charge_floor every tick with no control effect, spamming
+        # the logbook. (Observed live 2026-07-21: base<->no_charge_floor for 9 min while
+        # grid stayed at 0 and the command never moved.)
+        out = resolve_total_power(
+            _inp(
+                grid_filtered_w=0.0,
+                current_fleet_w=-823.0,
+                loop_base_w=-823.0,
+                controllable_mppt_w=825.0,
+            )
+        )
+        assert out.total_w == pytest.approx(-825.0)  # floor still applied
+        assert out.binding == "base"  # but not relabelled on a 2 W graze
+
     def test_no_charge_floor_allows_charging_a_real_pv_surplus(self) -> None:
         # Fleet already charging its PV surplus holds the raw grid ~0, but the *natural*
         # grid exports and there is real PV → don't force output (the morning yoyo).
