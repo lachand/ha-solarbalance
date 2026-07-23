@@ -1,15 +1,15 @@
 {
   "domain": "solarbalance",
   "name": "SolarBalance",
-  "version": "2.0.8-beta65",
+  "version": "2.0.8-beta66",
   "codeowners": ["@lachand"],
   "config_flow": true,
+  "after_dependencies": ["recorder"],
   "dependencies": ["frontend", "http", "panel_custom"],
   "documentation": "https://github.com/lachand/ha-solarbalance",
   "integration_type": "service",
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/lachand/ha-solarbalance/issues",
   "requirements": [],
-  "homeassistant": "2026.1.0",
   "loggers": ["custom_components.solarbalance"]
 }

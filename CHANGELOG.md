@@ -37,6 +37,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta66] — 2026-07-23
+
+### Fixed
+
+- **Validation hassfest (CI) — deux erreurs de manifest.**
+  - `"homeassistant": "2026.1.0"` retiré de `manifest.json` : cette clé n'est **pas valide**
+    dans le manifest d'une *custom integration* (elle est réservée aux intégrations du
+    core), ce qui faisait échouer hassfest sur `extra keys not allowed`. La contrainte de
+    version minimale reste déclarée là où HACS la lit réellement : **`hacs.json`** — donc
+    aucune perte de fonction.
+  - **`after_dependencies: ["recorder"]` ajouté** : l'intégration importe
+    `homeassistant.components.recorder` (rejeu d'une journée, amorçage du profil de
+    consommation depuis les statistiques) sans le déclarer. Au-delà de faire taire
+    hassfest, ça garantit que le recorder est chargé **avant** SolarBalance quand il est
+    présent, ce qui fiabilise l'amorçage des statistiques.
+
 ## [2.0.8-beta65] — 2026-07-23
 
 ### Fixed
