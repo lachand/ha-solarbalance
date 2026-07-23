@@ -37,6 +37,24 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta67] — 2026-07-23
+
+### Added
+
+- **Icône de marque embarquée** (`custom_components/solarbalance/brand/icon.png` 256×256 +
+  `icon@2x.png` 512×512). Depuis **Home Assistant 2026.3**, une intégration personnalisée
+  fournit ses images de marque **directement dans son dossier** — le dépôt
+  `home-assistant/brands` n'accepte plus les icônes de custom integrations (dossier marqué
+  *legacy* ; les PR y sont systématiquement fermées avec ce motif). L'icône s'affiche donc
+  dans l'UI sans PR externe ni délai de cache CDN, et satisfait au passage le contrôle
+  `brands` de HACS.
+
+### Fixed
+
+- **Clés du `manifest.json` triées** comme l'exige hassfest (`domain`, `name`, puis ordre
+  alphabétique). Cette erreur n'est apparue qu'une fois les deux précédentes levées.
+  **La CI est désormais entièrement verte** : hassfest OK et HACS **9/9**.
+
 ## [2.0.8-beta66] — 2026-07-23
 
 ### Fixed
