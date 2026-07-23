@@ -129,6 +129,38 @@ def test_discharge_rate_tapers_above_floor() -> None:
     assert res.unallocated_w == pytest.approx(-500.0, abs=2.0)
 
 
+def test_taper_cap_is_stable_under_soc_quantisation_dither() -> None:
+    # Observed live 2026-07-23: a STREAM sitting at ~23.5 % reported 23<->24 every ~10 s.
+    # Fed straight into the linear taper that 1 % swung the cap by a quarter of the band,
+    # so the balancer clipped the (perfectly steady) target to 575 W then let 870 W
+    # through, alternating every tick — a ~300 W yoyo on the written setpoint.
+    # The latched taper SoC must hold the cap still across the dither.
+    ctrl = BalancingController([_discharge_dev()], alpha=1.0)  # floor 22 %, 2000 W, band 4 %
+    seen = []
+    for soc in (24.0, 23.0, 24.0, 23.0, 24.0, 23.0):
+        res = ctrl.allocate(total_power_w=-1500.0, states={"b": _state("b", soc)})
+        seen.append(round(res.per_battery_w["b"]))
+    # The first tick latches whatever it first sees; from then on the dither must not
+    # move the cap at all — that per-tick alternation is the yoyo.
+    assert len(set(seen[1:])) == 1, f"cap oscillated across the dither: {seen}"
+    assert seen[1] == pytest.approx(-500, abs=2)  # pinned low: (23-22)/4 * 2000
+
+    # A genuine recovery (beyond the deadband) still relaxes the cap.
+    res = ctrl.allocate(total_power_w=-1500.0, states={"b": _state("b", 25.0)})
+    assert res.per_battery_w["b"] == pytest.approx(-1500.0, abs=2.0)  # (25-22)/4 * 2000 = 1500
+
+
+def test_taper_honours_a_real_soc_drop_immediately() -> None:
+    # Safety: never delay protecting a draining battery — a drop moves the taper at once,
+    # even though a rise has to clear the deadband.
+    ctrl = BalancingController([_discharge_dev()], alpha=1.0)
+    assert ctrl.allocate(total_power_w=-2000.0, states={"b": _state("b", 26.0)}).per_battery_w[
+        "b"
+    ] == pytest.approx(-2000.0, abs=2.0)
+    dropped = ctrl.allocate(total_power_w=-2000.0, states={"b": _state("b", 23.0)})
+    assert dropped.per_battery_w["b"] == pytest.approx(-500.0, abs=2.0)  # tapered at once
+
+
 def test_discharge_hysteresis_blocks_rearm_on_soc_flicker() -> None:
     # The morning yoyo: SoC quantises 22<->23 right at the floor. Once rested at 22 %,
     # a bounce to 23 % must NOT re-arm discharge (needs floor + rearm = 24 %).
@@ -359,3 +391,61 @@ class TestAntiShortCycle:
             now=None,
         )
         assert result.per_battery_w["ecoflow_living_room"] < 0.0
+
+
+def _pair_for_flicker() -> list[Device]:
+    return [_discharge_dev("a", soc_min_pct=10), _discharge_dev("b", soc_min_pct=10)]
+
+
+def test_one_tick_dropout_does_not_shed_the_battery_share() -> None:
+    # Observed live 2026-07-23 17:04: a STREAM blinked out for a single tick, the balancer
+    # shed its whole 1050 W share, unallocated spiked, and the anti-windup then collapsed
+    # the fleet target by that share — a ~1 kW step, rebuilt when the battery returned.
+    ctrl = BalancingController(_pair_for_flicker(), alpha=1.0)
+    caps = {"a": 1000.0, "b": 1000.0}
+    steady = ctrl.allocate(
+        total_power_w=2000.0,
+        states={"a": _state("a", 50.0), "b": _state("b", 50.0)},
+        charge_caps=caps,
+    )
+    assert steady.per_battery_w["b"] == pytest.approx(1000.0, abs=2.0)
+    assert steady.unallocated_w == pytest.approx(0.0, abs=2.0)
+
+    # "b" blinks out for one tick → its share must be held, not shed.
+    blink = ctrl.allocate(total_power_w=2000.0, states={"a": _state("a", 50.0)}, charge_caps=caps)
+    assert blink.per_battery_w["b"] == pytest.approx(1000.0, abs=2.0)
+    assert blink.unallocated_w == pytest.approx(0.0, abs=2.0), "share was shed → target step"
+
+
+def test_a_lasting_disappearance_still_drops_out_after_the_dwell() -> None:
+    ctrl = BalancingController(_pair_for_flicker(), alpha=1.0)
+    caps = {"a": 1000.0, "b": 1000.0}
+    ctrl.allocate(
+        total_power_w=2000.0,
+        states={"a": _state("a", 50.0), "b": _state("b", 50.0)},
+        charge_caps=caps,
+    )
+    last = None
+    for _ in range(5):  # beyond _PARTICIPATION_DWELL_TICKS
+        last = ctrl.allocate(
+            total_power_w=2000.0, states={"a": _state("a", 50.0)}, charge_caps=caps
+        )
+    assert last is not None
+    assert last.per_battery_w["b"] == pytest.approx(0.0, abs=2.0)
+    assert last.unallocated_w == pytest.approx(1000.0, abs=2.0)  # real saturation, reported
+
+
+def test_charge_cap_collapsing_to_zero_is_held_then_honoured() -> None:
+    # The same flicker shows up as a cap momentarily read as 0 rather than a missing state.
+    ctrl = BalancingController(_pair_for_flicker(), alpha=1.0)
+    states = {"a": _state("a", 50.0), "b": _state("b", 50.0)}
+    ctrl.allocate(total_power_w=2000.0, states=states, charge_caps={"a": 1000.0, "b": 1000.0})
+    blink = ctrl.allocate(total_power_w=2000.0, states=states, charge_caps={"a": 1000.0, "b": 0.0})
+    assert blink.per_battery_w["b"] == pytest.approx(1000.0, abs=2.0)
+    last = None
+    for _ in range(4):
+        last = ctrl.allocate(
+            total_power_w=2000.0, states=states, charge_caps={"a": 1000.0, "b": 0.0}
+        )
+    assert last is not None
+    assert last.per_battery_w["b"] == pytest.approx(0.0, abs=2.0)  # sustained → honoured

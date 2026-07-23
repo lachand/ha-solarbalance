@@ -37,6 +37,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta65] — 2026-07-23
+
+### Fixed
+
+- **Deux yoyos réels de la puissance batterie, diagnostiqués sur données live.** Le parc
+  oscillait ~170 fois (>300 W au compteur) entre 10 h et 17 h. Deux mécanismes distincts,
+  tous deux dans le balancer — la *cible* de régulation, elle, était parfaitement stable :
+  - **Dither du taper de décharge.** Les capteurs SoC sont quantifiés au 1 % et sautillent
+    sur la frontière (une STREAM à ~23,5 % rapportait 23↔24 % toutes les ~10 s). Injecté tel
+    quel dans la rampe linéaire du taper, ce 1 % faisait varier le cap d'un quart de la
+    bande — **575 ↔ 1150 W** — donc la consigne écrite alternait **575 ↔ 870 W à chaque
+    tick** (43 % des ticks, saut moyen 331 W). Le taper lit désormais un **SoC latché** :
+    une **baisse est honorée immédiatement** (jamais retarder la protection d'une batterie
+    qui se vide), une **hausse doit franchir 1,5 %** avant de relâcher le cap. Le dither ne
+    déplace plus rien ; une vraie remontée relâche normalement.
+  - **Batterie qui « cligne » hors du parc.** Une batterie en BLE disparaît un tick de temps
+    en temps (entité indisponible, ou limite de charge lue à 0). Le balancer larguait alors
+    toute sa part, `unallocated` explosait, et l'anti-windup prenait ce pic pour une vraie
+    saturation : **la cible parc chutait d'autant** (marche de **1050 W** observée), puis
+    remontait au retour de la batterie. Une batterie qui participait reste maintenant dans
+    le parc **jusqu'à 3 ticks** avec son dernier état/cap connus. Une disparition durable
+    la sort toujours, après le délai — on ne fait que **retarder le retrait** de capacité,
+    jamais en inventer.
+
+- **Dashboard : le bouton « Afficher les pics bruts » ne faisait rien.** L'attribut était
+  écrit `data-toggle-raw` sans valeur → `dataset.toggleRaw === ""` (falsy) → le gestionnaire
+  de clic ne le trouvait jamais. Corrigé en `data-toggle-raw="1"`.
+
 ## [2.0.8-beta64] — 2026-07-21
 
 ### Changed

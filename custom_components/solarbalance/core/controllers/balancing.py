@@ -34,6 +34,19 @@ _DISCHARGE_TAPER_BAND_PCT = 4.0
 # discharge until its SoC recovers this far above the margin — so SoC quantisation
 # noise at the boundary cannot re-arm it every tick (the morning discharge yoyo).
 _DISCHARGE_REARM_PCT = 2.0
+# A rise in SoC must clear this before it relaxes the taper cap. Wider than the 1 %
+# quantisation step of the SoC sensors, so their dither cannot swing the cap tick to tick
+# (observed 2026-07-23: a STREAM reporting 23↔24 % every ~10 s made the written discharge
+# setpoint alternate 575↔870 W on 43 % of ticks). Drops are always honoured immediately.
+_DISCHARGE_TAPER_DEADBAND_PCT = 1.5
+# A battery that was participating stays in the fleet for this many ticks after it
+# momentarily disappears (entity unavailable, or its charge cap read as 0), reusing its
+# last known state and cap. A BLE-attached battery drops out for a single tick now and
+# then; without this the balancer sheds its whole share, the anti-windup takes the spike
+# as real saturation and collapses the fleet target by that share — then rebuilds it when
+# the battery returns. Observed 2026-07-23: a STREAM blinking out stepped the target by
+# 1050 W. A genuine, lasting disappearance still drops out after the dwell.
+_PARTICIPATION_DWELL_TICKS = 3
 # Additive weight for a charge-priority battery below its target SoC. Dominates the normal
 # weights (which sum to ~1) so it takes the surplus first; it then saturates at its cap and
 # the saturation loop redistributes the remainder to the rest of the fleet.
@@ -91,6 +104,12 @@ class BalancingController:
         # Per-battery discharge-floor hysteresis latch: True once rested at/under the
         # margin, cleared only when SoC recovers past the re-arm band. See _discharge_scale.
         self._discharge_rested: dict[str, bool] = {}
+        # Per-battery SoC actually used for the discharge taper, latched against the
+        # 1 %-quantisation dither of the SoC sensors (see _taper_soc).
+        self._taper_soc: dict[str, float] = {}
+        # Anti-flicker on fleet participation (see _hold_through_flicker).
+        self._last_seen: dict[str, tuple[BatteryState, float | None]] = {}
+        self._absent_ticks: dict[str, int] = {}
 
     def allocate(
         self,
@@ -111,6 +130,9 @@ class BalancingController:
                 ``max_charge_power_w`` so ``unallocated_w`` reflects the true saturation
                 (and the velocity-form anti-windup does not wind past the physical limit).
         """
+        # Ride out a battery blinking out for a tick or two, so its share is not shed
+        # (and re-added) — that step is a fleet-wide yoyo, not real saturation.
+        states, charge_caps = self._hold_through_flicker(states, charge_caps)
         # Per-battery discharge caps (SoC taper + hysteresis) — 0 near the floor,
         # ramping to the full rate over the taper band. Computed once per tick.
         discharge_caps = self._discharge_caps(total_power_w, states)
@@ -275,15 +297,79 @@ class BalancingController:
             caps[name] = scale * float(role.max_discharge_power_w)
         return caps
 
+    def _hold_through_flicker(
+        self,
+        states: Mapping[str, BatteryState],
+        charge_caps: Mapping[str, float] | None,
+    ) -> tuple[Mapping[str, BatteryState], Mapping[str, float] | None]:
+        """Substitute a battery's last known state/cap while it briefly blinks out.
+
+        A battery counts as participating when it has an available state and, if a charge
+        cap was supplied, a non-zero one. When it stops participating, its remembered
+        state and cap are used for up to ``_PARTICIPATION_DWELL_TICKS`` ticks so a
+        one-tick BLE dropout does not shed its whole share of the fleet target. Past the
+        dwell nothing is substituted and it drops out for real.
+
+        Held values are only ever ones the battery genuinely reported, so this cannot
+        invent capacity: it only delays *removing* capacity. The SoC-ceiling checks
+        downstream still apply, so a battery that is actually full is excluded regardless.
+        """
+        eff_states = dict(states)
+        eff_caps = dict(charge_caps) if charge_caps is not None else None
+        for name, _role in self._batteries:
+            state = states.get(name)
+            cap = eff_caps.get(name) if eff_caps is not None else None
+            participating = (
+                state is not None
+                and state.available
+                and (cap is None or cap > _RESIDUAL_TOLERANCE_W)
+            )
+            if participating and state is not None:
+                self._absent_ticks[name] = 0
+                self._last_seen[name] = (state, cap)
+                continue
+            absent = self._absent_ticks.get(name, 0) + 1
+            self._absent_ticks[name] = absent
+            held = self._last_seen.get(name)
+            if held is None or absent > _PARTICIPATION_DWELL_TICKS:
+                continue
+            held_state, held_cap = held
+            eff_states[name] = held_state
+            if eff_caps is not None and held_cap is not None:
+                eff_caps[name] = held_cap
+        return eff_states, eff_caps
+
+    def _taper_soc_pct(self, name: str, soc_pct: float) -> float:
+        """SoC to use for the taper, latched against SoC-sensor dither.
+
+        SoC sensors are quantised to 1 % and jitter on the boundary — an EcoFlow STREAM
+        sitting at ~23.5 % reports 23↔24 every few seconds. Fed straight into the linear
+        ramp below, that 1 % swings the cap by a quarter of the taper band (575 W on a
+        2300 W battery) *every tick*, which the balancer then clips to — a ~300 W yoyo on
+        the written setpoint even though the fleet target is perfectly steady.
+
+        So the taper tracks a latched SoC: a **drop is always honoured** (never delay
+        protecting a draining battery), while a **rise must clear a deadband** wider than
+        the quantisation step before it relaxes the cap. A dither therefore pins the taper
+        at its low value — stable and conservative — and only a genuine recovery re-arms it.
+        """
+        prev = self._taper_soc.get(name)
+        if prev is None or soc_pct <= prev or soc_pct - prev > _DISCHARGE_TAPER_DEADBAND_PCT:
+            self._taper_soc[name] = soc_pct
+        return self._taper_soc[name]
+
     def _discharge_scale(self, name: str, role: BatteryRole, soc_pct: float) -> float:
         """Fraction (0..1) of the discharge rate allowed at this SoC.
 
         Zero at/under ``soc_min + margin`` (the floor), ramping linearly to 1 over the
         taper band above it. A hysteresis latch keeps a rested battery at 0 until its SoC
         climbs past ``floor + rearm`` — so a SoC hovering on the 1 %-quantised boundary
-        can't flip the discharge on/off every tick (the morning discharge yoyo).
+        can't flip the discharge on/off every tick (the morning discharge yoyo). Inside the
+        band the ramp reads a *latched* SoC (:meth:`_taper_soc_pct`) so the same dither
+        can't swing the cap either.
         """
         floor = float(role.soc_min_pct) + _DISCHARGE_SOC_MARGIN_PCT
+        soc_pct = self._taper_soc_pct(name, soc_pct)
         if self._discharge_rested.get(name, False):
             if soc_pct < floor + _DISCHARGE_REARM_PCT:
                 return 0.0  # stay rested until well clear of the floor

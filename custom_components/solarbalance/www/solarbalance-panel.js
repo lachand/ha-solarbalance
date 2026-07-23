@@ -719,7 +719,7 @@ class SolarBalancePanel extends HTMLElement {
         }
         ${
           glitches.length || this._showRaw
-            ? `<button class="raw-toggle ${this._showRaw ? "on" : ""}" data-toggle-raw>${this._t(
+            ? `<button class="raw-toggle ${this._showRaw ? "on" : ""}" data-toggle-raw="1">${this._t(
                 this._showRaw ? "Masquer les pics" : "Afficher les pics bruts"
               )}</button>`
             : ""
