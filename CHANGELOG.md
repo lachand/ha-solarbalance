@@ -37,6 +37,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta72] — 2026-07-24
+
+### Added
+
+- **Compteur réseau de secours** (option *Backup grid sensor*). Le 24/07, l'entité du
+  compteur PDL est passée `unavailable` de **06:58 à 07:36** : comme c'est la **seule**
+  entité dont la péremption est critique, SolarBalance a suspendu toute régulation pendant
+  **38 minutes, en plein lever de soleil**. Une source de secours déclarée prend désormais
+  le relais automatiquement, puis rend la main au retour du compteur principal. La
+  convention de signe du PDL s'applique aussi au secours (sinon un basculement inverserait
+  silencieusement le signe de toute la boucle). La source active (`primary` / `backup` /
+  `none`) est exposée en diagnostic — un « 0 W » n'est plus indiscernable d'une panne.
+
+- **Garde-fou de plausibilité physique sur la lecture réseau** (`core/plausibility.py`, pur).
+  Le compteur rapporte parfois une valeur que l'installation **ne peut pas produire** :
+  observé le 23/07 à 17:46, **−2032 W d'export** alors que la PV faisait 1638 W et que les
+  batteries **chargeaient** 1479 W — l'export maximal réel était de **159 W**, soit une
+  impossibilité de 1,87 kW. La règle est un **bilan d'énergie**, pas un seuil :
+  `export ≤ PV + décharge batterie`. Hors bornes → on **tient la dernière valeur fiable**.
+  Appliqué **avant** le filtre médian, parce que le glitch réel durait **deux échantillons**
+  et qu'une médiane-de-3 ne rejette qu'un point isolé. Ce n'est **pas** un lissage : une
+  valeur plausible, même bruitée, passe intacte. Compteur de rejets en diagnostic.
+
 ## [2.0.8-beta71] — 2026-07-24
 
 ### Fixed

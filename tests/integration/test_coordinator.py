@@ -127,3 +127,51 @@ async def test_baseline_floored_and_flagged_on_cloud_timeout(
     # Negative baseline WITHOUT a stale cloud → genuine mapping case, not flagged as timeout.
     coordinator._update_baseline_display(_snap_with_cloud(-400.0, cloud_stale=False))
     assert coordinator.baseline_cloud_timeout is False
+
+
+@pytest.mark.asyncio
+async def test_impossible_grid_reading_never_reaches_the_regulator(
+    hass: HomeAssistant, config_entry: MockConfigEntry
+) -> None:
+    """The 2026-07-23 glitch must be held before the median, not after.
+
+    The meter reported -2032 W of export while PV made 1638 W and the batteries were
+    charging 1479 W — an export the installation could not physically produce. It
+    lasted two samples, so a median-of-3 alone would have passed it through to the
+    loop; the plausibility guard runs first precisely for that reason.
+    """
+    from custom_components.solarbalance.core.models import MpptState
+
+    coordinator: SolarBalanceCoordinator = hass.data[DOMAIN][config_entry.entry_id][COORDINATOR_KEY]
+
+    def snap(grid_w: float) -> Snapshot:
+        return Snapshot(
+            timestamp=datetime(2026, 7, 23, 17, 46, tzinfo=UTC),
+            grid_power_w=grid_w,
+            batteries=(
+                BatteryState(device_name="b", soc_pct=50.0, power_w=1479.0, available=True),
+            ),
+            mppts=(MpptState(device_name="pv", power_w=1638.0, available=True),),
+            inverters=(),
+            loads=(),
+        )
+
+    # A plausible reading first, so there is something trustworthy to hold.
+    coordinator._last_plausible_grid_w = None
+    from custom_components.solarbalance.core.plausibility import check_grid_reading
+
+    ok = check_grid_reading(-4.0, pv_w=1638.0, battery_w=1479.0, last_valid_w=None)
+    coordinator._last_plausible_grid_w = ok.grid_w
+
+    bad = snap(-2032.0)
+    res = check_grid_reading(
+        bad.grid_power_w,
+        pv_w=bad.pv_total_w,
+        battery_w=bad.battery_power_total_w,
+        last_valid_w=coordinator._last_plausible_grid_w,
+    )
+    assert res.rejected is True
+    assert res.grid_w == -4.0, "the regulator would have been fed the impossible value"
+    # And the raw snapshot is untouched, so the displayed grid sensor still tells the
+    # truth about what the meter actually said.
+    assert bad.grid_power_w == -2032.0

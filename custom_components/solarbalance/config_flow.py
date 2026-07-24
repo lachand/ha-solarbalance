@@ -32,6 +32,7 @@ from .const import (
     CONF_EXPORT_PRICE,
     CONF_FLEET_REVERSAL_DWELL_S,
     CONF_FORECAST_SAFETY_FACTOR,
+    CONF_GRID_BACKUP_ENTITY,
     CONF_HC_END,
     CONF_HC_PRICE,
     CONF_HC_START,
@@ -192,6 +193,9 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
             CONF_APPLIANCE_POWER_ENTITIES,
             default=d.get(CONF_APPLIANCE_POWER_ENTITIES, []),
         ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", multiple=True)),
+        vol.Optional(CONF_GRID_BACKUP_ENTITY, default=d.get(CONF_GRID_BACKUP_ENTITY, "")): _entity(
+            "sensor"
+        ),
         vol.Optional(
             CONF_PV_DROP_COMPENSATION_ENABLED,
             default=d.get(CONF_PV_DROP_COMPENSATION_ENABLED, DEFAULT_PV_DROP_COMPENSATION_ENABLED),

@@ -43,6 +43,7 @@ from .const import (
     CONF_EXPORT_PRICE,
     CONF_FLEET_REVERSAL_DWELL_S,
     CONF_FORECAST_SAFETY_FACTOR,
+    CONF_GRID_BACKUP_ENTITY,
     CONF_GRID_FILTER_SAMPLES,
     CONF_HC_END,
     CONF_HC_PRICE,
@@ -208,6 +209,7 @@ from .core.models import (
     usable_window_kwh,
 )
 from .core.planner import BatteryConstraints, PlanningResult, PredictiveScheduler
+from .core.plausibility import check_grid_reading
 from .core.strategies.backup import BackupStrategy
 from .core.strategies.cost_min import CostMinStrategy
 from .core.strategies.longevity import LongevityStrategy
@@ -383,6 +385,10 @@ class RegulationDiagnostics:
     anticipation_active: bool = False
     preemptive_pv_limit_w: float = 0.0  # ceiling handed to curtailment (0 = none)
     time_to_saturation_s: float | None = None  # when the sinks run out, at this rate
+    # Grid readings held back this session because physics ruled them out.
+    grid_rejects: int = 0
+    # Which meter answered this tick: primary | backup | none.
+    grid_source: str = "primary"
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -545,6 +551,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             meters,
             loads,
             pv_forecast_entity=self._pv_forecast_entity,
+            grid_backup_entity=cfg.get(CONF_GRID_BACKUP_ENTITY) or None,
             weather_warning_entity=cfg.get("weather_warning_entity") or None,
             weather_phenomena=cfg.get(CONF_WEATHER_PHENOMENA, ()) or (),
             weather_min_rank=level_rank(
@@ -837,6 +844,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             e for e in (cfg.get(CONF_APPLIANCE_POWER_ENTITIES) or []) if isinstance(e, str)
         ]
         self._appliance_cycles = ApplianceCycles()
+        # Last grid reading that passed the physical-plausibility check, held when a
+        # later one turns out to be impossible (see core/plausibility.py).
+        self._last_plausible_grid_w: float | None = None
+        self._grid_rejects: int = 0
         # Real-time PV-drop detector (passing cloud) — exposed for observability,
         # and (opt-in) feeds a fast discharge feed-forward via the settle window.
         self._pv_drop = PvDropDetector()
@@ -1724,9 +1735,33 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._run_advisory_plan(snapshot)
         self._observe_appliances(snapshot)
 
+        # --- Physical plausibility (A): a reading the installation could not have
+        # produced (more export than PV + battery discharge) is a sensor fault, not
+        # information. Held *before* the median so the loop never sees it — a median
+        # only rejects a lone sample, and the real glitch lasted two. ---
+        plausible = check_grid_reading(
+            snapshot.grid_power_w,
+            pv_w=snapshot.pv_total_w,
+            battery_w=snapshot.battery_power_total_w,
+            last_valid_w=self._last_plausible_grid_w,
+        )
+        if plausible.rejected:
+            self._grid_rejects += 1
+            _LOGGER.warning(
+                "Grid reading %.0f W is physically impossible (max export %.0f W with "
+                "PV %.0f W and battery %+.0f W) — holding %.0f W",
+                snapshot.grid_power_w,
+                plausible.max_export_w,
+                snapshot.pv_total_w,
+                snapshot.battery_power_total_w,
+                plausible.grid_w,
+            )
+        else:
+            self._last_plausible_grid_w = plausible.grid_w
+
         # --- Grid median filter (B): clean the value handed to the regulator;
         # the displayed grid sensor keeps snapshot.grid_power_w (raw). ---
-        grid_filtered_w = self._grid_filter.update(snapshot.grid_power_w)
+        grid_filtered_w = self._grid_filter.update(plausible.grid_w)
         if self._grid_damper is not None:
             # Smooth more when volatile (motor loads) so the loop tracks the slow
             # average and the grid absorbs the fast swings instead of yoyoing.
@@ -2255,6 +2290,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             anticipation_active=anticipation.active,
             preemptive_pv_limit_w=anticipation.preemptive_limit_w or 0.0,
             time_to_saturation_s=anticipation.time_to_saturation_s,
+            grid_rejects=self._grid_rejects,
+            grid_source=self._reader.grid_source,
         )
         self._autotune_suggestions()
 

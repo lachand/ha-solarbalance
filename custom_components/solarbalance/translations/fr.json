@@ -102,7 +102,8 @@
           "local_ac_load_entities": "Capteurs de conso prise AC locale (ex. prises du STREAM) — exclus de la boucle réseau pour que leurs cycles ne la perturbent pas",
           "pv_drop_compensation_enabled": "Compensation chute PV : sur une chute soudaine (nuage), décharger la perte tout de suite (plus rapide que la boucle)",
           "anticipatory_curtailment_enabled": "Bridage PV anticipé (pré-brider d'après la prévision, avant que les batteries soient pleines)",
-          "appliance_power_entities": "Capteurs de puissance des appareils (machine à laver, lave-vaisselle…) — leurs cycles sont appris pour conseiller quand les lancer en solaire. Observés seulement, jamais pilotés."
+          "appliance_power_entities": "Capteurs de puissance des appareils (machine à laver, lave-vaisselle…) — leurs cycles sont appris pour conseiller quand les lancer en solaire. Observés seulement, jamais pilotés.",
+          "grid_backup_entity": "Compteur réseau de secours — utilisé quand le compteur PDL devient indisponible, pour qu'une coupure ne suspende plus la régulation. Même convention de signe que le PDL."
         },
         "sections": {
           "advanced": {

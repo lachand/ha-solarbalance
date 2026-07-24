@@ -1262,6 +1262,8 @@ class SolarBalanceRegulationDebugSensor(_SolarBalanceSensor):
             "nc_charge_w": round(d.nc_charge_w),
             "pv_limit_w": round(d.pv_limit_w),
             "sink_budget_w": round(d.sink_budget_w),
+            "grid_rejects": d.grid_rejects,
+            "grid_source": d.grid_source,
             "forecast_surplus_w": round(d.forecast_surplus_w),
             "anticipation_active": d.anticipation_active,
             "preemptive_pv_limit_w": round(d.preemptive_pv_limit_w),

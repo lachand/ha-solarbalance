@@ -50,10 +50,14 @@ class EntityReader:
         current_import_price: float | None = None,
         current_export_price: float | None = None,
         local_ac_load_entities: Sequence[str] = (),
+        grid_backup_entity: str | None = None,
         noncontrollable_stale_s: float = 300.0,
         state_getter: Callable[[str], State | None] | None = None,
     ) -> None:
         self._hass = hass
+        self._grid_backup_entity = grid_backup_entity or None
+        # Which source the last grid reading came from: primary | backup | none.
+        self.grid_source: str = "primary"
         self._devices = tuple(devices)
         self._meters = tuple(meters)
         self._loads = tuple(loads or [])
@@ -105,12 +109,38 @@ class EntityReader:
         )
 
     def _read_grid_power(self) -> float:
+        """Grid power, falling back to the backup sensor when the PDL is unavailable.
+
+        A meter dropout used to suspend regulation entirely (observed 2026-07-24:
+        38 min at sunrise). A declared backup keeps the loop measuring instead. The
+        backup is read with its own sign convention assumed identical to the PDL's,
+        and ``grid_source`` records which one answered so it can be diagnosed.
+        """
         pdl = next((m for m in self._meters if m.kind is MeterKind.PDL), None)
         if pdl is None:
             _LOGGER.warning("No PDL meter declared — grid power defaulting to 0")
+            self.grid_source = "none"
             return 0.0
-        raw = self._read_float(pdl.power_entity, default=0.0) or 0.0
-        return -raw if pdl.invert_sign else raw
+        raw = self._read_float(pdl.power_entity, default=None)
+        if raw is not None:
+            if self.grid_source != "primary":
+                _LOGGER.info("Grid meter %s is back — leaving the backup", pdl.power_entity)
+            self.grid_source = "primary"
+            return -raw if pdl.invert_sign else raw
+
+        backup = self._read_float(self._grid_backup_entity, default=None)
+        if backup is not None:
+            if self.grid_source != "backup":
+                _LOGGER.warning(
+                    "Grid meter %s unavailable — falling back to %s",
+                    pdl.power_entity,
+                    self._grid_backup_entity,
+                )
+            self.grid_source = "backup"
+            return -backup if pdl.invert_sign else backup
+
+        self.grid_source = "none"
+        return 0.0
 
     def _read_grid_power_per_phase(self) -> dict[str, float | None]:
         """Return per-phase grid power dict for Snapshot keyword args.

@@ -212,6 +212,9 @@ CONF_LOCAL_AC_LOAD_ENTITIES: Final = "local_ac_load_entities"
 # Power entities of appliances whose cycles are *observed* (washing machine,
 # dishwasher…). Not controlled — only learned, to advise when to run them on solar.
 CONF_APPLIANCE_POWER_ENTITIES: Final = "appliance_power_entities"
+# Fallback grid-power sensor used when the PDL meter goes unavailable. Without it a
+# meter dropout suspends regulation entirely (observed: 38 min lost at sunrise).
+CONF_GRID_BACKUP_ENTITY: Final = "grid_backup_entity"
 
 # Adaptive volatility damper: smooth the grid signal fed to the regulation loop
 # more when it is volatile (motor-type loads), so the battery tracks the slow
