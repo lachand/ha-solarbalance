@@ -237,3 +237,35 @@ rename_appliance_program:
       example: Coton 40
       selector:
         text:
+
+label_last_cycle:
+  name: Label the last appliance cycle
+  description: >
+    Give a name to the most recently finished cycle. On a smart-plug setup with no
+    program signal, every cycle lands in "unknown" together — this peels off just
+    the wash you just ran so a 40° and a 20° end up in separate buckets, one cycle
+    at a time.
+  fields:
+    appliance:
+      name: Appliance
+      description: Appliance name as shown in the panel (e.g. "machine a laver").
+      required: true
+      example: machine a laver
+      selector:
+        text:
+    program:
+      name: Program
+      description: The label to give the last finished cycle.
+      required: true
+      example: Coton 60
+      selector:
+        text:
+    from_program:
+      name: From
+      description: >
+        Which bucket the last cycle is taken from. Defaults to "unknown"; set it to
+        fix a mislabel (move the last cycle of one named program to another).
+      required: false
+      example: unknown
+      selector:
+        text:

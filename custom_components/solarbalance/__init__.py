@@ -304,6 +304,17 @@ def _register_services(hass: HomeAssistant) -> None:
         )
         return {"moved": moved}
 
+    async def handle_label_last_cycle(call: ServiceCall) -> dict[str, Any]:
+        coord = _get_coordinator(hass)
+        if coord is None:
+            return {"labelled": False}
+        labelled = await coord.label_last_appliance_cycle(
+            str(call.data.get("appliance", "")),
+            str(call.data.get("program", "")),
+            source=str(call.data.get("from_program", "unknown")),
+        )
+        return {"labelled": labelled}
+
     async def handle_activate_storm_mode(call: ServiceCall) -> None:
         coord = _get_coordinator(hass)
         if coord:
@@ -344,6 +355,12 @@ def _register_services(hass: HomeAssistant) -> None:
         DOMAIN,
         "rename_appliance_program",
         handle_rename_appliance_program,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "label_last_cycle",
+        handle_label_last_cycle,
         supports_response=SupportsResponse.OPTIONAL,
     )
 

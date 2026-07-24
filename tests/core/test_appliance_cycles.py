@@ -308,6 +308,77 @@ def test_renamed_programs_survive_the_store() -> None:
     assert [s.program for s in back.summary_all("wm")] == ["Coton 40"]
 
 
+# --- labelling one cycle at a time (the smart-plug workflow) ----------------
+
+
+def test_labelling_the_last_cycle_peels_off_only_that_one() -> None:
+    # Three cold washes then a hot one, all filed as unknown for lack of a program
+    # signal. Naming "the wash I just ran" must move exactly one, not the pile.
+    ac = ApplianceCycles()
+    for _ in range(3):
+        ac.add_template("wm", CycleTemplate(2400.0, 0.3, tuple([200.0] * 24)))  # cold
+    hot = CycleTemplate(5400.0, 1.6, tuple([1400.0] * 24))
+    ac.add_template("wm", hot)  # the one just finished
+
+    moved = ac.relabel_last("wm", "Coton 60")
+    assert moved == hot
+    assert ac.unlabelled_count("wm") == 3
+    assert ac.summary("wm", program="Coton 60").samples == 1
+    assert ac.summary("wm", program="Coton 60").energy_kwh > 1.0
+
+
+def test_labelling_repeatedly_builds_a_named_bucket() -> None:
+    ac = ApplianceCycles()
+    for _ in range(2):
+        ac.add_template("wm", CycleTemplate(5400.0, 1.6, tuple([1400.0] * 24)))
+    ac.relabel_last("wm", "Coton 60")
+    ac.relabel_last("wm", "Coton 60")
+    assert ac.summary("wm", program="Coton 60").samples == 2
+    assert UNKNOWN_PROGRAM not in ac.templates["wm"]
+
+
+def test_labelling_with_nothing_unknown_left_does_nothing() -> None:
+    ac = ApplianceCycles()
+    ac.add_template("wm", CycleTemplate(5400.0, 1.6, tuple([1400.0] * 24)), program="Coton 60")
+    assert ac.relabel_last("wm", "Coton 40") is None
+    assert ac.unlabelled_count("wm") == 0
+
+
+def test_labelling_from_a_named_source_is_possible_too() -> None:
+    # Fixing a mislabel: move the last cycle of one program to another.
+    ac = ApplianceCycles()
+    ac.add_template("wm", CycleTemplate(5400.0, 1.6, tuple([1400.0] * 24)), program="Coton 60")
+    ac.add_template("wm", CycleTemplate(2400.0, 0.3, tuple([200.0] * 24)), program="Coton 60")
+    assert ac.relabel_last("wm", "Coton 20", source="Coton 60") is not None
+    assert ac.summary("wm", program="Coton 60").samples == 1
+    assert ac.summary("wm", program="Coton 20").samples == 1
+
+
+def test_the_last_cycle_is_reported_on_its_own_not_as_a_median() -> None:
+    # Two cold washes then a hot one, all unknown. "The wash I just ran" must read
+    # as the hot cycle, not the blend of the three.
+    ac = ApplianceCycles()
+    for _ in range(2):
+        ac.add_template("wm", CycleTemplate(2400.0, 0.3, tuple([200.0] * 24)))
+    ac.add_template("wm", CycleTemplate(5400.0, 1.6, tuple([1400.0] * 24)))
+    last = ac.last_cycle("wm")
+    assert last is not None
+    assert last.energy_kwh > 1.0
+    assert round(last.duration_s / 60.0) == 90
+
+
+def test_the_last_cycle_of_an_untouched_appliance_is_none() -> None:
+    assert ApplianceCycles().last_cycle("wm") is None
+
+
+def test_a_labelled_cycle_survives_the_store() -> None:
+    ac = ApplianceCycles()
+    ac.add_template("wm", CycleTemplate(5400.0, 1.6, tuple([1400.0] * 24)))
+    ac.relabel_last("wm", "Coton 60")
+    back = ApplianceCycles.from_dict(ac.to_dict())
+    assert [s.program for s in back.summary_all("wm")] == ["Coton 60"]
+
+
 # --- a cycle in flight survives a restart ----------------------------------
 
 

@@ -50,6 +50,12 @@ const STR_EN = {
   "Éco. ce mois": "Savings (month)",
   "Éco. cette année": "Savings (year)",
   "Appareils — récupérable solaire": "Appliances — solar recoverable",
+  "Renommer ce programme": "Rename this program",
+  "Nouveau nom du programme :": "New program name:",
+  "Nom du cycle que vous venez de lancer (ex. Coton 40) :":
+    "Name the cycle you just ran (e.g. Cottons 40):",
+  "cycle(s) non étiqueté(s)": "unlabelled cycle(s)",
+  "Étiqueter le dernier": "Label the last one",
   "Liaisons peu fiables (24 h)": "Unreliable links (24 h)",
   dispo: "up",
   trou: "gap",
@@ -242,6 +248,36 @@ class SolarBalancePanel extends HTMLElement {
       }
       if (svc.dataset.confirm && !window.confirm(svc.dataset.confirm)) return;
       this._hass.callService("solarbalance", svc.dataset.service, args);
+      return;
+    }
+    // Rename a whole program bucket (the ✏️ on a program line).
+    const ren = path.find((n) => n.dataset && n.dataset.renameProgram);
+    if (ren && this._hass) {
+      const appliance = ren.dataset.renameAppliance;
+      const from = ren.dataset.renameProgram;
+      const to = window.prompt(this._t("Nouveau nom du programme :"), from);
+      if (to && to.trim() && to.trim() !== from) {
+        this._hass.callService("solarbalance", "rename_appliance_program", {
+          appliance,
+          from_program: from,
+          to_program: to.trim(),
+        });
+      }
+      return;
+    }
+    // Name the last finished cycle, moving it out of "unknown".
+    const lbl = path.find((n) => n.dataset && n.dataset.labelAppliance);
+    if (lbl && this._hass) {
+      const program = window.prompt(
+        this._t("Nom du cycle que vous venez de lancer (ex. Coton 40) :"),
+        ""
+      );
+      if (program && program.trim()) {
+        this._hass.callService("solarbalance", "label_last_cycle", {
+          appliance: lbl.dataset.labelAppliance,
+          program: program.trim(),
+        });
+      }
       return;
     }
     const dbg = path.find((n) => n.dataset && n.dataset.toggleDebug);
@@ -1152,7 +1188,7 @@ class SolarBalancePanel extends HTMLElement {
             }</span>`
           : "";
         // Nothing learned yet: say so plainly instead of showing a made-up figure.
-        if (!a.samples || a.solar_now_pct == null) {
+        if (!a.samples) {
           return `<div class="app-row">
               <div class="app-name">${a.name}${run}</div>
               <div class="app-meta">${this._t("apprentissage — aucun cycle complet enregistré")}</div>
@@ -1161,15 +1197,19 @@ class SolarBalancePanel extends HTMLElement {
         const dur = a.duration_min != null ? `${Math.round(a.duration_min)} min` : "?";
         const kwh = a.energy_kwh != null ? `${a.energy_kwh} kWh` : "?";
         const now = a.solar_now_pct;
-        // Colour by how much the sun would actually cover if started right now.
-        const cls = now >= 70 ? "ok" : now >= 40 ? "warn" : "bad";
-        let advice = `<span class="sun-now ${cls}">${now}% ${this._t("solaire maintenant")}</span>`;
-        // Only suggest waiting when it is materially better — nudging someone to
-        // delay a cycle for 3 points is noise, not advice.
-        if (a.best_hour != null && a.best_pct >= now + 10) {
-          advice += ` · <span class="sun-best">${a.best_pct}% ${this._t("à")} ${String(
-            a.best_hour
-          ).padStart(2, "0")}:00</span>`;
+        // The solar advice needs a PV forecast; without one, labelling and the
+        // learned cycles must still be usable, so only add advice when present.
+        let advice = "";
+        if (now != null) {
+          const cls = now >= 70 ? "ok" : now >= 40 ? "warn" : "bad";
+          advice = `<span class="sun-now ${cls}">${now}% ${this._t("solaire maintenant")}</span>`;
+          // Only suggest waiting when it is materially better — nudging someone to
+          // delay a cycle for 3 points is noise, not advice.
+          if (a.best_hour != null && a.best_pct >= now + 10) {
+            advice += ` · <span class="sun-best">${a.best_pct}% ${this._t("à")} ${String(
+              a.best_hour
+            ).padStart(2, "0")}:00</span>`;
+          }
         }
         const conf =
           a.samples < 3 ? ` <span class="mini-warn">${this._t("peu de cycles")}</span>` : "";
@@ -1188,13 +1228,29 @@ class SolarBalancePanel extends HTMLElement {
                     pr.best_hour
                   ).padStart(2, "0")}:00</span>`
                 : "";
+            const edit = `<button class="p-edit" title="${this._t(
+              "Renommer ce programme"
+            )}" data-rename-appliance="${a.name}" data-rename-program="${pr.program}">✏️</button>`;
             return `<div class="p-row">
-                <div class="p-name">${pr.program} <span class="p-n">×${pr.samples}</span></div>
+                <div class="p-name">${pr.program} <span class="p-n">×${pr.samples}</span>${edit}</div>
                 <div class="p-spark">${this._cycleSpark(pr.curve_w)}</div>
                 <div class="p-meta">${pr.duration_min} min · ${pr.energy_kwh} kWh ${pct}${better}</div>
               </div>`;
           })
           .join("");
+        // Smart-plug setups get no program signal, so finished cycles pile into
+        // "unknown". Offer to name the last one, one wash at a time.
+        let labelRow = "";
+        if (a.unlabelled) {
+          const lu = a.last_unlabelled;
+          const desc = lu ? ` (${lu.duration_min} min · ${lu.energy_kwh} kWh)` : "";
+          labelRow = `<div class="p-label">
+              <span class="mini">${a.unlabelled} ${this._t("cycle(s) non étiqueté(s)")}</span>
+              <button class="p-label-btn" data-label-appliance="${a.name}">${this._t(
+            "Étiqueter le dernier"
+          )}${desc}</button>
+            </div>`;
+        }
         return `<div class="app-row">
             <div class="app-name">${a.name}${run}${conf}</div>
             <div class="app-meta">${dur} · ${kwh}${
@@ -1202,6 +1258,7 @@ class SolarBalancePanel extends HTMLElement {
         }</div>
             <div class="app-advice">${advice}</div>
             ${progRows ? `<div class="p-list">${progRows}</div>` : ""}
+            ${labelRow}
           </div>`;
       })
       .join("");
@@ -1775,6 +1832,15 @@ class SolarBalancePanel extends HTMLElement {
         .p-meta { grid-column:1 / -1; font-size:.7rem; color:var(--secondary-text-color); }
         .p-sun { color:var(--success-color,#27ae60); font-weight:600; }
         .p-best { color:var(--info-color,#3d8bff); }
+        .p-edit { background:none; border:none; cursor:pointer; padding:0 4px;
+                  font-size:.72rem; opacity:.55; }
+        .p-edit:hover { opacity:1; }
+        .p-label { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+                   margin:4px 0 2px 8px; }
+        .p-label-btn { background:var(--secondary-background-color);
+                       color:var(--primary-text-color); border:1px solid var(--divider-color,#ddd);
+                       border-radius:6px; padding:2px 8px; font-size:.72rem; cursor:pointer; }
+        .p-label-btn:hover { background:var(--primary-color); color:#fff; }
         svg.cyc { width:120px; height:22px; }
         .cyc-fill { fill:var(--warning-color,#f5a623); opacity:.25; }
         .cyc-line { fill:none; stroke:var(--warning-color,#f5a623); stroke-width:1.2; }

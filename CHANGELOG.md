@@ -37,6 +37,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta81] — 2026-07-24
+
+### Added
+
+- **Étiquetage des cycles depuis le panneau.** Un montage sur prise ne remonte que la
+  puissance, jamais le programme, donc tous les cycles appris atterrissaient dans un seul sac
+  `unknown` — un 40° et un 20° mélangés, impossibles à distinguer, et le seul moyen de
+  renommer était un appel de service dans les Outils de développement. Deux affordances
+  arrivent dans la carte 🧺 :
+  - un **✏️ par programme** qui le renomme (appelle `rename_appliance_program` pour vous) ;
+  - un bouton **« Étiqueter le dernier »** quand des cycles `unknown` existent : il nomme
+    **uniquement le cycle qui vient de se terminer** — celui que vous reconnaissez comme « la
+    lessive que je viens de lancer » — et le sort du sac `unknown`. Répété après chaque
+    lessive, il **sépare les programmes un cycle à la fois**. Sa durée et son énergie sont
+    affichées pour le reconnaître (ce n'est pas la médiane du sac, mais bien le dernier).
+
+  Nouveau service **`solarbalance.label_last_cycle`** (`appliance`, `program`, `from_program`
+  optionnel pour corriger un mauvais libellé). Le libellé est persisté immédiatement et
+  survit à un redémarrage. La docstring qui prétendait qu'une entité `*_program` était lue
+  automatiquement décrivait un câblage inexistant — corrigée.
+
+### Changed
+
+- **Nouvelle icône** (le logo SolarBalance V2 : maison + batterie en équilibre face au
+  solaire). Le damier de transparence était incrusté dans le JPEG, y compris **sous** le
+  disque : il est retiré partout, le fond du disque est aplati en un bleu pâle uni et les
+  coins redeviennent transparents.
+
 ## [2.0.8-beta80] — 2026-07-24
 
 ### Added

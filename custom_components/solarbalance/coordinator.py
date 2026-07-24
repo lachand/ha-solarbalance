@@ -2795,14 +2795,31 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             )
         return moved
 
+    async def label_last_appliance_cycle(
+        self, appliance: str, program: str, *, source: str = "unknown"
+    ) -> bool:
+        """Label the most recently finished cycle (service + panel handler).
+
+        The smart-plug case: with no program signal every cycle lands in ``unknown``
+        together, so the user separates them one at a time by naming the wash they
+        just ran. Persists immediately, for the same reason a rename does.
+        """
+        known = [self._appliance_name(e) for e in self._appliance_entities]
+        target = next((n for n in known if n.lower() == appliance.lower()), appliance)
+        moved = self._appliance_cycles.relabel_last(target, program, source=source)
+        if moved is not None:
+            await self.async_persist_now()
+            _LOGGER.info("SolarBalance: labelled %s's last %s cycle as %r", target, source, program)
+        return moved is not None
+
     def _observe_appliances(self, snapshot: Snapshot) -> None:
         """Feed each observed appliance's power into the cycle learner (one float/tick).
 
-        The program label is read only when a cycle closes: appliance integrations
-        identify it well into the run, which is useless for predicting but exactly
-        what is needed to file the finished cycle. A sibling ``*_program`` entity is
-        used when it exists; otherwise the cycle is filed as unknown and everything
-        still works.
+        Cycles close under ``unknown``: a smart plug reports power only, with no
+        program signal to file them by. They are named afterwards — the whole
+        bucket via :meth:`rename_appliance_program`, or one cycle at a time via
+        :meth:`label_last_appliance_cycle`, which is what separates a 40° from a
+        20° when both land in the same bucket.
         """
         if not self._appliance_entities:
             return
@@ -2886,6 +2903,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             elapsed = self._appliance_cycles.elapsed_s(name, now_s)
             if running and elapsed is not None:
                 item["elapsed_min"] = round(elapsed / 60.0)
+            # The panel offers to label the last finished cycle only when there is
+            # an unlabelled one to name — and shows it so the user recognises it.
+            unlabelled = self._appliance_cycles.unlabelled_count(name)
+            if unlabelled:
+                item["unlabelled"] = unlabelled
+                last = self._appliance_cycles.last_cycle(name, program="unknown")
+                if last is not None:
+                    item["last_unlabelled"] = {
+                        "duration_min": round(last.duration_s / 60.0),
+                        "energy_kwh": round(last.energy_kwh, 2),
+                    }
             summary = self._appliance_cycles.summary(name)
             if summary is not None:
                 item.update(

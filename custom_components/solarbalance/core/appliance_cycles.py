@@ -277,6 +277,48 @@ class ApplianceCycles:
         del target[:-_MAX_TEMPLATES]
         return len(moved)
 
+    def relabel_last(
+        self, name: str, new: str, *, source: str = UNKNOWN_PROGRAM
+    ) -> CycleTemplate | None:
+        """Move only the *most recent* cycle of ``source`` to program ``new``.
+
+        The whole-bucket rename is no use to a smart-plug setup: with no program
+        signal every cycle lands in ``unknown`` together, so a 40° and a 20° pile
+        into one bucket. This peels off just the cycle that finished last — the one
+        the user recognises as "the wash I just ran" — so the buckets separate one
+        cycle at a time. Returns the moved template, or ``None`` when there is
+        nothing to move or the label would not change anything.
+        """
+        by_program = self.templates.get(name)
+        if not by_program or source == new:
+            return None
+        bucket = by_program.get(source)
+        if not bucket:
+            return None
+        template = bucket.pop()
+        if not bucket:
+            del by_program[source]
+        target = by_program.setdefault(new, [])
+        target.append(template)
+        del target[:-_MAX_TEMPLATES]
+        return template
+
+    def unlabelled_count(self, name: str) -> int:
+        """How many recorded cycles are still filed under ``unknown``."""
+        return len((self.templates.get(name) or {}).get(UNKNOWN_PROGRAM, []))
+
+    def last_cycle(self, name: str, *, program: str = UNKNOWN_PROGRAM) -> CycleSummary | None:
+        """The single most recently recorded cycle of a program, as its own summary.
+
+        This is the one :meth:`relabel_last` would move — shown so the user can
+        recognise "the wash I just ran" before naming it, rather than a median that
+        blends it with older cycles.
+        """
+        bucket = (self.templates.get(name) or {}).get(program)
+        if not bucket:
+            return None
+        return self._summarise(program, [bucket[-1]])
+
     def match(self, name: str, prefix: Sequence[tuple[float, float]]) -> CycleMatch | None:
         """Best template for a cycle in progress, from its power prefix so far.
 
