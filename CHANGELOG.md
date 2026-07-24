@@ -37,6 +37,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta73] — 2026-07-24
+
+### Added
+
+- **Repli « solaire seul » quand le compteur réseau manque** (option *Keep storing solar…*,
+  désactivée par défaut). Perdre le compteur rend la zéro-injection impossible — mais pas
+  aveugle pour autant : la PV reste mesurée aux onduleurs, et le profil de consommation
+  horaire sait à peu près ce que tire la maison. Le repli estime donc le surplus
+  (`PV mesurée − conso apprise`) et en charge une **part minorée** (70 % par défaut,
+  réglable). Le 24/07, ça aurait transformé **38 minutes d'inaction en plein soleil** en
+  38 minutes de stockage.
+
+  Conçu autour du fait que l'estimation peut être fausse :
+  - **charge uniquement, jamais de décharge** — sans compteur, une injection passerait inaperçue ;
+  - **une fraction seulement** du surplus estimé, pour qu'une conso sous-estimée mange la
+    marge au lieu de tirer sur le réseau ;
+  - **rien sous un plancher** (150 W), un petit surplus étant indiscernable de l'erreur de profil ;
+  - **rien sans télémétrie PV fraîche**, ni sans profil appris, ni batterie pleine.
+
+  L'état du repli (actif, puissance, raison) est exposé en diagnostic. Sans activation
+  explicite, le comportement reste **exactement celui d'avant**.
+
 ## [2.0.8-beta72] — 2026-07-24
 
 ### Added

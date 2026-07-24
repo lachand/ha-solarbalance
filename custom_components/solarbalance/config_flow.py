@@ -53,6 +53,8 @@ from .const import (
     CONF_PV_FORECAST_TOMORROW_ENTITY,
     CONF_SOC_EQUALISER_ENABLED,
     CONF_SOC_EQUALISER_MAX_W,
+    CONF_SOLAR_FALLBACK_ENABLED,
+    CONF_SOLAR_FALLBACK_SAFETY_PCT,
     CONF_SPOT_MARKUP,
     CONF_SPOT_PRICE_ENTITY,
     CONF_SUBSCRIBED_POWER_KVA,
@@ -93,6 +95,7 @@ from .const import (
     DEFAULT_PHASES,
     DEFAULT_PV_DROP_COMPENSATION_ENABLED,
     DEFAULT_SOC_EQUALISER_MAX_W,
+    DEFAULT_SOLAR_FALLBACK_SAFETY_PCT,
     DEFAULT_SPOT_MARKUP,
     DEFAULT_TARIFF_TYPE,
     DEFAULT_TEMPO_RED_PREP_SOC_PCT,
@@ -197,6 +200,10 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
             "sensor"
         ),
         vol.Optional(
+            CONF_SOLAR_FALLBACK_ENABLED,
+            default=d.get(CONF_SOLAR_FALLBACK_ENABLED, False),
+        ): bool,
+        vol.Optional(
             CONF_PV_DROP_COMPENSATION_ENABLED,
             default=d.get(CONF_PV_DROP_COMPENSATION_ENABLED, DEFAULT_PV_DROP_COMPENSATION_ENABLED),
         ): bool,
@@ -283,6 +290,12 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
                     CONF_ANTICIPATION_HORIZON_MIN,
                     default=d.get(CONF_ANTICIPATION_HORIZON_MIN, DEFAULT_ANTICIPATION_HORIZON_MIN),
                 ): vol.All(vol.Coerce(int), vol.Range(min=5, max=30)),
+                vol.Optional(
+                    CONF_SOLAR_FALLBACK_SAFETY_PCT,
+                    default=d.get(
+                        CONF_SOLAR_FALLBACK_SAFETY_PCT, DEFAULT_SOLAR_FALLBACK_SAFETY_PCT
+                    ),
+                ): vol.All(vol.Coerce(int), vol.Range(min=10, max=100)),
                 vol.Optional(
                     CONF_ANTICIPATION_MARGIN_W,
                     default=d.get(CONF_ANTICIPATION_MARGIN_W, DEFAULT_ANTICIPATION_MARGIN_W),

@@ -130,6 +130,9 @@ DEFAULT_ANTICIPATION_HORIZON_MIN: Final = 12
 # Projected export must beat the sink budget by this much before pre-curtailing —
 # keeps forecast noise from braking the array for nothing.
 DEFAULT_ANTICIPATION_MARGIN_W: Final = 100
+# Fraction (%) of the *estimated* surplus commanded by the solar-only fallback. Well
+# under 100 so an underestimated house load eats the margin, not the grid.
+DEFAULT_SOLAR_FALLBACK_SAFETY_PCT: Final = 70
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1
@@ -215,6 +218,10 @@ CONF_APPLIANCE_POWER_ENTITIES: Final = "appliance_power_entities"
 # Fallback grid-power sensor used when the PDL meter goes unavailable. Without it a
 # meter dropout suspends regulation entirely (observed: 38 min lost at sunrise).
 CONF_GRID_BACKUP_ENTITY: Final = "grid_backup_entity"
+# Keep charging the estimated PV surplus when the grid meter is gone, instead of
+# suspending everything. Commands hardware on an estimate, so opt-in.
+CONF_SOLAR_FALLBACK_ENABLED: Final = "solar_fallback_enabled"
+CONF_SOLAR_FALLBACK_SAFETY_PCT: Final = "solar_fallback_safety_pct"
 
 # Adaptive volatility damper: smooth the grid signal fed to the regulation loop
 # more when it is volatile (motor-type loads), so the battery tracks the slow

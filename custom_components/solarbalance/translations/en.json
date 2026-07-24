@@ -55,7 +55,8 @@
               "baseline_floor_margin_w": "Baseline floor margin below talon (W): floor the shown baseline at max(0, talon − margin) so a stale cloud battery discharging can't drive it negative",
               "fleet_reversal_dwell_s": "Charge↔discharge reversal dwell (s): keep the fleet in one direction this long before reversing, so a solar-first box (STREAM) doesn't thrash self_powered↔scheduled near house=PV; 0 disables",
               "anticipation_horizon_min": "Anticipation horizon (min): how far ahead the sink budget is projected. Longer = brakes earlier",
-              "anticipation_margin_w": "Anticipation margin (W): forecast export must beat the sink budget by this much before pre-curtailing (guards against forecast noise)"
+              "anticipation_margin_w": "Anticipation margin (W): forecast export must beat the sink budget by this much before pre-curtailing (guards against forecast noise)",
+              "solar_fallback_safety_pct": "Solar-only fallback: share (%) of the *estimated* surplus actually commanded. Below 100 so an underestimated house load eats the margin instead of drawing from the grid."
             }
           }
         }
@@ -103,7 +104,8 @@
           "pv_drop_compensation_enabled": "PV-drop compensation: on a sudden PV drop (cloud), discharge the lost PV immediately (faster than the loop)",
           "anticipatory_curtailment_enabled": "Anticipatory PV curtailment (pre-brake from the forecast, before the batteries fill)",
           "appliance_power_entities": "Appliance power sensors (washing machine, dishwasher…) — their cycles are learned so the panel can advise when running one would be covered by solar. Observed only, never controlled.",
-          "grid_backup_entity": "Backup grid sensor — used when the PDL meter goes unavailable, so a meter dropout no longer suspends regulation. Same sign convention as the PDL."
+          "grid_backup_entity": "Backup grid sensor — used when the PDL meter goes unavailable, so a meter dropout no longer suspends regulation. Same sign convention as the PDL.",
+          "solar_fallback_enabled": "Keep storing solar when the grid meter is unavailable — estimates the surplus from measured PV minus the learned house load and charges a derated share of it. Charge only, never discharge (without a meter an export could not be detected)."
         },
         "sections": {
           "advanced": {
@@ -120,7 +122,8 @@
               "baseline_floor_margin_w": "Baseline floor margin below talon (W): floor the shown baseline at max(0, talon − margin) so a stale cloud battery discharging can't drive it negative",
               "fleet_reversal_dwell_s": "Charge↔discharge reversal dwell (s): keep the fleet in one direction this long before reversing, so a solar-first box (STREAM) doesn't thrash self_powered↔scheduled near house=PV; 0 disables",
               "anticipation_horizon_min": "Anticipation horizon (min): how far ahead the sink budget is projected. Longer = brakes earlier",
-              "anticipation_margin_w": "Anticipation margin (W): forecast export must beat the sink budget by this much before pre-curtailing (guards against forecast noise)"
+              "anticipation_margin_w": "Anticipation margin (W): forecast export must beat the sink budget by this much before pre-curtailing (guards against forecast noise)",
+              "solar_fallback_safety_pct": "Solar-only fallback: share (%) of the *estimated* surplus actually commanded. Below 100 so an underestimated house load eats the margin instead of drawing from the grid."
             }
           }
         }

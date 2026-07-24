@@ -79,3 +79,46 @@ def test_the_meter_sign_convention_applies_to_the_backup_too() -> None:
         state_getter=lambda eid: states.get(eid),  # type: ignore[arg-type]
     )
     assert reader._read_grid_power() == -85.0
+
+
+# --- solar-only fallback ---------------------------------------------------
+
+
+def test_fallback_charges_when_blind_but_sunny() -> None:
+    """The 2026-07-24 case: meter gone at sunrise, PV available, batteries with room.
+
+    Rather than idling for 38 minutes, command a derated share of the estimated
+    surplus. The estimate is PV minus the learned house load for this hour.
+    """
+    from custom_components.solarbalance.core.controllers.solar_fallback import (
+        solar_only_target_w,
+    )
+
+    res = solar_only_target_w(
+        enabled=True,
+        pv_available=True,
+        controllable_mppt_w=1200.0,
+        predicted_house_w=300.0,
+        headroom_kwh=3.0,
+        safety_factor=0.7,
+    )
+    assert res.active is True
+    assert res.charge_w == 630.0  # 70 % of the 900 W estimated surplus
+    assert res.charge_w > 0, "a charge-only fallback must never command a discharge"
+
+
+def test_fallback_stays_out_of_the_way_when_disabled() -> None:
+    """Default behaviour is unchanged: no config, no blind commands."""
+    from custom_components.solarbalance.core.controllers.solar_fallback import (
+        solar_only_target_w,
+    )
+
+    res = solar_only_target_w(
+        enabled=False,
+        pv_available=True,
+        controllable_mppt_w=1200.0,
+        predicted_house_w=300.0,
+        headroom_kwh=3.0,
+    )
+    assert res.active is False
+    assert res.charge_w == 0.0

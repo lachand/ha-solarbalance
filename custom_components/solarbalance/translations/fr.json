@@ -55,7 +55,8 @@
               "baseline_floor_margin_w": "Marge plancher baseline sous le talon (W) : plafonne la baseline affichée à max(0, talon − marge) pour qu'une batterie cloud en timeout qui décharge ne la rende pas négative",
               "fleet_reversal_dwell_s": "Délai anti-bascule charge↔décharge (s) : garder le parc dans une direction ce temps avant d'inverser, pour qu'un onduleur solar-first (STREAM) n'oscille pas self_powered↔scheduled autour de maison=PV ; 0 désactive",
               "anticipation_horizon_min": "Horizon d'anticipation (min) : à quelle distance le bilan de puits est projeté. Plus long = freine plus tôt",
-              "anticipation_margin_w": "Marge d'anticipation (W) : l'export prévu doit dépasser le bilan de puits d'au moins ça avant de pré-brider (garde-fou contre le bruit de prévision)"
+              "anticipation_margin_w": "Marge d'anticipation (W) : l'export prévu doit dépasser le bilan de puits d'au moins ça avant de pré-brider (garde-fou contre le bruit de prévision)",
+              "solar_fallback_safety_pct": "Repli solaire : part (%) du surplus *estimé* réellement commandée. Sous 100 % pour qu'une conso sous-estimée mange la marge au lieu de tirer sur le réseau."
             }
           }
         }
@@ -103,7 +104,8 @@
           "pv_drop_compensation_enabled": "Compensation chute PV : sur une chute soudaine (nuage), décharger la perte tout de suite (plus rapide que la boucle)",
           "anticipatory_curtailment_enabled": "Bridage PV anticipé (pré-brider d'après la prévision, avant que les batteries soient pleines)",
           "appliance_power_entities": "Capteurs de puissance des appareils (machine à laver, lave-vaisselle…) — leurs cycles sont appris pour conseiller quand les lancer en solaire. Observés seulement, jamais pilotés.",
-          "grid_backup_entity": "Compteur réseau de secours — utilisé quand le compteur PDL devient indisponible, pour qu'une coupure ne suspende plus la régulation. Même convention de signe que le PDL."
+          "grid_backup_entity": "Compteur réseau de secours — utilisé quand le compteur PDL devient indisponible, pour qu'une coupure ne suspende plus la régulation. Même convention de signe que le PDL.",
+          "solar_fallback_enabled": "Continuer à stocker le solaire quand le compteur est indisponible — estime le surplus depuis la PV mesurée moins la consommation apprise, et en charge une part minorée. Charge uniquement, jamais de décharge (sans compteur, une injection passerait inaperçue)."
         },
         "sections": {
           "advanced": {
@@ -120,7 +122,8 @@
               "baseline_floor_margin_w": "Marge plancher baseline sous le talon (W) : plafonne la baseline affichée à max(0, talon − marge) pour qu'une batterie cloud en timeout qui décharge ne la rende pas négative",
               "fleet_reversal_dwell_s": "Délai anti-bascule charge↔décharge (s) : garder le parc dans une direction ce temps avant d'inverser, pour qu'un onduleur solar-first (STREAM) n'oscille pas self_powered↔scheduled autour de maison=PV ; 0 désactive",
               "anticipation_horizon_min": "Horizon d'anticipation (min) : à quelle distance le bilan de puits est projeté. Plus long = freine plus tôt",
-              "anticipation_margin_w": "Marge d'anticipation (W) : l'export prévu doit dépasser le bilan de puits d'au moins ça avant de pré-brider (garde-fou contre le bruit de prévision)"
+              "anticipation_margin_w": "Marge d'anticipation (W) : l'export prévu doit dépasser le bilan de puits d'au moins ça avant de pré-brider (garde-fou contre le bruit de prévision)",
+              "solar_fallback_safety_pct": "Repli solaire : part (%) du surplus *estimé* réellement commandée. Sous 100 % pour qu'une conso sous-estimée mange la marge au lieu de tirer sur le réseau."
             }
           }
         }

@@ -69,6 +69,8 @@ from .const import (
     CONF_SOC_EQUALISER_MAX_W,
     CONF_SOC_EQUALISER_MIN_PV_W,
     CONF_SOC_EQUALISER_PROBE_STEP_W,
+    CONF_SOLAR_FALLBACK_ENABLED,
+    CONF_SOLAR_FALLBACK_SAFETY_PCT,
     CONF_SPOT_MARKUP,
     CONF_SPOT_PRICE_ENTITY,
     CONF_SUBSCRIBED_POWER_KVA,
@@ -122,6 +124,7 @@ from .const import (
     DEFAULT_SOC_EQUALISER_MAX_W,
     DEFAULT_SOC_EQUALISER_MIN_PV_W,
     DEFAULT_SOC_EQUALISER_PROBE_STEP_W,
+    DEFAULT_SOLAR_FALLBACK_SAFETY_PCT,
     DEFAULT_SPOT_MARKUP,
     DEFAULT_STORM_TARGET_SOC_PCT,
     DEFAULT_TARIFF_TYPE,
@@ -178,6 +181,7 @@ from .core.controllers.regulation import (
     resolve_total_power,
 )
 from .core.controllers.soc_equaliser import SocEqualiserController
+from .core.controllers.solar_fallback import SolarFallbackResult, solar_only_target_w
 from .core.controllers.solar_recovery import best_start, estimate_solar_share
 from .core.controllers.zero_injection import (
     PerPhaseZeroInjectionController,
@@ -389,6 +393,10 @@ class RegulationDiagnostics:
     grid_rejects: int = 0
     # Which meter answered this tick: primary | backup | none.
     grid_source: str = "primary"
+    # Solar-only fallback while the grid meter is missing.
+    solar_fallback_active: bool = False
+    solar_fallback_w: float = 0.0
+    solar_fallback_reason: str = "disabled"
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -848,6 +856,14 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # later one turns out to be impossible (see core/plausibility.py).
         self._last_plausible_grid_w: float | None = None
         self._grid_rejects: int = 0
+        # Solar-only fallback: keep storing PV when the grid meter is unavailable
+        # rather than idling. Opt-in — it commands on an estimate, not a measurement.
+        self._solar_fallback_enabled = bool(cfg.get(CONF_SOLAR_FALLBACK_ENABLED, False))
+        self._solar_fallback_safety = (
+            float(cfg.get(CONF_SOLAR_FALLBACK_SAFETY_PCT, DEFAULT_SOLAR_FALLBACK_SAFETY_PCT))
+            / 100.0
+        )
+        self._solar_fallback: SolarFallbackResult | None = None
         # Real-time PV-drop detector (passing cloud) — exposed for observability,
         # and (opt-in) feeds a fast discharge feed-forward via the settle window.
         self._pv_drop = PvDropDetector()
@@ -2224,6 +2240,23 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # silently clamped on write, so without this the velocity-form loop winds up past
         # the physical limit (unalloc never reflecting the clamp). Reading the entity max
         # into the allocation keeps unalloc — and the anti-windup below — honest.
+        # Grid meter gone: rather than idling under a full sun, estimate the surplus
+        # from measured PV minus the learned house load and charge a fraction of it.
+        # Charge-only and heavily derated — see core/controllers/solar_fallback.py.
+        self._solar_fallback = None
+        if self._mode is HemsMode.DEGRADED:
+            pv_fresh = any(m.available for m in snapshot.mppts)
+            headroom = sum(n.deficit_kwh for n in self._battery_charge_needs(snapshot))
+            self._solar_fallback = solar_only_target_w(
+                enabled=self._solar_fallback_enabled,
+                pv_available=pv_fresh,
+                controllable_mppt_w=controllable_mppt_w,
+                predicted_house_w=self.predicted_consumption_now_w,
+                headroom_kwh=headroom,
+                safety_factor=self._solar_fallback_safety,
+            )
+            total_power_w = self._solar_fallback.charge_w if self._solar_fallback.active else 0.0
+
         charge_caps: dict[str, float] = {}
         for device in self._devices:
             batt = device.battery
@@ -2292,6 +2325,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             time_to_saturation_s=anticipation.time_to_saturation_s,
             grid_rejects=self._grid_rejects,
             grid_source=self._reader.grid_source,
+            solar_fallback_active=bool(self._solar_fallback and self._solar_fallback.active),
+            solar_fallback_w=(self._solar_fallback.charge_w if self._solar_fallback else 0.0),
+            solar_fallback_reason=(
+                self._solar_fallback.reason if self._solar_fallback else "disabled"
+            ),
         )
         self._autotune_suggestions()
 
@@ -3606,7 +3644,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             return  # observe-only: compute setpoints/sensors but never write
         if not (self._active_control_enabled and self._active_control.enabled):
             return
-        if self._mode is HemsMode.DEGRADED:
+        fallback_active = self._solar_fallback is not None and self._solar_fallback.active
+        if self._mode is HemsMode.DEGRADED and not fallback_active:
             if not self._active_control_suspended:
                 await self._active_control.reset()
                 if self._curtailment is not None:
