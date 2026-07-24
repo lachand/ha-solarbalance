@@ -37,6 +37,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta82] — 2026-07-24
+
+### Changed
+
+- **Icône affinée** : fond **entièrement transparent** (plus de disque bleu), et le
+  **wordmark « SOLARBALANCE » retiré** — seul le graphique de la balance (maison + batterie
+  face au solaire) est conservé, recadré pour **remplir le carré**, donc bien plus lisible en
+  petite taille. Détourage piloté par le trait lui-même (les traits saturés restent, le fond
+  pâle disparaît) avec un rééchantillonnage prémultiplié pour des bords nets sans halo.
+
 ## [2.0.8-beta81] — 2026-07-24
 
 ### Added
