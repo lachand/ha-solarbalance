@@ -236,6 +236,59 @@ class EntityReader:
             return None
         return (dt_util.utcnow() - state.last_updated).total_seconds()
 
+    def link_ages(self) -> dict[str, float | None]:
+        """Age of every entity the loop depends on, keyed by a stable label.
+
+        Feeds :mod:`..core.link_health`. The labels are the reader's business
+        because only it knows which entity backs which role; the scoring is the
+        core's. ``None`` means the entity has no usable state at all — which is a
+        gap, not a large age, and the two must not be confused.
+
+        Deliberately limited to what regulation actually reads. Scoring every
+        mapped entity would bury the meter and the batteries — the links whose
+        silence stops the house regulating — under a list of temperature sensors.
+        """
+        ages: dict[str, float | None] = {}
+
+        pdl = next((m for m in self._meters if m.kind is MeterKind.PDL), None)
+        if pdl is not None:
+            ages["grid/pdl"] = self._entity_age_s(pdl.power_entity)
+        if self._grid_backup_entity:
+            ages["grid/backup"] = self._entity_age_s(self._grid_backup_entity)
+
+        for device in self._devices:
+            if device.battery is not None:
+                if device.battery.soc_entity:
+                    ages[f"{device.name}/soc"] = self._entity_age_s(device.battery.soc_entity)
+                power_entities = [
+                    *device.battery.power_entities,
+                    device.battery.charge_power_entity,
+                    device.battery.discharge_power_entity,
+                ]
+                # A battery may report power through any one of several entities
+                # (the STREAM's system-power sensor hops between them), so the
+                # freshest of them is what "the battery is reporting" means.
+                fresh = [
+                    age
+                    for eid in power_entities
+                    if eid
+                    for age in (self._entity_age_s(eid),)
+                    if age is not None
+                ]
+                if fresh or any(power_entities):
+                    ages[f"{device.name}/power"] = min(fresh) if fresh else None
+            if device.mppt is not None and device.mppt.power_entities:
+                mppt_ages = [
+                    age
+                    for eid in device.mppt.power_entities
+                    if eid
+                    for age in (self._entity_age_s(eid),)
+                    if age is not None
+                ]
+                ages[f"{device.name}/mppt"] = min(mppt_ages) if mppt_ages else None
+
+        return ages
+
     def _read_battery_power(self, device: Device) -> float | None:
         battery = device.battery
         assert battery is not None  # guarded by caller

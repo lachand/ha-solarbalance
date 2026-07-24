@@ -856,6 +856,12 @@
       },
       "appliance_advice": {
         "name": "Appliance advice"
+      },
+      "link_health": {
+        "name": "Link health (weakest)"
+      },
+      "orchestration_gain": {
+        "name": "Orchestration gain today"
       }
     },
     "select": {

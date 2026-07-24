@@ -104,6 +104,8 @@ async def async_setup_entry(
         SolarBalanceConsumptionForecastSensor(coordinator, entry),
         SolarBalanceApplianceAdviceSensor(coordinator, entry),
         SolarBalanceConsumptionForecastErrorSensor(coordinator, entry),
+        SolarBalanceLinkHealthSensor(coordinator, entry),
+        SolarBalanceOrchestrationGainSensor(coordinator, entry),
     ]
     if coordinator._curtailment is not None:
         entities.append(
@@ -1343,6 +1345,93 @@ class SolarBalancePlannerRecommendedPowerSensor(_SolarBalanceSensor):
                 }
                 for slot in plan.schedule
             ],
+        }
+
+
+class SolarBalanceLinkHealthSensor(_SolarBalanceSensor):
+    """How reliably the weakest mapped entity has been reporting (0-100).
+
+    The state is the *worst* link rather than an average: an average would let
+    nine healthy sensors hide the one that stopped the house regulating, which is
+    the failure mode this sensor exists to catch.
+    """
+
+    _unrecorded_attributes = frozenset({"links"})
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:link-variant"
+    _attr_suggested_display_precision = 0
+    _attr_translation_key = "link_health"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "link_health")
+
+    @property
+    def native_value(self) -> float | None:
+        worst = self.coordinator.weakest_link
+        return worst.score if worst is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        rows = self.coordinator.link_health
+        if not rows:
+            return None
+        worst = self.coordinator.weakest_link
+        return {
+            "weakest": worst.key if worst is not None else None,
+            "verdict": worst.verdict if worst is not None else "unknown",
+            "links": [
+                {
+                    "key": s.key,
+                    "score": s.score,
+                    "available_pct": s.available_pct,
+                    "median_age_s": s.median_age_s,
+                    "longest_gap_s": s.longest_gap_s,
+                    "dropouts": s.dropouts,
+                    "samples": s.samples,
+                    "verdict": s.verdict,
+                }
+                for s in rows
+            ],
+        }
+
+
+class SolarBalanceOrchestrationGainSensor(_SolarBalanceSensor):
+    """Today's gain over plain self-consumption on the same hardware (EUR).
+
+    Distinct from ``daily_savings``, which values PV + battery against having
+    neither. This one answers the harder question: what does *orchestrating*
+    them add over letting them run themselves?
+    """
+
+    _attr_native_unit_of_measurement = "EUR"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:scale-balance"
+    _attr_suggested_display_precision = 2
+    _attr_translation_key = "orchestration_gain"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "orchestration_gain")
+
+    @property
+    def native_value(self) -> float:
+        return round(self.coordinator.counterfactual.savings_eur, 3)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        res = self.coordinator.counterfactual
+        return {
+            "actual_cost_eur": res.actual_cost_eur,
+            "naive_cost_eur": res.naive_cost_eur,
+            "actual_import_kwh": res.actual_import_kwh,
+            "naive_import_kwh": res.naive_import_kwh,
+            "actual_export_kwh": res.actual_export_kwh,
+            "naive_export_kwh": res.naive_export_kwh,
+            "stored_delta_kwh": res.stored_delta_kwh,
+            "hours_compared": res.hours,
         }
 
 

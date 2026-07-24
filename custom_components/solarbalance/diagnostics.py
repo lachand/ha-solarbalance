@@ -52,6 +52,34 @@ async def async_get_config_entry_diagnostics(
         "remaining_pv_today_kwh": coord.remaining_pv_today_kwh,
         "settle_ticks_remaining": coord._settle_state.ticks_remaining,
     }
+    # 24 h of per-entity reporting record. First thing to read on any "it stopped
+    # regulating" report: it distinguishes a control fault from a silent sensor,
+    # which took hours to tell apart by hand.
+    data["links"] = [
+        {
+            "key": s.key,
+            "score": s.score,
+            "available_pct": s.available_pct,
+            "median_age_s": s.median_age_s,
+            "longest_gap_s": s.longest_gap_s,
+            "dropouts": s.dropouts,
+            "samples": s.samples,
+            "verdict": s.verdict,
+        }
+        for s in coord.link_health
+    ]
+    cf = coord.counterfactual
+    data["counterfactual"] = {
+        "savings_eur": cf.savings_eur,
+        "actual_cost_eur": cf.actual_cost_eur,
+        "naive_cost_eur": cf.naive_cost_eur,
+        "actual_import_kwh": cf.actual_import_kwh,
+        "naive_import_kwh": cf.naive_import_kwh,
+        "actual_export_kwh": cf.actual_export_kwh,
+        "naive_export_kwh": cf.naive_export_kwh,
+        "stored_delta_kwh": cf.stored_delta_kwh,
+        "hours": cf.hours,
+    }
     diag = coord._diagnostics
     if diag is not None:
         data["regulation"] = {

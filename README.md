@@ -8,7 +8,7 @@
 
 SolarBalance orchestrates photovoltaic production, battery storage, and electrical loads in your home to meet one or several energy goals (self-consumption, cost minimization, autonomy, hardware longevity), while adapting to dynamic context (tariffs, weather, grid alerts).
 
-> **Status**: stable **v2.0.7**; pre-release **v2.0.8-beta78** (enable beta versions in HACS) starts **Wave 4 — predictive**: a learned hour-of-day **consumption forecast** now feeds the planner, and **anticipatory PV curtailment** pre-brakes the array from the forecast before the batteries fill. Core engine, all strategies, **active hardware control** (incl. mode-switch batteries like the EcoFlow STREAM), a **device-preset add wizard** (auto-detects matching entities), zero-injection (auto-tuned, AC-output-aware), the **SoC equaliser** (PV-gated), watchdog, services and Lovelace examples are functional. The consumption profile is **recorder-seeded** (accurate from day one) and refined online. Next in Wave 4: real-time PV-drop detection, battery-health throttling.
+> **Status**: stable **v2.0.7**; pre-release **v2.0.8-beta79** (enable beta versions in HACS) starts **Wave 4 — predictive**: a learned hour-of-day **consumption forecast** now feeds the planner, and **anticipatory PV curtailment** pre-brakes the array from the forecast before the batteries fill. Core engine, all strategies, **active hardware control** (incl. mode-switch batteries like the EcoFlow STREAM), a **device-preset add wizard** (auto-detects matching entities), zero-injection (auto-tuned, AC-output-aware), the **SoC equaliser** (PV-gated), watchdog, services and Lovelace examples are functional. The consumption profile is **recorder-seeded** (accurate from day one) and refined online. Next in Wave 4: real-time PV-drop detection, battery-health throttling.
 
 ## Highlights
 
@@ -24,6 +24,8 @@ SolarBalance orchestrates photovoltaic production, battery storage, and electric
 - **Tariffs** — flat / HC-HP / EDF Tempo / spot (Nordpool/EPEX), in YAML or UI; cost & savings tracking with month/year cumulative sensors wired to the HA Energy dashboard.
 - **Storm mode** — automatic SoC ramp-up on Météo-France weather warnings.
 - **Forecast-aware** — integrates with existing Solcast / Forecast.Solar / OpenMeteo PV forecasts.
+- **Link health** — every entity the loop depends on is scored over a rolling 24 h: availability, median age, longest gap, dropout count. The score weighs the *longest gap* on top of the rate, because 3 % of readings lost in one 40-minute hole stops the house regulating while the same 3 % scattered costs nothing. Surfaces the weakest link, not an average.
+- **Orchestration gain** — a shadow controller with the same hardware limits runs plain self-consumption against the same house and the same production, priced at the same tariff. The gap between the two bills (with each side's remaining charge settled) is what the orchestration is actually worth — a stricter question than "what do the panels save?".
 - **Diagnostics** — `config_health` binary sensor + persistent notifications for config mistakes (zero battery capacity, missing `min_charge_w`…), plus a downloadable HA diagnostics export.
 - **HA services** — `pause`, `resume`, `force_charge`, `force_discharge`, `force_charge_load`, `cancel_force_charge_load`, `set_mode`, `activate_storm_mode` callable from automations or the dashboard.
 

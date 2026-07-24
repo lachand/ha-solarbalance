@@ -37,6 +37,46 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta79] — 2026-07-24
+
+### Added
+
+- **Score de santé des liaisons (24 h).** Trois incidents cette semaine étaient des pannes
+  de capteur déguisées en bugs de régulation — dont les 38 minutes de compteur muet au lever
+  du soleil le 24/07. Rien n'enregistrait *à quelle fréquence une liaison répond*, seulement
+  si elle répondait à l'instant. Chaque entité dont dépend la boucle (compteur PDL et son
+  secours, SoC et puissance de chaque batterie, MPPT) est désormais suivie : **% de
+  disponibilité, âge médian, plus long trou, nombre de coupures**, sur une fenêtre glissante
+  de 24 h persistée entre redémarrages.
+
+  Le score n'est pas la disponibilité. Un compteur qui rate 3 % des relevés dispersés ne
+  coûte rien — le filtre médian les absorbe ; les mêmes 3 % **en un seul trou de 40 minutes**
+  arrêtent la maison. Le score pénalise donc le plus long trou en plus du taux, et un
+  incident réel passe devant n'importe quelle quantité de bruit. Nouveau capteur de
+  diagnostic (état = la liaison **la plus faible**, jamais une moyenne qui laisserait neuf
+  capteurs sains masquer celui qui a lâché), carte de panneau qui **ne s'affiche que quand
+  quelque chose ne va pas**, et export dans les diagnostics HA.
+
+- **Apport réel de l'orchestration** (`sensor.solarbalance_orchestration_gain_today`).
+  Le chiffre d'économies existant compare « PV + batterie » à « rien du tout » — mais
+  débranchez SolarBalance et les batteries continuent l'autoconsommation toutes seules :
+  l'essentiel de ce gain survit. La question qui compte est marginale : *qu'apporte le
+  pilotage face au même matériel laissé à lui-même ?*
+
+  Un contrôleur fantôme tourne donc en parallèle, avec **exactement** les limites de
+  puissance et la plage de SoC du parc réel, face à la **même** maison et à la **même**
+  production (les deux dérivées des mêmes mesures : aucun scénario n'a une journée plus
+  facile). Ses flux réseau sont facturés au même tarif, et l'écart entre les deux factures
+  est la réponse. L'énergie encore stockée de part et d'autre est **valorisée** à la fin :
+  sans cela, la réserve du soir apparaîtrait comme une perte sèche jusqu'à 18 h. La
+  production non bridée n'est pas modélisée, ce qui rend l'estimation **conservatrice** —
+  jamais flatteuse.
+
+### Fixed
+
+- Un numéro de série réel (`stream_60605`) traînait encore dans un test — remplacé par un
+  placeholder.
+
 ## [2.0.8-beta78] — 2026-07-24
 
 ### Fixed

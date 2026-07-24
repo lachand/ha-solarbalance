@@ -50,6 +50,19 @@ const STR_EN = {
   "Éco. ce mois": "Savings (month)",
   "Éco. cette année": "Savings (year)",
   "Appareils — récupérable solaire": "Appliances — solar recoverable",
+  "Liaisons peu fiables (24 h)": "Unreliable links (24 h)",
+  dispo: "up",
+  trou: "gap",
+  coupures: "dropouts",
+  "Apport de l'orchestration": "What the orchestration adds",
+  "Gain vs autoconso simple": "Gain vs plain self-consumption",
+  "Facture réelle": "Actual bill",
+  "Facture sans pilotage": "Bill without orchestration",
+  "Charge conservée": "Charge held back",
+  "Comparaison en cours — trop tôt pour un chiffre.":
+    "Comparison under way — too early for a figure.",
+  "Même matériel, même maison, laissé en autoconsommation simple.":
+    "Same hardware, same house, left to plain self-consumption.",
   "solaire maintenant": "solar now",
   "à": "at",
   "en cours": "running",
@@ -355,6 +368,8 @@ class SolarBalancePanel extends HTMLElement {
       binding: id("regulation_binding", "sensor.solarbalance_active_clamp"),
       regDebug: id("regulation_debug", "sensor.solarbalance_regulation_debug"),
       appliances: id("appliance_advice", "sensor.solarbalance_appliance_advice"),
+      linkHealth: id("link_health", "sensor.solarbalance_link_health_weakest"),
+      orchGain: id("orchestration_gain", "sensor.solarbalance_orchestration_gain_today"),
       planPower: id("planner_recommended_power", "sensor.solarbalance_planner_recommended_power_advisory"),
       planCost: id("planner_expected_cost", "sensor.solarbalance_planner_expected_cost_advisory"),
     };
@@ -1195,6 +1210,66 @@ class SolarBalancePanel extends HTMLElement {
     )}</h3>${rows}</div>`;
   }
 
+  /** Duration in the shortest unit that stays readable. */
+  _dur(s) {
+    if (s == null) return "—";
+    const n = Number(s);
+    if (Number.isNaN(n)) return "—";
+    if (n < 90) return Math.round(n) + " s";
+    if (n < 5400) return Math.round(n / 60) + " min";
+    return (n / 3600).toFixed(1) + " h";
+  }
+
+  _linkHealthCard() {
+    // Only shown once something is actually wrong: a green table every day trains
+    // the eye to skip it, and this is precisely the card that must be noticed.
+    const links = this._attr(this._E.linkHealth, "links");
+    if (!Array.isArray(links) || !links.length) return "";
+    const bad = links.filter((l) => l.verdict === "flaky" || l.verdict === "unreliable");
+    if (!bad.length) return "";
+    const rows = bad
+      .map((l) => {
+        const cls = l.verdict === "unreliable" ? "mini-warn" : "mini";
+        const detail = [
+          `${this._t("dispo")} ${Number(l.available_pct).toFixed(0)} %`,
+          l.longest_gap_s > 0 ? `${this._t("trou")} ${this._dur(l.longest_gap_s)}` : null,
+          l.dropouts ? `${l.dropouts} ${this._t("coupures")}` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return `<div class="row"><span>${l.key}</span>
+          <b><span class="${cls}">${Number(l.score).toFixed(0)}</span>
+          <span class="mini">${detail}</span></b></div>`;
+      })
+      .join("");
+    return `<div class="card"><h3>🔗 ${this._t("Liaisons peu fiables (24 h)")}</h3>${rows}</div>`;
+  }
+
+  _orchestrationCard() {
+    const gain = this._num2(this._state(this._E.orchGain));
+    if (gain == null) return "";
+    const hours = this._num2(this._attr(this._E.orchGain, "hours_compared"));
+    // Below a couple of hours the figure is a trend, not a number; saying so is
+    // cheaper than letting someone quote a 10-minute sample as a daily saving.
+    if (hours != null && hours < 2)
+      return `<div class="card"><h3>⚖️ ${this._t("Apport de l'orchestration")}</h3>
+        <div class="explain-txt">${this._t("Comparaison en cours — trop tôt pour un chiffre.")}</div></div>`;
+    const actual = this._num2(this._attr(this._E.orchGain, "actual_cost_eur"));
+    const naive = this._num2(this._attr(this._E.orchGain, "naive_cost_eur"));
+    const held = this._num2(this._attr(this._E.orchGain, "stored_delta_kwh"));
+    const sign = gain >= 0 ? "+" : "";
+    return `<div class="card"><h3>⚖️ ${this._t("Apport de l'orchestration")}</h3>
+      ${this._row(
+        "Gain vs autoconso simple",
+        `<b>${sign}${gain.toFixed(2)} €</b>`
+      )}
+      ${this._row("Facture réelle", actual != null ? actual.toFixed(2) + " €" : "—")}
+      ${this._row("Facture sans pilotage", naive != null ? naive.toFixed(2) + " €" : "—")}
+      ${this._row("Charge conservée", held != null ? held.toFixed(2) + " kWh" : "—")}
+      <div class="mini">${this._t("Même matériel, même maison, laissé en autoconsommation simple.")}</div>
+    </div>`;
+  }
+
   _explainCard() {
     // The regulator's own account of this tick. Rendered from the key + params so
     // the wording is localised here rather than baked into the core.
@@ -1515,6 +1590,10 @@ class SolarBalancePanel extends HTMLElement {
           </div>
 
           ${this._explainCard()}
+
+          ${this._linkHealthCard()}
+
+          ${this._orchestrationCard()}
 
           ${this._curtailCard()}
 

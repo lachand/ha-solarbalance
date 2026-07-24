@@ -198,6 +198,7 @@ from .core.controllers.zero_injection import (
     ZeroInjectionController,
     ZeroInjectionState,
 )
+from .core.counterfactual import Counterfactual, CounterfactualResult
 from .core.energy import DailyEnergyAccumulator
 from .core.explain import Explanation, explain_tick
 from .core.filters import AdaptiveVolatilityDamper, RollingMedian
@@ -207,6 +208,7 @@ from .core.forecast import (
     build_forecast_slots,
     build_pv_w_by_hour,
 )
+from .core.link_health import LinkHealth, LinkStats
 from .core.models import (
     BatteryTarget,
     Decision,
@@ -906,6 +908,32 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         self._baseline_ema_w: float | None = None
 
+        # Per-entity reporting record (24 h). Three incidents this week were link
+        # failures that read as control bugs; nothing was recording how often a
+        # link actually answers, only whether it answered right now.
+        self._link_health = LinkHealth(
+            stale_s=float(cfg.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S))
+        )
+        # What the orchestration is worth against the same hardware left to plain
+        # self-consumption — the marginal question, which the existing savings
+        # figure (PV + battery vs no PV at all) does not answer.
+        # The shadow's capacity is the SoC *span* the fleet may actually use, so its
+        # stored kWh means the same thing as `_stored_above_min_kwh` and the two are
+        # comparable. Giving it the raw capacity would hand it a battery the real
+        # fleet is not allowed to empty.
+        self._counterfactual = Counterfactual(
+            usable_capacity_kwh=sum(
+                (d.battery.soc_max_pct - d.battery.soc_min_pct)
+                / 100.0
+                * d.battery.effective_usable_capacity_kwh
+                for d in devices
+                if d.battery is not None and d.battery.controllable
+            ),
+            max_charge_w=aggregate.max_charge_w if aggregate is not None else 0.0,
+            max_discharge_w=aggregate.max_discharge_w if aggregate is not None else 0.0,
+            round_trip=aggregate.round_trip_efficiency if aggregate is not None else 0.90,
+        )
+
         # Watchdog — entity lists built from config
         (
             self._critical_entity_ids,
@@ -1007,6 +1035,16 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if isinstance(cp, dict):
             with contextlib.suppress(ValueError, TypeError):
                 self._consumption_profile = ConsumptionProfile.from_dict(cp)
+        lh = (data or {}).get("link_health")
+        if isinstance(lh, dict):
+            # Restored rather than restarted: a restart is often exactly when
+            # someone goes looking for how the links have been behaving.
+            with contextlib.suppress(Exception):
+                self._link_health = LinkHealth.from_dict(lh)
+        cf = (data or {}).get("counterfactual")
+        if isinstance(cf, dict):
+            with contextlib.suppress(Exception):
+                self._counterfactual.restore(cf)
         energy = (data or {}).get("energy")
         if not energy:
             return
@@ -1166,6 +1204,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             },
             "consumption_profile": self._consumption_profile.to_dict(),
             "appliance_cycles": self._appliance_cycles.to_dict(),
+            "link_health": self._link_health.to_dict(),
+            "counterfactual": self._counterfactual.to_dict(),
         }
 
     @property
@@ -1791,6 +1831,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             local_time=local_now.time(),
             local_date=local_now.date(),
             baseline_w=snapshot.baseline_consumption_w,
+        )
+        self._observe_links(snapshot)
+        self._counterfactual.update(
+            now=snapshot.timestamp,
+            local_date=local_now.date(),
+            pv_w=snapshot.pv_total_w,
+            grid_w=snapshot.grid_power_w,
+            battery_w=snapshot.battery_power_total_w,
+            stored_kwh=self._stored_above_min_kwh(snapshot),
+            import_price=self._tariff.current_import_price(local_now),
+            export_price=self._tariff.current_export_price(local_now),
         )
         self._track_load_energy(snapshot, local_now.date())
         self._store.async_delay_save(self._persisted_state, _STORE_SAVE_DELAY_S)
@@ -2622,6 +2673,33 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             usable = self._usable_capacity_by_device.get(device.name, 0.0)
             total += max(0.0, (state.soc_pct - battery.soc_min_pct) / 100.0 * usable)
         return total
+
+    def _observe_links(self, snapshot: Snapshot) -> None:
+        """Record one reporting sample per watched entity (see core/link_health.py)."""
+        try:
+            ages = self._reader.link_ages()
+        except Exception:  # pragma: no cover - a diagnostic must never break the tick
+            _LOGGER.debug("Link health sampling failed", exc_info=True)
+            return
+        now_s = snapshot.timestamp.timestamp()
+        for key, age_s in ages.items():
+            self._link_health.observe(key, now_s, age_s)
+        self._link_health.forget(set(ages))
+
+    @property
+    def link_health(self) -> list[LinkStats]:
+        """Per-entity reporting record over the last 24 h, worst first."""
+        return self._link_health.summary(dt_util.utcnow().timestamp())
+
+    @property
+    def weakest_link(self) -> LinkStats | None:
+        """The least reliable entity with enough samples to judge, if any."""
+        return self._link_health.worst(dt_util.utcnow().timestamp())
+
+    @property
+    def counterfactual(self) -> CounterfactualResult:
+        """Today's orchestration gain over plain self-consumption on the same hardware."""
+        return self._counterfactual.result()
 
     def _evaluate_evening_reserve(self, snapshot: Snapshot) -> EveningReserve:
         """How much to keep for tonight, from the learned evening and the PV forecast."""

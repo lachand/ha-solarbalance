@@ -62,7 +62,7 @@ def test_duplicate_setpoint_entity_warns(caplog) -> None:  # type: ignore[no-unt
             _hass(),
             [
                 _device("stream", entity=None, charge_entity="number.chg_shared"),
-                _device("stream_60605", entity=None, charge_entity="number.chg_shared"),
+                _device("stream_xxxxx", entity=None, charge_entity="number.chg_shared"),
             ],
         )
     assert any("both write to number.chg_shared" in r.message for r in caplog.records), caplog.text
@@ -332,10 +332,10 @@ def test_duplicate_entities_exposed_for_dashboard() -> None:
         _hass(),
         [
             _device("stream", entity=None, charge_entity="number.chg_shared"),
-            _device("stream_60605", entity=None, charge_entity="number.chg_shared"),
+            _device("stream_xxxxx", entity=None, charge_entity="number.chg_shared"),
         ],
     )
-    assert pub.duplicate_entities() == {"number.chg_shared": "stream & stream_60605"}
+    assert pub.duplicate_entities() == {"number.chg_shared": "stream & stream_xxxxx"}
 
 
 async def test_power_write_clamped_to_entity_range() -> None:

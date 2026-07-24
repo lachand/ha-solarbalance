@@ -856,6 +856,12 @@
       },
       "appliance_advice": {
         "name": "Conseil appareils"
+      },
+      "link_health": {
+        "name": "Santé des liaisons (la plus faible)"
+      },
+      "orchestration_gain": {
+        "name": "Gain d'orchestration aujourd'hui"
       }
     },
     "select": {
