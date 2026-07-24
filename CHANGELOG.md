@@ -37,6 +37,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta76] — 2026-07-24
+
+### Added
+
+- **Réserve du soir pilotée par la prévision** (option *Keep back what the evening peak
+  will need*, désactivée par défaut). Les batteries se vidaient au gré de l'après-midi, et
+  le pic du soir — le plus prévisible de la journée — était servi par le réseau. La réserve
+  dimensionne ce qu'il faut garder :
+
+      besoin = Σ sur les heures du pic de max(0, conso apprise − PV prévue)
+
+  puis **interdit la décharge** une fois le stock retombé à ce niveau, et **libère tout au
+  début du pic** — une réserve jamais dépensée n'est qu'une batterie plus petite.
+
+  Ce que ça change par rapport à l'existant : `predictive_steering_w`, le seul crochet du
+  planificateur vers le contrôle, est **conditionné au tarif** et donc **inerte en tarif
+  plat**. Garder de l'énergie pour le soir vaut le coup quel que soit le prix, puisque
+  c'est la différence entre couvrir le pic depuis la batterie ou depuis le réseau.
+
+  Trois refus intégrés : elle ne **force jamais une charge** (sinon un après-midi nuageux
+  se mettrait à importer pour remplir une batterie), elle ne réclame **jamais plus qu'une
+  part configurable** de la capacité utile (60 % par défaut — un soir prévu coûteux ne doit
+  pas figer tout le parc), et elle ne descend **jamais sous le plancher SoC** de la
+  batterie. Sans profil appris, elle s'abstient plutôt que de deviner.
+
 ## [2.0.8-beta75] — 2026-07-24
 
 ### Added

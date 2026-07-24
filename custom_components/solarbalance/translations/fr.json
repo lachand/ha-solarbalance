@@ -56,7 +56,10 @@
               "fleet_reversal_dwell_s": "Délai anti-bascule charge↔décharge (s) : garder le parc dans une direction ce temps avant d'inverser, pour qu'un onduleur solar-first (STREAM) n'oscille pas self_powered↔scheduled autour de maison=PV ; 0 désactive",
               "anticipation_horizon_min": "Horizon d'anticipation (min) : à quelle distance le bilan de puits est projeté. Plus long = freine plus tôt",
               "anticipation_margin_w": "Marge d'anticipation (W) : l'export prévu doit dépasser le bilan de puits d'au moins ça avant de pré-brider (garde-fou contre le bruit de prévision)",
-              "solar_fallback_safety_pct": "Repli solaire : part (%) du surplus *estimé* réellement commandée. Sous 100 % pour qu'une conso sous-estimée mange la marge au lieu de tirer sur le réseau."
+              "solar_fallback_safety_pct": "Repli solaire : part (%) du surplus *estimé* réellement commandée. Sous 100 % pour qu'une conso sous-estimée mange la marge au lieu de tirer sur le réseau.",
+              "evening_peak_start_h": "Début du pic du soir (heure locale) couvert par la réserve.",
+              "evening_peak_end_h": "Fin du pic du soir (heure locale).",
+              "evening_reserve_max_pct": "Part maximale (%) de la capacité utile que la réserve du soir peut réclamer, pour qu'un soir prévu coûteux ne fige pas tout le parc."
             }
           }
         }
@@ -105,7 +108,8 @@
           "anticipatory_curtailment_enabled": "Bridage PV anticipé (pré-brider d'après la prévision, avant que les batteries soient pleines)",
           "appliance_power_entities": "Capteurs de puissance des appareils (machine à laver, lave-vaisselle…) — leurs cycles sont appris pour conseiller quand les lancer en solaire. Observés seulement, jamais pilotés.",
           "grid_backup_entity": "Compteur réseau de secours — utilisé quand le compteur PDL devient indisponible, pour qu'une coupure ne suspende plus la régulation. Même convention de signe que le PDL.",
-          "solar_fallback_enabled": "Continuer à stocker le solaire quand le compteur est indisponible — estime le surplus depuis la PV mesurée moins la consommation apprise, et en charge une part minorée. Charge uniquement, jamais de décharge (sans compteur, une injection passerait inaperçue)."
+          "solar_fallback_enabled": "Continuer à stocker le solaire quand le compteur est indisponible — estime le surplus depuis la PV mesurée moins la consommation apprise, et en charge une part minorée. Charge uniquement, jamais de décharge (sans compteur, une injection passerait inaperçue).",
+          "evening_reserve_enabled": "Garder ce dont le pic du soir aura besoin — dimensionne une réserve depuis la consommation du soir apprise moins la prévision PV, la tient dans la journée et la libère au pic. Bloque seulement une décharge, ne force jamais une charge. Fonctionne en tarif plat."
         },
         "sections": {
           "advanced": {
@@ -123,7 +127,10 @@
               "fleet_reversal_dwell_s": "Délai anti-bascule charge↔décharge (s) : garder le parc dans une direction ce temps avant d'inverser, pour qu'un onduleur solar-first (STREAM) n'oscille pas self_powered↔scheduled autour de maison=PV ; 0 désactive",
               "anticipation_horizon_min": "Horizon d'anticipation (min) : à quelle distance le bilan de puits est projeté. Plus long = freine plus tôt",
               "anticipation_margin_w": "Marge d'anticipation (W) : l'export prévu doit dépasser le bilan de puits d'au moins ça avant de pré-brider (garde-fou contre le bruit de prévision)",
-              "solar_fallback_safety_pct": "Repli solaire : part (%) du surplus *estimé* réellement commandée. Sous 100 % pour qu'une conso sous-estimée mange la marge au lieu de tirer sur le réseau."
+              "solar_fallback_safety_pct": "Repli solaire : part (%) du surplus *estimé* réellement commandée. Sous 100 % pour qu'une conso sous-estimée mange la marge au lieu de tirer sur le réseau.",
+              "evening_peak_start_h": "Début du pic du soir (heure locale) couvert par la réserve.",
+              "evening_peak_end_h": "Fin du pic du soir (heure locale).",
+              "evening_reserve_max_pct": "Part maximale (%) de la capacité utile que la réserve du soir peut réclamer, pour qu'un soir prévu coûteux ne fige pas tout le parc."
             }
           }
         }

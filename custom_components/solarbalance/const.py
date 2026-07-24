@@ -133,6 +133,11 @@ DEFAULT_ANTICIPATION_MARGIN_W: Final = 100
 # Fraction (%) of the *estimated* surplus commanded by the solar-only fallback. Well
 # under 100 so an underestimated house load eats the margin, not the grid.
 DEFAULT_SOLAR_FALLBACK_SAFETY_PCT: Final = 70
+# Evening peak window and the largest share of usable capacity the reserve may claim
+# (never the whole pack, or the afternoon could not regulate at all).
+DEFAULT_EVENING_PEAK_START_H: Final = 18
+DEFAULT_EVENING_PEAK_END_H: Final = 22
+DEFAULT_EVENING_RESERVE_MAX_PCT: Final = 60
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1
@@ -222,6 +227,12 @@ CONF_GRID_BACKUP_ENTITY: Final = "grid_backup_entity"
 # suspending everything. Commands hardware on an estimate, so opt-in.
 CONF_SOLAR_FALLBACK_ENABLED: Final = "solar_fallback_enabled"
 CONF_SOLAR_FALLBACK_SAFETY_PCT: Final = "solar_fallback_safety_pct"
+# Hold back what the predictable evening peak will need, instead of spending it in
+# the afternoon. Tariff-independent, unlike predictive_steering_w.
+CONF_EVENING_RESERVE_ENABLED: Final = "evening_reserve_enabled"
+CONF_EVENING_PEAK_START_H: Final = "evening_peak_start_h"
+CONF_EVENING_PEAK_END_H: Final = "evening_peak_end_h"
+CONF_EVENING_RESERVE_MAX_PCT: Final = "evening_reserve_max_pct"
 
 # Adaptive volatility damper: smooth the grid signal fed to the regulation loop
 # more when it is volatile (motor-type loads), so the battery tracks the slow

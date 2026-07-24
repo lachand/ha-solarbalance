@@ -27,6 +27,10 @@ from .const import (
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
     CONF_DRY_RUN,
+    CONF_EVENING_PEAK_END_H,
+    CONF_EVENING_PEAK_START_H,
+    CONF_EVENING_RESERVE_ENABLED,
+    CONF_EVENING_RESERVE_MAX_PCT,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
     CONF_EXPORT_PRICE,
@@ -79,6 +83,9 @@ from .const import (
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
     DEFAULT_DRY_RUN,
+    DEFAULT_EVENING_PEAK_END_H,
+    DEFAULT_EVENING_PEAK_START_H,
+    DEFAULT_EVENING_RESERVE_MAX_PCT,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FLEET_REVERSAL_DWELL_S,
@@ -204,6 +211,10 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
             default=d.get(CONF_SOLAR_FALLBACK_ENABLED, False),
         ): bool,
         vol.Optional(
+            CONF_EVENING_RESERVE_ENABLED,
+            default=d.get(CONF_EVENING_RESERVE_ENABLED, False),
+        ): bool,
+        vol.Optional(
             CONF_PV_DROP_COMPENSATION_ENABLED,
             default=d.get(CONF_PV_DROP_COMPENSATION_ENABLED, DEFAULT_PV_DROP_COMPENSATION_ENABLED),
         ): bool,
@@ -290,6 +301,18 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
                     CONF_ANTICIPATION_HORIZON_MIN,
                     default=d.get(CONF_ANTICIPATION_HORIZON_MIN, DEFAULT_ANTICIPATION_HORIZON_MIN),
                 ): vol.All(vol.Coerce(int), vol.Range(min=5, max=30)),
+                vol.Optional(
+                    CONF_EVENING_PEAK_START_H,
+                    default=d.get(CONF_EVENING_PEAK_START_H, DEFAULT_EVENING_PEAK_START_H),
+                ): vol.All(vol.Coerce(int), vol.Range(min=12, max=23)),
+                vol.Optional(
+                    CONF_EVENING_PEAK_END_H,
+                    default=d.get(CONF_EVENING_PEAK_END_H, DEFAULT_EVENING_PEAK_END_H),
+                ): vol.All(vol.Coerce(int), vol.Range(min=13, max=24)),
+                vol.Optional(
+                    CONF_EVENING_RESERVE_MAX_PCT,
+                    default=d.get(CONF_EVENING_RESERVE_MAX_PCT, DEFAULT_EVENING_RESERVE_MAX_PCT),
+                ): vol.All(vol.Coerce(int), vol.Range(min=10, max=90)),
                 vol.Optional(
                     CONF_SOLAR_FALLBACK_SAFETY_PCT,
                     default=d.get(

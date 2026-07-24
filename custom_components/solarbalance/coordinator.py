@@ -38,6 +38,10 @@ from .const import (
     CONF_CURTAILMENT_RAMP_W,
     CONF_CURTAILMENT_SETTLE_TICKS,
     CONF_DRY_RUN,
+    CONF_EVENING_PEAK_END_H,
+    CONF_EVENING_PEAK_START_H,
+    CONF_EVENING_RESERVE_ENABLED,
+    CONF_EVENING_RESERVE_MAX_PCT,
     CONF_EVENING_SHED_ENABLED,
     CONF_EVENING_SHED_MIN_POWER_W,
     CONF_EXPORT_PRICE,
@@ -102,6 +106,9 @@ from .const import (
     DEFAULT_CURTAILMENT_RAMP_W,
     DEFAULT_CURTAILMENT_SETTLE_TICKS,
     DEFAULT_DRY_RUN,
+    DEFAULT_EVENING_PEAK_END_H,
+    DEFAULT_EVENING_PEAK_START_H,
+    DEFAULT_EVENING_RESERVE_MAX_PCT,
     DEFAULT_EVENING_SHED_MIN_POWER_W,
     DEFAULT_EXPORT_PRICE,
     DEFAULT_FLEET_REVERSAL_DWELL_S,
@@ -165,6 +172,7 @@ from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
 from .core.controllers.deadline import DeadlineDecision, evaluate_deadline
 from .core.controllers.ev_fast_charge import FastChargeDecision, evaluate_fast_charge
+from .core.controllers.evening_reserve import EveningReserve, evening_reserve
 from .core.controllers.evening_shed import (
     BatteryChargeNeed,
     ShedDecision,
@@ -406,6 +414,9 @@ class RegulationDiagnostics:
     # Plain-language account of this tick (key for a UI, text for logbook/attribute).
     explain_key: str = ""
     explain_text: str = ""
+    # Evening reserve held for the predictable peak.
+    evening_reserve_kwh: float = 0.0
+    evening_reserve_active: bool = False
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -874,6 +885,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         )
         self._solar_fallback: SolarFallbackResult | None = None
         self._explanation: Explanation | None = None
+        # Evening reserve: hold what the predictable peak will need. Opt-in — it
+        # withholds energy the afternoon could otherwise use.
+        self._evening_reserve_enabled = bool(cfg.get(CONF_EVENING_RESERVE_ENABLED, False))
+        self._evening_peak_start_h = int(
+            cfg.get(CONF_EVENING_PEAK_START_H, DEFAULT_EVENING_PEAK_START_H)
+        )
+        self._evening_peak_end_h = int(cfg.get(CONF_EVENING_PEAK_END_H, DEFAULT_EVENING_PEAK_END_H))
+        self._evening_reserve_max = (
+            float(cfg.get(CONF_EVENING_RESERVE_MAX_PCT, DEFAULT_EVENING_RESERVE_MAX_PCT)) / 100.0
+        )
+        self._evening_reserve: EveningReserve | None = None
         # Real-time PV-drop detector (passing cloud) — exposed for observability,
         # and (opt-in) feeds a fast discharge feed-forward via the settle window.
         self._pv_drop = PvDropDetector()
@@ -2237,6 +2259,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # house == PV the sign flips every ~minute, thrashing the mode and overshooting on
         # each slow switch. Once the fleet commits to a direction, hold it (idle rather than
         # reverse) until the opposite demand persists past the dwell, so the mode is stable.
+        # Evening reserve: once the stock is down to what the predictable peak needs,
+        # stop discharging — the remainder is for tonight, not for this afternoon.
+        # Only ever blocks a discharge; it never forces a charge.
+        self._evening_reserve = self._evaluate_evening_reserve(snapshot)
+        if self._evening_reserve.active and total_power_w < 0.0:
+            stored_kwh = self._stored_above_min_kwh(snapshot)
+            if stored_kwh <= self._evening_reserve.reserve_kwh:
+                total_power_w = 0.0
+
         total_power_w = self._apply_reversal_dwell(total_power_w, snapshot.timestamp)
 
         # Slew-rate limit: cap how far the command may move per tick. Hard safety
@@ -2359,6 +2390,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             ),
             explain_key=explanation.key,
             explain_text=explanation.text,
+            evening_reserve_kwh=(
+                self._evening_reserve.reserve_kwh if self._evening_reserve else 0.0
+            ),
+            evening_reserve_active=bool(self._evening_reserve and self._evening_reserve.active),
         )
         self._autotune_suggestions()
 
@@ -2558,6 +2593,59 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return snapshot
 
     # ------------------------------------------------------------------ helpers
+
+    def _stored_above_min_kwh(self, snapshot: Snapshot) -> float:
+        """Energy the controllable fleet still holds above its own SoC floor (kWh)."""
+        total = 0.0
+        soc_by_device = {b.device_name: b for b in snapshot.batteries}
+        for device in self._devices:
+            battery = device.battery
+            if battery is None or device.name not in self._controllable_battery_names:
+                continue
+            state = soc_by_device.get(device.name)
+            if state is None or not state.available:
+                continue
+            usable = self._usable_capacity_by_device.get(device.name, 0.0)
+            total += max(0.0, (state.soc_pct - battery.soc_min_pct) / 100.0 * usable)
+        return total
+
+    def _evaluate_evening_reserve(self, snapshot: Snapshot) -> EveningReserve:
+        """How much to keep for tonight, from the learned evening and the PV forecast."""
+        local = dt_util.as_local(snapshot.timestamp)
+        house = self._consumption_profile.by_hour(
+            segment_for(local.weekday()), float(self._baseline_ema_w or 0.0)
+        )
+        learned = self._consumption_profile.learned_hours > 0
+        pv_by_hour = self._forecast_pv_by_hour(snapshot)
+        # The forecast is indexed from the current hour; the reserve reasons in
+        # hour-of-day, so realign it before comparing the two.
+        pv_by_day_hour: list[float] = [0.0] * 24
+        for i, value in enumerate(pv_by_hour[:24]):
+            pv_by_day_hour[(local.hour + i) % 24] = value
+        capacity = sum(
+            self._usable_capacity_by_device.get(d.name, 0.0)
+            for d in self._devices
+            if d.battery is not None and d.name in self._controllable_battery_names
+        )
+        soc_min = min(
+            (
+                float(d.battery.soc_min_pct)
+                for d in self._devices
+                if d.battery is not None and d.name in self._controllable_battery_names
+            ),
+            default=10.0,
+        )
+        return evening_reserve(
+            enabled=self._evening_reserve_enabled,
+            hour=local.hour,
+            house_by_hour=house if learned else None,
+            pv_by_hour=pv_by_day_hour if pv_by_hour else None,
+            usable_capacity_kwh=capacity,
+            soc_min_pct=soc_min,
+            peak_start_hour=self._evening_peak_start_h,
+            peak_end_hour=self._evening_peak_end_h,
+            max_share=self._evening_reserve_max,
+        )
 
     def _observe_appliances(self, snapshot: Snapshot) -> None:
         """Feed each observed appliance's power into the cycle learner (one float/tick).
