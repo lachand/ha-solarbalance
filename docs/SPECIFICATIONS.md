@@ -417,11 +417,15 @@ Chaque stratégie produit une `Decision` typée :
 ```python
 @dataclass
 class Decision:
-    battery_targets: dict[str, BatteryTarget]   # device_name → cible (SoC, fenêtre min/max, puissance préférée)
-    grid_constraint: GridConstraint              # autorisations soutirage/injection (max_import_w, max_export_w)
-    load_priorities: dict[str, int]              # nom load → priorité ajustée (None = pas d'opinion)
-    confidence: float                             # 0.0–1.0, force de la recommandation
-    rationale: str                                # message de debug exposé en sensor
+    battery_targets: dict[
+        str, BatteryTarget
+    ]  # device_name → cible (SoC, fenêtre min/max, puissance préférée)
+    grid_constraint: (
+        GridConstraint  # autorisations soutirage/injection (max_import_w, max_export_w)
+    )
+    load_priorities: dict[str, int]  # nom load → priorité ajustée (None = pas d'opinion)
+    confidence: float  # 0.0–1.0, force de la recommandation
+    rationale: str  # message de debug exposé en sensor
 ```
 
 L'**arbitrer** combine les décisions des stratégies actives selon l'ordre déclaré par l'utilisateur :

@@ -150,6 +150,7 @@ Le script `scripts/check_core_purity.py` vérifie cela à chaque commit (hook pr
 ```python
 from __future__ import annotations  # si une annotation référence un type défini plus bas
 
+
 def compute(self, snapshot: Snapshot) -> Decision: ...
 ```
 
@@ -171,10 +172,10 @@ Règles notables activées :
 ```python
 _LOGGER = logging.getLogger(__name__)
 
-_LOGGER.debug("tick: snapshot=%s", snapshot)    # niveau tick
-_LOGGER.info("mode changed: %s → %s", old, new) # transitions d'état
+_LOGGER.debug("tick: snapshot=%s", snapshot)  # niveau tick
+_LOGGER.info("mode changed: %s → %s", old, new)  # transitions d'état
 _LOGGER.warning("entity stale: %s", entity_id)  # problème récupérable
-_LOGGER.error("YAML parse error: %s", exc)       # échec
+_LOGGER.error("YAML parse error: %s", exc)  # échec
 ```
 
 ### Docstrings
@@ -242,6 +243,7 @@ Dans `config_flow.py`, ajouter l'option dans la liste `CONF_PRIORITIES` et dans 
 ```python
 # tests/core/strategies/test_my_strategy.py
 from custom_components.solarbalance.core.strategies.my_strategy import MyStrategy
+
 
 def test_my_strategy_basic(snapshot: Snapshot) -> None:
     strategy = MyStrategy(devices=[...])
@@ -330,6 +332,7 @@ python -m pytest tests/core/ --cov=custom_components/solarbalance/core --cov-rep
 # ✓
 def test_balancing_two_batteries(snapshot: Snapshot, devices: list[Device]) -> None: ...
 
+
 # ✗
 def test_balancing_two_batteries(snapshot, devices): ...
 ```
@@ -342,13 +345,16 @@ def test_strategy(mode: str) -> None:
     if mode == "storm":
         ...
 
+
 # ✓ — parametrize
-@pytest.mark.parametrize("mode,expected", [
-    ("storm", 95.0),
-    ("normal", 30.0),
-])
-def test_strategy(mode: str, expected: float) -> None:
-    ...
+@pytest.mark.parametrize(
+    "mode,expected",
+    [
+        ("storm", 95.0),
+        ("normal", 30.0),
+    ],
+)
+def test_strategy(mode: str, expected: float) -> None: ...
 ```
 
 **Tests dupliqués** → fusionner avec `@pytest.mark.parametrize`.

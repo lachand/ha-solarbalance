@@ -537,7 +537,7 @@ if charge_power_entity and discharge_power_entity:
 Cache le dernier `ArbitrationResult` **et** le dernier `BalancingResult`, et expose les setpoints réels comme propriétés :
 
 ```python
-setpoint_charge_per_battery_w     # dict[str, float], positif — tiré de BalancingResult.per_battery_w
+setpoint_charge_per_battery_w  # dict[str, float], positif — tiré de BalancingResult.per_battery_w
 setpoint_discharge_per_battery_w  # dict[str, float], positif (stocké négatif) — idem
 ```
 
