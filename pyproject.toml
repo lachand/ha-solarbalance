@@ -28,7 +28,9 @@ dev = [
     "pytest-cov>=5.0",
     "pytest-homeassistant-custom-component>=0.13",
     "home-assistant-frontend",  # required so the frontend dependency sets up in integration tests
-    "ruff>=0.7",
+    # Pinned to a minor: ruff 0.16 started formatting python blocks inside .md
+    # and broke CI with no code change. Patches are fine, minors are not.
+    "ruff>=0.16,<0.17",
     "mypy>=1.13",
     "pre-commit>=4.0",
 ]

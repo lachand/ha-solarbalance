@@ -288,7 +288,10 @@ def _register_services(hass: HomeAssistant) -> None:
         if coord is None:
             return {"path": None, "ticks": 0}
         minutes = call.data.get("minutes")
-        return await coord.capture_debug(minutes=float(minutes) if minutes is not None else None)
+        return await coord.capture_debug(
+            minutes=float(minutes) if minutes is not None else None,
+            include_records=bool(call.data.get("include_records", False)),
+        )
 
     async def handle_rename_appliance_program(call: ServiceCall) -> dict[str, Any]:
         coord = _get_coordinator(hass)

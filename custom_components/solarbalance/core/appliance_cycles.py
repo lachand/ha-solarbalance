@@ -36,6 +36,10 @@ from typing import Any
 # enough to place the heating bursts, small enough to keep the Store payload tiny.
 _CURVE_STEPS = 24
 _MAX_TEMPLATES = 8  # per (appliance, program); oldest dropped first
+# Cap on the in-flight sample buffer. A cycle is resampled to _CURVE_STEPS anyway, so
+# beyond this the extra resolution buys nothing — and an appliance left switched on
+# would otherwise grow the buffer (and the Store payload) without bound.
+_MAX_RUNNING_SAMPLES = 1500
 UNKNOWN_PROGRAM = "unknown"
 
 
@@ -156,6 +160,10 @@ class ApplianceCycles:
             run.energy_ws += power_w * (t - run.last_t)
         run.last_t = t
         run.samples.append((t, power_w))
+        if len(run.samples) > _MAX_RUNNING_SAMPLES:
+            # Halve the resolution rather than drop the start: the opening minutes are
+            # what identify the cycle, and the curve is bucketed on close regardless.
+            run.samples = run.samples[::2]
 
         if power_w > self.idle_w:
             run.idle_since = None
@@ -366,8 +374,22 @@ class ApplianceCycles:
     # -------------------------------------------------------------- persistence
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialise for the Store (running cycles are deliberately not persisted)."""
+        """Serialise for the Store, including any cycle still in flight.
+
+        The running buffer is persisted too: a restart mid-cycle used to lose it
+        entirely, so a two-hour wash begun before a reload was never learned.
+        """
         return {
+            "running": {
+                name: {
+                    "started_at": run.started_at,
+                    "samples": [[t, p] for t, p in run.samples],
+                    "energy_ws": run.energy_ws,
+                    "last_t": run.last_t,
+                    "idle_since": run.idle_since,
+                }
+                for name, run in self._running.items()
+            },
             "templates": {
                 name: {
                     program: [
@@ -381,7 +403,7 @@ class ApplianceCycles:
                     for program, items in by_program.items()
                 }
                 for name, by_program in self.templates.items()
-            }
+            },
         }
 
     @classmethod
@@ -390,7 +412,31 @@ class ApplianceCycles:
         out = cls()
         raw = data.get("templates")
         if not isinstance(raw, dict):
-            return out
+            raw = {}
+        running = data.get("running")
+        if isinstance(running, dict):
+            for name, payload in running.items():
+                if not isinstance(payload, dict):
+                    continue
+                samples = payload.get("samples")
+                if not isinstance(samples, list) or not samples:
+                    continue
+                try:
+                    out._running[str(name)] = _Running(
+                        started_at=float(payload.get("started_at", 0.0)),
+                        samples=[(float(a), float(b)) for a, b in samples],
+                        energy_ws=float(payload.get("energy_ws", 0.0)),
+                        last_t=(
+                            None if payload.get("last_t") is None else float(payload["last_t"])
+                        ),
+                        idle_since=(
+                            None
+                            if payload.get("idle_since") is None
+                            else float(payload["idle_since"])
+                        ),
+                    )
+                except (TypeError, ValueError):
+                    continue  # a malformed buffer must not block the templates
         for name, by_program in raw.items():
             if not isinstance(by_program, dict):
                 continue

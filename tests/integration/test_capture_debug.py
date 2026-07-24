@@ -82,3 +82,37 @@ async def test_ring_buffer_is_bounded(hass: HomeAssistant) -> None:
     for i in range(_TICK_HISTORY_MAXLEN + 50):
         coord._tick_history.append(_rec(f"2026-07-21T10:00:{i % 60:02d}+02:00"))
     assert len(coord._tick_history) == _TICK_HISTORY_MAXLEN
+
+
+@pytest.mark.asyncio
+async def test_records_can_be_returned_inline(hass: HomeAssistant) -> None:
+    """The JSONL lands on the HA host, which a remote caller cannot read.
+
+    Without the records in the response the service is useless to an automation or
+    to any analysis not running on the box — a wall hit for real while debugging.
+    """
+    coord = _coordinator(hass)
+    for i in range(5):
+        coord._tick_history.append(_rec(f"2026-07-24T10:00:{i:02d}+02:00", grid=float(i)))
+
+    plain = await coord.capture_debug()
+    assert "records" not in plain, "records must be opt-in, not bloat every response"
+
+    full = await coord.capture_debug(include_records=True)
+    assert len(full["records"]) == 5
+    assert full["records"][0]["grid"] == 0.0
+    assert full["records_truncated"] is False
+
+
+@pytest.mark.asyncio
+async def test_inline_records_are_capped_and_say_so(hass: HomeAssistant) -> None:
+    from custom_components.solarbalance.coordinator import _CAPTURE_INLINE_MAX
+
+    coord = _coordinator(hass)
+    for i in range(_CAPTURE_INLINE_MAX + 50):
+        coord._tick_history.append(_rec(f"2026-07-24T10:00:{i % 60:02d}+02:00"))
+
+    res = await coord.capture_debug(include_records=True)
+    assert len(res["records"]) == _CAPTURE_INLINE_MAX
+    assert res["records_truncated"] is True
+    assert res["ticks"] > _CAPTURE_INLINE_MAX  # the file still holds everything

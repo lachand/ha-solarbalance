@@ -198,6 +198,16 @@ capture_debug:
           min: 1
           max: 120
           unit_of_measurement: min
+    include_records:
+      name: Include the records in the response
+      description: >
+        Also return the ticks in the service response. The JSONL file lands on the
+        Home Assistant host, which is unreadable to an automation or a remote
+        analysis — the path alone is of no use to them.
+      required: false
+      example: true
+      selector:
+        boolean:
 
 rename_appliance_program:
   name: Rename an appliance cycle program

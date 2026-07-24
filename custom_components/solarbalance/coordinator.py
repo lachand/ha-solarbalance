@@ -251,6 +251,8 @@ _PLAN_EVERY_TICKS = 90
 # Ring-buffer depth of the per-tick debug history (the capture_debug service). ~2 h at
 # the default 10 s tick — enough to grab an event that happened a while before.
 _TICK_HISTORY_MAXLEN = 720
+# Most ticks returned inline by capture_debug; the file always holds them all.
+_CAPTURE_INLINE_MAX = 240
 # Below this similarity to every known cycle, a finished cycle is called unusual.
 _APPLIANCE_ANOMALY_CONFIDENCE = 0.45
 # How far ahead the running-appliance draw is folded into the consumption forecast.
@@ -1542,13 +1544,18 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         await self.async_persist_now()
         _LOGGER.info("SolarBalance: night-baseline talon reset on request")
 
-    async def capture_debug(self, *, minutes: float | None = None) -> dict[str, Any]:
+    async def capture_debug(
+        self, *, minutes: float | None = None, include_records: bool = False
+    ) -> dict[str, Any]:
         """Dump the rolling per-tick history to a JSONL file for offline replay.
 
         The buffer fills every tick (~2 h deep), so an event can be captured well
         after it happened — call this once you notice a glitch. Returns the written
         path and the covered span so the service response is self-explanatory.
-        ``minutes`` optionally keeps only the most recent window.
+        ``minutes`` optionally keeps only the most recent window. ``include_records``
+        additionally returns the ticks **in the response**: the JSONL lands on the HA
+        host, which is unreadable to anything driving the service remotely — the file
+        path alone is useless to an automation or a remote analysis.
         """
         import json
         import os
@@ -1574,12 +1581,19 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
         await self.hass.async_add_executor_job(_write)
         _LOGGER.info("SolarBalance: captured %d ticks to %s", len(records), path)
-        return {
+        result: dict[str, Any] = {
             "path": path,
             "ticks": len(records),
             "from": records[0]["t"],
             "to": records[-1]["t"],
         }
+        if include_records:
+            # Capped: a full 2 h buffer inline would be a megabyte of service
+            # response. Callers wanting everything have the file.
+            capped = records[-_CAPTURE_INLINE_MAX:]
+            result["records"] = capped
+            result["records_truncated"] = len(capped) < len(records)
+        return result
 
     def force_charge_load_active(self, load_name: str) -> bool:
         """True when a manual 'charge now' request is active for this load."""

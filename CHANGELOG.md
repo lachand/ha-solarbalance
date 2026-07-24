@@ -37,6 +37,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta78] — 2026-07-24
+
+### Fixed
+
+- **Un cycle d'appareil en cours survit désormais à un redémarrage.** Le tampon du cycle
+  n'était pas persisté : une lessive de deux heures commencée avant une mise à jour était
+  perdue et jamais apprise (constaté le 24/07). Il est maintenant enregistré avec les
+  gabarits. Un tampon corrompu n'empêche jamais la restauration des gabarits, et il est
+  **plafonné** (échantillonnage divisé par deux au-delà de 1500 points, en gardant le début
+  du cycle qui est ce qui l'identifie) — sans quoi un appareil resté allumé ferait grossir
+  le Store sans limite.
+
+- **`ruff` épinglé** à `>=0.16,<0.17`. Il était déclaré `>=0.7` : la sortie de 0.16, qui
+  s'est mise à formater les blocs Python dans les `.md`, a cassé la CI **sans le moindre
+  changement de code**. Les correctifs passent, les versions mineures non.
+
+### Changed
+
+- **`capture_debug` peut renvoyer les ticks dans la réponse** (`include_records: true`).
+  Le fichier JSONL atterrit sur la machine Home Assistant, illisible pour une automatisation
+  ou une analyse distante — le chemin seul ne leur sert à rien. Réponse **plafonnée à 240
+  ticks** (avec `records_truncated`), le fichier gardant toujours l'intégralité.
+
 ## [2.0.8-beta77] — 2026-07-24
 
 ### Added

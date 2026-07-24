@@ -306,3 +306,51 @@ def test_renamed_programs_survive_the_store() -> None:
     ac.rename_program("wm", UNKNOWN_PROGRAM, "Coton 40")
     back = ApplianceCycles.from_dict(ac.to_dict())
     assert [s.program for s in back.summary_all("wm")] == ["Coton 40"]
+
+
+# --- a cycle in flight survives a restart ----------------------------------
+
+
+def test_a_running_cycle_survives_the_store() -> None:
+    # Observed 2026-07-24: updating mid-wash lost the whole cycle, so a two-hour
+    # programme begun before a reload was never learned.
+    ac = ApplianceCycles()
+    for i in range(20):
+        ac.observe("wm", i * 60.0, 900.0)
+    assert ac.is_running("wm") is True
+
+    back = ApplianceCycles.from_dict(ac.to_dict())
+    assert back.is_running("wm") is True
+    assert back.elapsed_s("wm", 1200.0) == 1200.0
+
+    # And it can still be closed normally afterwards, energy included.
+    closed = None
+    for i in range(20, 40):
+        got = back.observe("wm", i * 60.0, 0.0)
+        if got is not None:
+            closed = got
+    assert closed is not None
+    assert closed.energy_kwh > 0.2
+
+
+def test_a_malformed_running_buffer_never_costs_the_templates() -> None:
+    ac = ApplianceCycles()
+    ac.add_template("dw", CycleTemplate(3600.0, 1.0, tuple([500.0] * 24)), program="auto")
+    payload = ac.to_dict()
+    payload["running"] = {"dw": {"samples": "not a list"}}
+    back = ApplianceCycles.from_dict(payload)
+    assert back.learned_cycles == 1
+    assert back.is_running("dw") is False
+
+
+def test_the_running_buffer_stays_bounded() -> None:
+    # An appliance left switched on must not grow the buffer — and the Store
+    # payload — without limit.
+    from custom_components.solarbalance.core.appliance_cycles import _MAX_RUNNING_SAMPLES
+
+    ac = ApplianceCycles()
+    for i in range(_MAX_RUNNING_SAMPLES * 3):
+        ac.observe("wm", i * 10.0, 900.0)
+    assert len(ac._running["wm"].samples) <= _MAX_RUNNING_SAMPLES
+    # Halving keeps the opening of the cycle, which is what identifies it.
+    assert ac._running["wm"].samples[0][0] == 0.0
