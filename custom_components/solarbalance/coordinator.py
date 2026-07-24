@@ -2493,46 +2493,59 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
     @property
     def appliance_advice(self) -> list[dict[str, Any]]:
-        """Per-appliance typical cycle + how much of it the sun would cover.
+        """Per-appliance recording state, typical cycle, and its solar coverage.
 
-        Returns an empty list until something has actually been learned — an invented
-        percentage here would send someone to run a 2 kWh cycle off the grid.
+        Every configured appliance is reported, including one that has not been
+        learned yet: an empty list would otherwise be ambiguous between "nothing
+        learned so far" and "nothing configured", which is exactly what you need to
+        tell apart right after setting this up. Solar figures appear only once a
+        cycle has actually been learned — an invented percentage would send someone
+        to run a 2 kWh cycle off the grid.
         """
         if not self._appliance_entities:
             return []
         snap = self.data
         pv_by_hour = self._forecast_pv_by_hour(snap) if snap is not None else []
-        if not pv_by_hour:
-            return []
         local = dt_util.now()
-        house = self._consumption_profile.by_hour(
-            segment_for(local.weekday()), float(self._baseline_ema_w or 0.0)
-        )
-        # Align the house profile (hour-of-day) with the PV forecast (0 = current hour).
-        house_by_hour = [house[(local.hour + i) % 24] for i in range(len(pv_by_hour))]
+        house_by_hour: list[float] = []
+        if pv_by_hour:
+            house = self._consumption_profile.by_hour(
+                segment_for(local.weekday()), float(self._baseline_ema_w or 0.0)
+            )
+            # Align the house profile (hour-of-day) with the forecast (0 = current hour).
+            house_by_hour = [house[(local.hour + i) % 24] for i in range(len(pv_by_hour))]
+        now_s = snap.timestamp.timestamp() if snap is not None else 0.0
+
         out: list[dict[str, Any]] = []
         for entity_id in self._appliance_entities:
             name = self._appliance_name(entity_id)
+            running = self._appliance_cycles.is_running(name)
+            item: dict[str, Any] = {"name": name, "running": running, "samples": 0}
+            elapsed = self._appliance_cycles.elapsed_s(name, now_s)
+            if running and elapsed is not None:
+                item["elapsed_min"] = round(elapsed / 60.0)
             summary = self._appliance_cycles.summary(name)
-            if summary is None:
-                continue
-            now_share = estimate_solar_share(
-                summary.curve_w, summary.duration_s, 0, pv_by_hour, house_by_hour
-            )
-            best = best_start(summary.curve_w, summary.duration_s, pv_by_hour, house_by_hour)
-            item: dict[str, Any] = {
-                "name": name,
-                "program": summary.program,
-                "samples": summary.samples,
-                "duration_min": round(summary.duration_s / 60.0),
-                "energy_kwh": round(summary.energy_kwh, 2),
-                "running": self._appliance_cycles.is_running(name),
-                "solar_now_pct": round(now_share.solar_fraction * 100),
-                "truncated": now_share.truncated,
-            }
-            if best is not None:
-                item["best_hour"] = (local.hour + best.start_hour) % 24
-                item["best_pct"] = round(best.solar_fraction * 100)
+            if summary is not None:
+                item.update(
+                    {
+                        "program": summary.program,
+                        "samples": summary.samples,
+                        "duration_min": round(summary.duration_s / 60.0),
+                        "energy_kwh": round(summary.energy_kwh, 2),
+                    }
+                )
+                if pv_by_hour:
+                    now_share = estimate_solar_share(
+                        summary.curve_w, summary.duration_s, 0, pv_by_hour, house_by_hour
+                    )
+                    item["solar_now_pct"] = round(now_share.solar_fraction * 100)
+                    item["truncated"] = now_share.truncated
+                    best = best_start(
+                        summary.curve_w, summary.duration_s, pv_by_hour, house_by_hour
+                    )
+                    if best is not None:
+                        item["best_hour"] = (local.hour + best.start_hour) % 24
+                        item["best_pct"] = round(best.solar_fraction * 100)
             out.append(item)
         return out
 

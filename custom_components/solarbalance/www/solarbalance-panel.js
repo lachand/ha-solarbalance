@@ -54,6 +54,7 @@ const STR_EN = {
   "à": "at",
   "en cours": "running",
   "peu de cycles": "few cycles",
+  "apprentissage — aucun cycle complet enregistré": "learning — no complete cycle recorded yet",
   Puissance: "Power",
   "Flux instantané": "Instant flow",
   "Pic capteur masqué": "Hidden sensor spike",
@@ -1110,6 +1111,18 @@ class SolarBalancePanel extends HTMLElement {
     if (!Array.isArray(list) || !list.length) return "";
     const rows = list
       .map((a) => {
+        const run = a.running
+          ? ` <span class="mini-run">${this._t("en cours")}${
+              a.elapsed_min != null ? ` ${a.elapsed_min} min` : ""
+            }</span>`
+          : "";
+        // Nothing learned yet: say so plainly instead of showing a made-up figure.
+        if (!a.samples || a.solar_now_pct == null) {
+          return `<div class="app-row">
+              <div class="app-name">${a.name}${run}</div>
+              <div class="app-meta">${this._t("apprentissage — aucun cycle complet enregistré")}</div>
+            </div>`;
+        }
         const dur = a.duration_min != null ? `${Math.round(a.duration_min)} min` : "?";
         const kwh = a.energy_kwh != null ? `${a.energy_kwh} kWh` : "?";
         const now = a.solar_now_pct;
@@ -1123,7 +1136,6 @@ class SolarBalancePanel extends HTMLElement {
             a.best_hour
           ).padStart(2, "0")}:00</span>`;
         }
-        const run = a.running ? ` <span class="mini-run">${this._t("en cours")}</span>` : "";
         const conf =
           a.samples < 3 ? ` <span class="mini-warn">${this._t("peu de cycles")}</span>` : "";
         return `<div class="app-row">

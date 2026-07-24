@@ -37,6 +37,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta71] — 2026-07-24
+
+### Fixed
+
+- **On peut enfin vérifier qu'un appareil est bien en cours d'enregistrement.** Le conseil
+  appareils sautait tout appareil sans cycle appris, si bien qu'une liste vide voulait dire
+  indifféremment « rien appris pour l'instant » **ou** « rien configuré » — impossible de
+  confirmer que la configuration avait pris. Chaque appareil configuré est désormais publié,
+  avec `running` et `elapsed_min` quand un cycle est en cours, et la carte affiche
+  « apprentissage — aucun cycle complet enregistré ». Les chiffres solaires n'apparaissent
+  toujours qu'une fois un cycle réellement appris : aucun pourcentage inventé.
+
 ## [2.0.8-beta70] — 2026-07-24
 
 ### Fixed
