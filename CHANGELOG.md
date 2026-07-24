@@ -37,6 +37,14 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta70] — 2026-07-24
+
+### Fixed
+
+- **L'option « Entités de puissance des appareils » n'avait pas de libellé** : elle s'affichait
+  sous sa clé brute `appliance_power_entities` dans *Regulation & behaviour*. Libellés EN/FR
+  ajoutés, précisant que ces appareils sont **observés, jamais pilotés**.
+
 ## [2.0.8-beta69] — 2026-07-24
 
 ### Added
