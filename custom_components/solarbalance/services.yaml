@@ -198,3 +198,32 @@ capture_debug:
           min: 1
           max: 120
           unit_of_measurement: min
+
+rename_appliance_program:
+  name: Rename an appliance cycle program
+  description: >
+    Re-file an appliance's learned cycles under a different label. Useful for the
+    cycles the appliance integration never managed to identify (they are filed as
+    "unknown"). Merges into the destination when it already exists.
+  fields:
+    appliance:
+      name: Appliance
+      description: Appliance name as shown in the panel (e.g. "machine a laver").
+      required: true
+      example: machine a laver
+      selector:
+        text:
+    from_program:
+      name: From
+      description: Current label to move away from.
+      required: true
+      example: unknown
+      selector:
+        text:
+    to_program:
+      name: To
+      description: New label.
+      required: true
+      example: Coton 40
+      selector:
+        text:

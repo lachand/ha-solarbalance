@@ -2647,6 +2647,23 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             max_share=self._evening_reserve_max,
         )
 
+    async def rename_appliance_program(self, appliance: str, old: str, new: str) -> int:
+        """Re-file an appliance's learned cycles under a new label (service handler).
+
+        Matches the appliance case-insensitively so the readable name shown in the UI
+        works, not only the internal one. Persists immediately: a relabelling lost to
+        a restart would be worse than not offering it at all.
+        """
+        known = [self._appliance_name(e) for e in self._appliance_entities]
+        target = next((n for n in known if n.lower() == appliance.lower()), appliance)
+        moved = self._appliance_cycles.rename_program(target, old, new)
+        if moved:
+            await self.async_persist_now()
+            _LOGGER.info(
+                "SolarBalance: re-filed %d %s cycle(s) from %r to %r", moved, target, old, new
+            )
+        return moved
+
     def _observe_appliances(self, snapshot: Snapshot) -> None:
         """Feed each observed appliance's power into the cycle learner (one float/tick).
 
@@ -2760,6 +2777,32 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     if best is not None:
                         item["best_hour"] = (local.hour + best.start_hour) % 24
                         item["best_pct"] = round(best.solar_fraction * 100)
+
+                # Every program, each judged on its own: a 60° and a 20° differ by
+                # more than an order of magnitude, so one figure for the appliance
+                # would describe neither. Carries the median curve for the panel.
+                programs: list[dict[str, Any]] = []
+                for candidate in self._appliance_cycles.summary_all(name):
+                    entry: dict[str, Any] = {
+                        "program": candidate.program,
+                        "samples": candidate.samples,
+                        "duration_min": round(candidate.duration_s / 60.0),
+                        "energy_kwh": round(candidate.energy_kwh, 2),
+                        "curve_w": [round(v) for v in candidate.curve_w],
+                    }
+                    if pv_by_hour:
+                        share = estimate_solar_share(
+                            candidate.curve_w, candidate.duration_s, 0, pv_by_hour, house_by_hour
+                        )
+                        entry["solar_now_pct"] = round(share.solar_fraction * 100)
+                        spot = best_start(
+                            candidate.curve_w, candidate.duration_s, pv_by_hour, house_by_hour
+                        )
+                        if spot is not None:
+                            entry["best_hour"] = (local.hour + spot.start_hour) % 24
+                            entry["best_pct"] = round(spot.solar_fraction * 100)
+                    programs.append(entry)
+                item["programs"] = programs
             out.append(item)
         return out
 

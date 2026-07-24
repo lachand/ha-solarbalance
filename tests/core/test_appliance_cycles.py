@@ -234,3 +234,75 @@ def test_a_cycle_is_not_compared_against_itself() -> None:
     # Identity exclusion: without it the just-stored cycle matches itself at 1.0
     # and nothing would ever be flagged.
     assert ac.anomaly_confidence("dw", subject) < 0.3
+
+
+# --- several programs per appliance ----------------------------------------
+
+
+def test_each_program_is_summarised_on_its_own() -> None:
+    # A washing machine's 60° and its 20° differ by more than an order of magnitude
+    # in energy; averaging them together would describe neither.
+    ac = ApplianceCycles()
+    for _ in range(3):
+        ac.add_template("wm", CycleTemplate(7200.0, 1.4, tuple([1500.0] * 24)), program="60deg")
+    for _ in range(5):
+        ac.add_template("wm", CycleTemplate(5400.0, 0.08, tuple([60.0] * 24)), program="20deg")
+
+    all_programs = ac.summary_all("wm")
+    assert [s.program for s in all_programs] == ["20deg", "60deg"], "not sorted by sample count"
+    by_name = {s.program: s for s in all_programs}
+    assert by_name["60deg"].samples == 3
+    assert by_name["60deg"].energy_kwh == 1.4
+    assert by_name["20deg"].samples == 5
+    assert by_name["20deg"].energy_kwh == 0.08
+
+
+def test_summary_can_target_one_program_or_default_to_the_commonest() -> None:
+    ac = ApplianceCycles()
+    for _ in range(2):
+        ac.add_template("wm", CycleTemplate(7200.0, 1.4, tuple([1500.0] * 24)), program="60deg")
+    for _ in range(4):
+        ac.add_template("wm", CycleTemplate(5400.0, 0.08, tuple([60.0] * 24)), program="20deg")
+    assert ac.summary("wm").program == "20deg"  # the most recorded
+    assert ac.summary("wm", program="60deg").energy_kwh == 1.4
+
+
+def test_summary_all_is_empty_before_anything_is_learned() -> None:
+    assert ApplianceCycles().summary_all("wm") == []
+
+
+# --- manual relabelling -----------------------------------------------------
+
+
+def test_unknown_cycles_can_be_given_a_name() -> None:
+    ac = ApplianceCycles()
+    for _ in range(3):
+        ac.add_template("wm", CycleTemplate(3600.0, 1.0, tuple([900.0] * 24)))  # unknown
+    assert ac.rename_program("wm", UNKNOWN_PROGRAM, "Coton 40") == 3
+    assert list(ac.templates["wm"].keys()) == ["Coton 40"]
+    assert ac.summary("wm").program == "Coton 40"
+
+
+def test_renaming_into_an_existing_program_merges_them() -> None:
+    ac = ApplianceCycles()
+    ac.add_template("wm", CycleTemplate(3600.0, 1.0, tuple([900.0] * 24)), program="Coton 40")
+    ac.add_template("wm", CycleTemplate(3500.0, 0.9, tuple([880.0] * 24)))  # unknown
+    assert ac.rename_program("wm", UNKNOWN_PROGRAM, "Coton 40") == 1
+    assert ac.summary("wm", program="Coton 40").samples == 2
+    assert UNKNOWN_PROGRAM not in ac.templates["wm"]
+
+
+def test_renaming_something_that_is_not_there_changes_nothing() -> None:
+    ac = ApplianceCycles()
+    ac.add_template("wm", CycleTemplate(3600.0, 1.0, tuple([900.0] * 24)), program="Coton 40")
+    assert ac.rename_program("wm", "nope", "x") == 0
+    assert ac.rename_program("wm", "Coton 40", "Coton 40") == 0  # no-op, not a wipe
+    assert ac.summary("wm", program="Coton 40").samples == 1
+
+
+def test_renamed_programs_survive_the_store() -> None:
+    ac = ApplianceCycles()
+    ac.add_template("wm", CycleTemplate(3600.0, 1.0, tuple([900.0] * 24)))
+    ac.rename_program("wm", UNKNOWN_PROGRAM, "Coton 40")
+    back = ApplianceCycles.from_dict(ac.to_dict())
+    assert [s.program for s in back.summary_all("wm")] == ["Coton 40"]

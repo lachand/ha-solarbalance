@@ -215,28 +215,59 @@ class ApplianceCycles:
 
     # ----------------------------------------------------------------- querying
 
-    def summary(self, name: str, program: str | None = None) -> CycleSummary | None:
-        """Typical cycle: median duration/energy and median curve, or None if unlearned."""
-        by_program = self.templates.get(name) or {}
-        groups = {program: by_program.get(program, [])} if program is not None else by_program
-        best_key: str | None = None
-        best: list[CycleTemplate] = []
-        for key, items in groups.items():
-            if len(items) > len(best):
-                best_key, best = key, items
-        if not best or best_key is None:
+    def _summarise(self, program: str, items: list[CycleTemplate]) -> CycleSummary | None:
+        """Median duration, energy and curve of one program's recorded cycles."""
+        if not items:
             return None
-        steps = len(best[0].curve_w)
+        steps = len(items[0].curve_w)
         curve = tuple(
-            _median([t.curve_w[i] for t in best if i < len(t.curve_w)]) for i in range(steps)
+            _median([t.curve_w[i] for t in items if i < len(t.curve_w)]) for i in range(steps)
         )
         return CycleSummary(
-            program=best_key,
-            samples=len(best),
-            duration_s=_median([t.duration_s for t in best]),
-            energy_kwh=_median([t.energy_kwh for t in best]),
+            program=program,
+            samples=len(items),
+            duration_s=_median([t.duration_s for t in items]),
+            energy_kwh=_median([t.energy_kwh for t in items]),
             curve_w=curve,
         )
+
+    def summary_all(self, name: str) -> list[CycleSummary]:
+        """Every program this appliance has run, most-recorded first.
+
+        An appliance is not one cycle: a washing machine's 60° and its 20° differ by
+        more than an order of magnitude in energy, and averaging them together would
+        describe neither. Each program is summarised on its own.
+        """
+        out = [
+            summary
+            for program, items in (self.templates.get(name) or {}).items()
+            if (summary := self._summarise(program, items)) is not None
+        ]
+        out.sort(key=lambda s: s.samples, reverse=True)
+        return out
+
+    def summary(self, name: str, program: str | None = None) -> CycleSummary | None:
+        """Typical cycle for one program, or the most-recorded one when unspecified."""
+        if program is not None:
+            return self._summarise(program, (self.templates.get(name) or {}).get(program, []))
+        everything = self.summary_all(name)
+        return everything[0] if everything else None
+
+    def rename_program(self, name: str, old: str, new: str) -> int:
+        """Re-file an appliance's cycles under a different program label.
+
+        For the ones the appliance integration never managed to identify (they land
+        in ``unknown``) or named unhelpfully. Merges into the destination when it
+        already exists, keeping the newest templates. Returns how many moved.
+        """
+        by_program = self.templates.get(name)
+        if not by_program or old not in by_program or old == new:
+            return 0
+        moved = by_program.pop(old)
+        target = by_program.setdefault(new, [])
+        target.extend(moved)
+        del target[:-_MAX_TEMPLATES]
+        return len(moved)
 
     def match(self, name: str, prefix: Sequence[tuple[float, float]]) -> CycleMatch | None:
         """Best template for a cycle in progress, from its power prefix so far.

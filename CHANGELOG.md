@@ -37,6 +37,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta77] — 2026-07-24
+
+### Added
+
+- **Chaque programme d'un appareil est désormais suivi et affiché séparément.** La base le
+  permettait déjà (`templates[appareil][programme]`), mais l'interface ne montrait que le
+  programme le plus fréquent et jetait les autres. Le panneau liste maintenant, par appareil :
+  **chaque programme**, son **nombre de cycles enregistrés**, sa **durée**, son **énergie**,
+  son **% solaire** propre et son meilleur créneau. Un 60° et un 20° diffèrent de plus d'un
+  ordre de grandeur en énergie — une seule valeur pour l'appareil n'en décrivait aucun.
+
+- **Courbe type de chaque programme** tracée dans le panneau (profil de puissance médian des
+  cycles enregistrés). Chaque courbe est mise à l'échelle de **son propre pic** : ce sont des
+  *formes* qu'on compare, la valeur en kWh à côté portant la magnitude. La chauffe d'un 60°
+  se distingue ainsi d'un coup d'œil du plat d'un 20°.
+
+- **Service `solarbalance.rename_appliance_program`** — réétiqueter les cycles appris, surtout
+  ceux que l'intégration d'appareils n'a jamais su identifier (rangés en `unknown`). Fusionne
+  avec la destination si elle existe déjà, et persiste immédiatement : un réétiquetage perdu
+  au redémarrage serait pire que pas de service du tout.
+
 ## [2.0.8-beta76] — 2026-07-24
 
 ### Added

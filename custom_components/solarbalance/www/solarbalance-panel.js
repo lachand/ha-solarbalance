@@ -1107,6 +1107,25 @@ class SolarBalancePanel extends HTMLElement {
   }
 
   // ---- H — bridage PV -----------------------------------------------------
+  _cycleSpark(curve) {
+    // Tiny filled profile of one cycle, scaled to its own peak so a 20° cycle stays
+    // readable next to a 60° one — these are shapes, not magnitudes; the kWh figure
+    // beside it carries the size.
+    if (!Array.isArray(curve) || curve.length < 2) return "";
+    const W = 120;
+    const H = 22;
+    const peak = Math.max(...curve, 1);
+    const pts = curve
+      .map(
+        (v, i) =>
+          `${((i / (curve.length - 1)) * W).toFixed(1)},${(H - (v / peak) * H).toFixed(1)}`
+      )
+      .join(" ");
+    return `<svg viewBox="0 0 ${W} ${H}" class="cyc" preserveAspectRatio="none">
+      <polygon points="0,${H} ${pts} ${W},${H}" class="cyc-fill"/>
+      <polyline points="${pts}" class="cyc-line"/></svg>`;
+  }
+
   _applianceCard() {
     const list = this._attr(this._E.appliances, "appliances");
     if (!Array.isArray(list) || !list.length) return "";
@@ -1139,12 +1158,35 @@ class SolarBalancePanel extends HTMLElement {
         }
         const conf =
           a.samples < 3 ? ` <span class="mini-warn">${this._t("peu de cycles")}</span>` : "";
+        // One line per learned program: a 60° and a 20° differ by more than an order
+        // of magnitude, so a single figure for the appliance would describe neither.
+        const progs = Array.isArray(a.programs) ? a.programs : [];
+        const progRows = progs
+          .map((pr) => {
+            const pct =
+              pr.solar_now_pct != null ? `<span class="p-sun">${pr.solar_now_pct}%</span>` : "";
+            const better =
+              pr.best_hour != null &&
+              pr.best_pct != null &&
+              pr.best_pct >= (pr.solar_now_pct || 0) + 10
+                ? ` <span class="p-best">→ ${pr.best_pct}% ${this._t("à")} ${String(
+                    pr.best_hour
+                  ).padStart(2, "0")}:00</span>`
+                : "";
+            return `<div class="p-row">
+                <div class="p-name">${pr.program} <span class="p-n">×${pr.samples}</span></div>
+                <div class="p-spark">${this._cycleSpark(pr.curve_w)}</div>
+                <div class="p-meta">${pr.duration_min} min · ${pr.energy_kwh} kWh ${pct}${better}</div>
+              </div>`;
+          })
+          .join("");
         return `<div class="app-row">
             <div class="app-name">${a.name}${run}${conf}</div>
             <div class="app-meta">${dur} · ${kwh}${
           a.program && a.program !== "unknown" ? ` · ${a.program}` : ""
         }</div>
             <div class="app-advice">${advice}</div>
+            ${progRows ? `<div class="p-list">${progRows}</div>` : ""}
           </div>`;
       })
       .join("");
@@ -1643,6 +1685,18 @@ class SolarBalancePanel extends HTMLElement {
         .app-name { font-weight:600; }
         .app-meta { font-size:.75rem; color:var(--secondary-text-color); }
         .app-advice { font-size:.82rem; margin-top:2px; }
+        .p-list { margin:5px 0 2px 0; padding-left:8px;
+                  border-left:2px solid var(--divider-color,#eee); }
+        .p-row { display:grid; grid-template-columns:1fr 120px; gap:6px; align-items:center;
+                 padding:3px 0; }
+        .p-name { font-size:.78rem; }
+        .p-n { color:var(--secondary-text-color); font-size:.7rem; }
+        .p-meta { grid-column:1 / -1; font-size:.7rem; color:var(--secondary-text-color); }
+        .p-sun { color:var(--success-color,#27ae60); font-weight:600; }
+        .p-best { color:var(--info-color,#3d8bff); }
+        svg.cyc { width:120px; height:22px; }
+        .cyc-fill { fill:var(--warning-color,#f5a623); opacity:.25; }
+        .cyc-line { fill:none; stroke:var(--warning-color,#f5a623); stroke-width:1.2; }
         .sun-now.ok { color:var(--success-color,#27ae60); font-weight:600; }
         .sun-now.warn { color:var(--warning-color,#f5a623); font-weight:600; }
         .sun-now.bad { color:var(--error-color,#e74c3c); font-weight:600; }

@@ -100,6 +100,24 @@ line.
 
 ---
 
+### `solarbalance.rename_appliance_program`
+
+Re-file an appliance's learned cycles under a different label — chiefly for the ones the
+appliance integration never managed to identify, which are filed as `unknown`. Merges into
+the destination when it already exists, and persists immediately.
+
+```yaml
+service: solarbalance.rename_appliance_program
+data:
+  appliance: machine a laver
+  from_program: unknown
+  to_program: Coton 40
+```
+
+Returns `{ moved }` — how many cycles were re-filed.
+
+---
+
 ### `solarbalance.set_mode`
 
 Directly set the global operating mode.
