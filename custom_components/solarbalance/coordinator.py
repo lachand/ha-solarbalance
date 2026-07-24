@@ -29,6 +29,7 @@ from .const import (
     CONF_ANTICIPATION_HORIZON_MIN,
     CONF_ANTICIPATION_MARGIN_W,
     CONF_ANTICIPATORY_CURTAILMENT_ENABLED,
+    CONF_APPLIANCE_POWER_ENTITIES,
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_FLOOR_MARGIN_W,
     CONF_BASELINE_WINDOW_END_H,
@@ -140,6 +141,7 @@ from .const import (
     STORE_KEY,
     STORE_VERSION,
 )
+from .core.appliance_cycles import ApplianceCycles
 from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.autotuner import RegulationAutoTuner
 from .core.baseline import NightBaselineEstimator
@@ -175,6 +177,7 @@ from .core.controllers.regulation import (
     resolve_total_power,
 )
 from .core.controllers.soc_equaliser import SocEqualiserController
+from .core.controllers.solar_recovery import best_start, estimate_solar_share
 from .core.controllers.zero_injection import (
     PerPhaseZeroInjectionController,
     PerPhaseZeroInjectionState,
@@ -828,6 +831,12 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # replaces the flat night-talon in the planner so it anticipates the
         # morning/evening peaks. Learned online, persisted, restored on start.
         self._consumption_profile = ConsumptionProfile()
+        # Observed (not controlled) appliances whose cycles we learn, so the panel can
+        # advise when running one would actually be covered by the sun.
+        self._appliance_entities: list[str] = [
+            e for e in (cfg.get(CONF_APPLIANCE_POWER_ENTITIES) or []) if isinstance(e, str)
+        ]
+        self._appliance_cycles = ApplianceCycles()
         # Real-time PV-drop detector (passing cloud) — exposed for observability,
         # and (opt-in) feeds a fast discharge feed-forward via the settle window.
         self._pv_drop = PvDropDetector()
@@ -929,6 +938,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             with contextlib.suppress(ValueError, TypeError):
                 self._load_energy_day = date.fromisoformat(le["day"])
                 self._load_energy_kwh = {str(k): float(v) for k, v in (le.get("kwh") or {}).items()}
+        ac = (data or {}).get("appliance_cycles")
+        if isinstance(ac, dict):
+            with contextlib.suppress(Exception):
+                self._appliance_cycles = ApplianceCycles.from_dict(ac)
         cp = (data or {}).get("consumption_profile")
         if isinstance(cp, dict):
             with contextlib.suppress(ValueError, TypeError):
@@ -1091,6 +1104,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 "year_eur": round(self._savings_year_eur, 4),
             },
             "consumption_profile": self._consumption_profile.to_dict(),
+            "appliance_cycles": self._appliance_cycles.to_dict(),
         }
 
     @property
@@ -1708,6 +1722,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._track_load_energy(snapshot, local_now.date())
         self._store.async_delay_save(self._persisted_state, _STORE_SAVE_DELAY_S)
         self._run_advisory_plan(snapshot)
+        self._observe_appliances(snapshot)
 
         # --- Grid median filter (B): clean the value handed to the regulator;
         # the displayed grid sensor keeps snapshot.grid_power_w (raw). ---
@@ -2439,6 +2454,87 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         return snapshot
 
     # ------------------------------------------------------------------ helpers
+
+    def _observe_appliances(self, snapshot: Snapshot) -> None:
+        """Feed each observed appliance's power into the cycle learner (one float/tick).
+
+        The program label is read only when a cycle closes: appliance integrations
+        identify it well into the run, which is useless for predicting but exactly
+        what is needed to file the finished cycle. A sibling ``*_program`` entity is
+        used when it exists; otherwise the cycle is filed as unknown and everything
+        still works.
+        """
+        if not self._appliance_entities:
+            return
+        now_s = snapshot.timestamp.timestamp()
+        for entity_id in self._appliance_entities:
+            state = self.hass.states.get(entity_id)
+            if state is None or state.state in ("unknown", "unavailable", ""):
+                continue
+            try:
+                power_w = float(state.state)
+            except (TypeError, ValueError):
+                continue
+            name = self._appliance_name(entity_id)
+            was_running = self._appliance_cycles.is_running(name)
+            closed = self._appliance_cycles.observe(name, now_s, power_w)
+            if closed is not None or (was_running and not self._appliance_cycles.is_running(name)):
+                _LOGGER.debug("SolarBalance: appliance %s finished a cycle", name)
+
+    @staticmethod
+    def _appliance_name(entity_id: str) -> str:
+        """Readable appliance name from its power entity id."""
+        base = entity_id.split(".", 1)[-1]
+        for suffix in ("_current_power", "_power", "_puissance"):
+            if base.endswith(suffix):
+                base = base[: -len(suffix)]
+                break
+        return base.replace("_", " ").strip() or entity_id
+
+    @property
+    def appliance_advice(self) -> list[dict[str, Any]]:
+        """Per-appliance typical cycle + how much of it the sun would cover.
+
+        Returns an empty list until something has actually been learned — an invented
+        percentage here would send someone to run a 2 kWh cycle off the grid.
+        """
+        if not self._appliance_entities:
+            return []
+        snap = self.data
+        pv_by_hour = self._forecast_pv_by_hour(snap) if snap is not None else []
+        if not pv_by_hour:
+            return []
+        local = dt_util.now()
+        house = self._consumption_profile.by_hour(
+            segment_for(local.weekday()), float(self._baseline_ema_w or 0.0)
+        )
+        # Align the house profile (hour-of-day) with the PV forecast (0 = current hour).
+        house_by_hour = [house[(local.hour + i) % 24] for i in range(len(pv_by_hour))]
+        out: list[dict[str, Any]] = []
+        for entity_id in self._appliance_entities:
+            name = self._appliance_name(entity_id)
+            summary = self._appliance_cycles.summary(name)
+            if summary is None:
+                continue
+            now_share = estimate_solar_share(
+                summary.curve_w, summary.duration_s, 0, pv_by_hour, house_by_hour
+            )
+            best = best_start(summary.curve_w, summary.duration_s, pv_by_hour, house_by_hour)
+            item: dict[str, Any] = {
+                "name": name,
+                "program": summary.program,
+                "samples": summary.samples,
+                "duration_min": round(summary.duration_s / 60.0),
+                "energy_kwh": round(summary.energy_kwh, 2),
+                "running": self._appliance_cycles.is_running(name),
+                "solar_now_pct": round(now_share.solar_fraction * 100),
+                "truncated": now_share.truncated,
+            }
+            if best is not None:
+                item["best_hour"] = (local.hour + best.start_hour) % 24
+                item["best_pct"] = round(best.solar_fraction * 100)
+            out.append(item)
+        return out
 
     def _run_advisory_plan(self, snapshot: Snapshot) -> None:
         """Re-run the advisory predictive plan (observation only, no control).

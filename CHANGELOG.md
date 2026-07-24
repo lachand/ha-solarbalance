@@ -37,6 +37,31 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta69] — 2026-07-24
+
+### Added
+
+- **Cycles d'appareils : « récupérable solaire » au dashboard.** Deux nouveaux modules purs
+  apprennent la **courbe de puissance** des cycles (machine à laver, lave-vaisselle) depuis
+  une simple entité de puissance de prise connectée, puis répondent à la question utile :
+  *si je lance ce cycle maintenant, quelle part sera couverte par le soleil — et vaut-il mieux
+  attendre ?* La carte affiche, par appareil, la **durée** et l'**énergie** typiques, le
+  **% solaire si lancé maintenant**, et le **meilleur créneau** — proposé uniquement s'il
+  gagne au moins 10 points, pour ne pas faire patienter pour rien.
+  - Nouvelle option **Entités de puissance des appareils** (multi-capteurs). Les appareils
+    sont **observés, jamais pilotés**.
+  - **Pas de machine learning** : quelques dizaines de cycles et un processus *déterministe*
+    (automate à états) — un appariement de gabarits au plus proche voisin fait mieux,
+    sans dépendance, reste interprétable, et **ne prédit rien** sous son seuil de confiance.
+  - Deux points de conception tirés des vraies données : un cycle se **clôt sur une absence
+    prolongée**, pas sur un zéro (un vrai cycle lave-vaisselle passe une heure à ~75 W avec des
+    creux à ~1 W qui, sinon, le découperaient en plusieurs faux cycles) ; et le **label de
+    programme est lu à la clôture** — les intégrations d'appareils ne l'identifient que très
+    tard (observé : 2 h après le début), ce qui est inutile pour *prédire* mais parfaitement
+    bon pour *ranger* un cycle terminé. Sans label, tout fonctionne quand même.
+  - Rien n'est affiché tant que rien n'a été appris : un pourcentage inventé enverrait
+    quelqu'un lancer 2 kWh sur le réseau.
+
 ## [2.0.8-beta68] — 2026-07-24
 
 ### Fixed

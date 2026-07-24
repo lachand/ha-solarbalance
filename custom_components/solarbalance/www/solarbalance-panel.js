@@ -49,6 +49,11 @@ const STR_EN = {
   Économies: "Savings",
   "Éco. ce mois": "Savings (month)",
   "Éco. cette année": "Savings (year)",
+  "Appareils — récupérable solaire": "Appliances — solar recoverable",
+  "solaire maintenant": "solar now",
+  "à": "at",
+  "en cours": "running",
+  "peu de cycles": "few cycles",
   Puissance: "Power",
   "Flux instantané": "Instant flow",
   "Pic capteur masqué": "Hidden sensor spike",
@@ -347,6 +352,7 @@ class SolarBalancePanel extends HTMLElement {
       pvLimit: id("pv_output_limit", "sensor.solarbalance_pv_output_limit"),
       binding: id("regulation_binding", "sensor.solarbalance_active_clamp"),
       regDebug: id("regulation_debug", "sensor.solarbalance_regulation_debug"),
+      appliances: id("appliance_advice", "sensor.solarbalance_appliance_advice"),
       planPower: id("planner_recommended_power", "sensor.solarbalance_planner_recommended_power_advisory"),
       planCost: id("planner_expected_cost", "sensor.solarbalance_planner_expected_cost_advisory"),
     };
@@ -1099,6 +1105,41 @@ class SolarBalancePanel extends HTMLElement {
   }
 
   // ---- H — bridage PV -----------------------------------------------------
+  _applianceCard() {
+    const list = this._attr(this._E.appliances, "appliances");
+    if (!Array.isArray(list) || !list.length) return "";
+    const rows = list
+      .map((a) => {
+        const dur = a.duration_min != null ? `${Math.round(a.duration_min)} min` : "?";
+        const kwh = a.energy_kwh != null ? `${a.energy_kwh} kWh` : "?";
+        const now = a.solar_now_pct;
+        // Colour by how much the sun would actually cover if started right now.
+        const cls = now >= 70 ? "ok" : now >= 40 ? "warn" : "bad";
+        let advice = `<span class="sun-now ${cls}">${now}% ${this._t("solaire maintenant")}</span>`;
+        // Only suggest waiting when it is materially better — nudging someone to
+        // delay a cycle for 3 points is noise, not advice.
+        if (a.best_hour != null && a.best_pct >= now + 10) {
+          advice += ` · <span class="sun-best">${a.best_pct}% ${this._t("à")} ${String(
+            a.best_hour
+          ).padStart(2, "0")}:00</span>`;
+        }
+        const run = a.running ? ` <span class="mini-run">${this._t("en cours")}</span>` : "";
+        const conf =
+          a.samples < 3 ? ` <span class="mini-warn">${this._t("peu de cycles")}</span>` : "";
+        return `<div class="app-row">
+            <div class="app-name">${a.name}${run}${conf}</div>
+            <div class="app-meta">${dur} · ${kwh}${
+          a.program && a.program !== "unknown" ? ` · ${a.program}` : ""
+        }</div>
+            <div class="app-advice">${advice}</div>
+          </div>`;
+      })
+      .join("");
+    return `<div class="card"><h3>\u{1F9FA} ${this._t(
+      "Appareils — récupérable solaire"
+    )}</h3>${rows}</div>`;
+  }
+
   _curtailCard() {
     const devs = Object.values(this._devices()).filter((k) => k.mppt_power || k.mppt_limit);
     if (!devs.length) return "";
@@ -1390,6 +1431,8 @@ class SolarBalancePanel extends HTMLElement {
 
           ${this._curtailCard()}
 
+          ${this._applianceCard()}
+
           ${this._controlsCard()}
         </section>
 
@@ -1548,6 +1591,16 @@ class SolarBalancePanel extends HTMLElement {
         .legend .sw.grid { background:var(--info-color,#3d8bff); }
         .legend .sw.batt { background:var(--success-color,#27ae60); }
         .legend .sw.fc { background:var(--warning-color,#f5a623); opacity:.6; }
+        .app-row { padding:6px 0; border-bottom:1px solid var(--divider-color,#eee); }
+        .app-row:last-child { border-bottom:none; }
+        .app-name { font-weight:600; }
+        .app-meta { font-size:.75rem; color:var(--secondary-text-color); }
+        .app-advice { font-size:.82rem; margin-top:2px; }
+        .sun-now.ok { color:var(--success-color,#27ae60); font-weight:600; }
+        .sun-now.warn { color:var(--warning-color,#f5a623); font-weight:600; }
+        .sun-now.bad { color:var(--error-color,#e74c3c); font-weight:600; }
+        .sun-best { color:var(--info-color,#3d8bff); }
+        .mini-run { font-size:.7rem; color:var(--info-color,#3d8bff); }
         .legend .sw.glitch { width:8px; height:8px; border-radius:0; transform:rotate(45deg);
                              background:var(--card-background-color,#fff);
                              border:1.3px solid var(--error-color,#e74c3c); }

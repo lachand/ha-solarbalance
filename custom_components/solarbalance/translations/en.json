@@ -841,6 +841,9 @@
       },
       "sink_budget": {
         "name": "Sink budget"
+      },
+      "appliance_advice": {
+        "name": "Appliance advice"
       }
     },
     "select": {

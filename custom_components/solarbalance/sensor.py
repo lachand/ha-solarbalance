@@ -102,6 +102,7 @@ async def async_setup_entry(
         SolarBalanceRegulationBindingSensor(coordinator, entry),
         SolarBalanceRegulationDebugSensor(coordinator, entry),
         SolarBalanceConsumptionForecastSensor(coordinator, entry),
+        SolarBalanceApplianceAdviceSensor(coordinator, entry),
         SolarBalanceConsumptionForecastErrorSensor(coordinator, entry),
     ]
     if coordinator._curtailment is not None:
@@ -366,6 +367,32 @@ class SolarBalancePvPowerSensor(_SolarBalanceSensor):
         """Expose the hourly PV forecast so the panel can overlay it."""
         fc = self.coordinator.pv_forecast_hourly
         return {"pv_forecast_hourly": fc} if fc else None
+
+
+class SolarBalanceApplianceAdviceSensor(_SolarBalanceSensor):
+    """Learned appliance cycles and how much of each the sun would cover.
+
+    State is the number of appliances with enough learned cycles to advise on;
+    the advice itself rides in the attributes for the panel. Nothing is published
+    until something has actually been learned.
+    """
+
+    # Rewritten every tick and list-shaped — keep it live, out of the recorder.
+    _unrecorded_attributes = frozenset({"appliances"})
+    _attr_translation_key = "appliance_advice"
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:washing-machine"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "appliance_advice")
+
+    @property
+    def native_value(self) -> int:
+        return len(self.coordinator.appliance_advice)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        return {"appliances": self.coordinator.appliance_advice}
 
 
 class SolarBalanceBatteryPowerSensor(_SolarBalanceSensor):

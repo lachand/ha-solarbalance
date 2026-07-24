@@ -21,6 +21,7 @@ from .const import (
     CONF_ANTICIPATION_HORIZON_MIN,
     CONF_ANTICIPATION_MARGIN_W,
     CONF_ANTICIPATORY_CURTAILMENT_ENABLED,
+    CONF_APPLIANCE_POWER_ENTITIES,
     CONF_BACKUP_RESERVE_SOC_PCT,
     CONF_BASELINE_FLOOR_MARGIN_W,
     CONF_BASELINE_WINDOW_END_H,
@@ -186,6 +187,10 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
         vol.Optional(
             CONF_LOCAL_AC_LOAD_ENTITIES,
             default=d.get(CONF_LOCAL_AC_LOAD_ENTITIES, []),
+        ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", multiple=True)),
+        vol.Optional(
+            CONF_APPLIANCE_POWER_ENTITIES,
+            default=d.get(CONF_APPLIANCE_POWER_ENTITIES, []),
         ): selector.EntitySelector(selector.EntitySelectorConfig(domain="sensor", multiple=True)),
         vol.Optional(
             CONF_PV_DROP_COMPENSATION_ENABLED,

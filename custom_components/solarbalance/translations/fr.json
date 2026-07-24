@@ -841,6 +841,9 @@
       },
       "sink_budget": {
         "name": "Bilan de puits"
+      },
+      "appliance_advice": {
+        "name": "Conseil appareils"
       }
     },
     "select": {
