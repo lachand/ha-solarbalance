@@ -80,6 +80,16 @@ async def async_get_config_entry_diagnostics(
         "stored_delta_kwh": cf.stored_delta_kwh,
         "hours": cf.hours,
     }
+    band = coord._balance_band
+    if band is not None:
+        data["balance_point"] = {
+            "settled": band.settled,
+            "reason": band.reason,
+            "enter_w": round(band.enter_w, 1),
+            "exit_import_w": round(band.exit_import_w, 1),
+            "exit_export_w": round(band.exit_export_w, 1),
+            "actuator_lag_s": coord._actuator_lag_s,
+        }
     diag = coord._diagnostics
     if diag is not None:
         data["regulation"] = {

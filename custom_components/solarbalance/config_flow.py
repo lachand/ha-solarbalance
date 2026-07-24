@@ -18,11 +18,13 @@ from homeassistant.helpers import selector
 
 from .const import (
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_ACTUATOR_LAG_S,
     CONF_ANTICIPATION_HORIZON_MIN,
     CONF_ANTICIPATION_MARGIN_W,
     CONF_ANTICIPATORY_CURTAILMENT_ENABLED,
     CONF_APPLIANCE_POWER_ENTITIES,
     CONF_BACKUP_RESERVE_SOC_PCT,
+    CONF_BALANCE_HYSTERESIS_ENABLED,
     CONF_BASELINE_FLOOR_MARGIN_W,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
@@ -76,9 +78,11 @@ from .const import (
     CONF_ZERO_INJECTION_HYSTERESIS_W,
     CONF_ZERO_INJECTION_KP,
     CONF_ZERO_INJECTION_SETPOINT_W,
+    DEFAULT_ACTUATOR_LAG_S,
     DEFAULT_ANTICIPATION_HORIZON_MIN,
     DEFAULT_ANTICIPATION_MARGIN_W,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
+    DEFAULT_BALANCE_HYSTERESIS_ENABLED,
     DEFAULT_BASELINE_FLOOR_MARGIN_W,
     DEFAULT_BASELINE_WINDOW_END_H,
     DEFAULT_BASELINE_WINDOW_START_H,
@@ -215,6 +219,10 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
             default=d.get(CONF_EVENING_RESERVE_ENABLED, False),
         ): bool,
         vol.Optional(
+            CONF_BALANCE_HYSTERESIS_ENABLED,
+            default=d.get(CONF_BALANCE_HYSTERESIS_ENABLED, DEFAULT_BALANCE_HYSTERESIS_ENABLED),
+        ): bool,
+        vol.Optional(
             CONF_PV_DROP_COMPENSATION_ENABLED,
             default=d.get(CONF_PV_DROP_COMPENSATION_ENABLED, DEFAULT_PV_DROP_COMPENSATION_ENABLED),
         ): bool,
@@ -273,6 +281,10 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
                         CONF_ZERO_INJECTION_HYSTERESIS_W, DEFAULT_ZERO_INJECTION_HYSTERESIS_W
                     ),
                 ): vol.All(int, vol.Range(min=0)),
+                vol.Optional(
+                    CONF_ACTUATOR_LAG_S,
+                    default=d.get(CONF_ACTUATOR_LAG_S, DEFAULT_ACTUATOR_LAG_S),
+                ): vol.All(vol.Coerce(int), vol.Range(min=0, max=300)),
                 vol.Optional(
                     CONF_MAX_RAMP_W, default=d.get(CONF_MAX_RAMP_W, DEFAULT_MAX_RAMP_W)
                 ): vol.All(vol.Coerce(int), vol.Range(min=0)),

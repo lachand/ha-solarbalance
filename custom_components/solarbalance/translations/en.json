@@ -59,7 +59,8 @@
               "solar_fallback_safety_pct": "Solar-only fallback: share (%) of the *estimated* surplus actually commanded. Below 100 so an underestimated house load eats the margin instead of drawing from the grid.",
               "evening_peak_start_h": "Evening peak start (local hour) covered by the reserve.",
               "evening_peak_end_h": "Evening peak end (local hour).",
-              "evening_reserve_max_pct": "Largest share (%) of usable capacity the evening reserve may claim, so an expensive predicted evening cannot pin the whole pack."
+              "evening_reserve_max_pct": "Largest share (%) of usable capacity the evening reserve may claim, so an expensive predicted evening cannot pin the whole pack.",
+              "actuator_lag_s": "Actuator lag (s): how long the hardware takes to act on a new setpoint. ~30 s on an EcoFlow STREAM over BLE. Sets how much wider the balance-point resume threshold is; 0 = no widening."
             }
           }
         }
@@ -109,7 +110,8 @@
           "appliance_power_entities": "Appliance power sensors (washing machine, dishwasher…) — their cycles are learned so the panel can advise when running one would be covered by solar. Observed only, never controlled.",
           "grid_backup_entity": "Backup grid sensor — used when the PDL meter goes unavailable, so a meter dropout no longer suspends regulation. Same sign convention as the PDL.",
           "solar_fallback_enabled": "Keep storing solar when the grid meter is unavailable — estimates the surplus from measured PV minus the learned house load and charges a derated share of it. Charge only, never discharge (without a meter an export could not be detected).",
-          "evening_reserve_enabled": "Keep back what the evening peak will need — sizes a reserve from the learned evening consumption minus the PV forecast, holds it through the day and releases it at the peak. Only ever blocks a discharge, never forces a charge. Works on a flat tariff."
+          "evening_reserve_enabled": "Keep back what the evening peak will need — sizes a reserve from the learned evening consumption minus the PV forecast, holds it through the day and releases it at the peak. Only ever blocks a discharge, never forces a charge. Works on a flat tariff.",
+          "balance_hysteresis_enabled": "Balance-point hysteresis — the deadband is a single threshold, so an error hovering at it flips the loop between regulating and idle every tick, and each flip is a real command to hardware that answers ~30 s later. This settles inside the deadband and resumes only past a wider one, scaled by the actuator lag. Widened on the import side only: export never gets extra tolerance."
         },
         "sections": {
           "advanced": {
@@ -130,7 +132,8 @@
               "solar_fallback_safety_pct": "Solar-only fallback: share (%) of the *estimated* surplus actually commanded. Below 100 so an underestimated house load eats the margin instead of drawing from the grid.",
               "evening_peak_start_h": "Evening peak start (local hour) covered by the reserve.",
               "evening_peak_end_h": "Evening peak end (local hour).",
-              "evening_reserve_max_pct": "Largest share (%) of usable capacity the evening reserve may claim, so an expensive predicted evening cannot pin the whole pack."
+              "evening_reserve_max_pct": "Largest share (%) of usable capacity the evening reserve may claim, so an expensive predicted evening cannot pin the whole pack.",
+              "actuator_lag_s": "Actuator lag (s): how long the hardware takes to act on a new setpoint. ~30 s on an EcoFlow STREAM over BLE. Sets how much wider the balance-point resume threshold is; 0 = no widening."
             }
           }
         }

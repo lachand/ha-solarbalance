@@ -80,6 +80,19 @@ def test_settle_explains_the_deliberate_inaction() -> None:
     assert "chasing the transient" in e.text
 
 
+def test_holding_at_the_balance_point_says_so() -> None:
+    """A tick that is silent on purpose must not look like a loop that stopped."""
+    e = explain_tick(target_w=-100.0, house_w=200.0, pv_w=100.0, balance_settled=True)
+    assert e.key == "balance_settled"
+    assert "balance point" in e.text
+
+
+def test_a_lost_meter_still_outranks_the_balance_hold() -> None:
+    """Order matters: with no meter, "close enough to target" is not a fact we have."""
+    e = explain_tick(target_w=0.0, house_w=200.0, pv_w=100.0, balance_settled=True, degraded=True)
+    assert e.key == "degraded_no_meter"
+
+
 def test_idle_is_described_as_balance_not_as_failure() -> None:
     e = explain_tick(target_w=5.0, house_w=400.0, pv_w=400.0)
     assert e.key == "idle"

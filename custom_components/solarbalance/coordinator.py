@@ -26,11 +26,13 @@ from .const import (
     AUTOTUNE_EQ_STEP_MIN_W,
     AUTOTUNE_ZI_KP_MIN,
     CONF_ACTIVE_CONTROL_ENABLED,
+    CONF_ACTUATOR_LAG_S,
     CONF_ANTICIPATION_HORIZON_MIN,
     CONF_ANTICIPATION_MARGIN_W,
     CONF_ANTICIPATORY_CURTAILMENT_ENABLED,
     CONF_APPLIANCE_POWER_ENTITIES,
     CONF_BACKUP_RESERVE_SOC_PCT,
+    CONF_BALANCE_HYSTERESIS_ENABLED,
     CONF_BASELINE_FLOOR_MARGIN_W,
     CONF_BASELINE_WINDOW_END_H,
     CONF_BASELINE_WINDOW_START_H,
@@ -93,9 +95,11 @@ from .const import (
     CONF_ZERO_INJECTION_SETPOINT_W,
     CONF_ZI_SETTLE_MIN_DROP_W,
     CONF_ZI_SETTLE_TICKS,
+    DEFAULT_ACTUATOR_LAG_S,
     DEFAULT_ANTICIPATION_HORIZON_MIN,
     DEFAULT_ANTICIPATION_MARGIN_W,
     DEFAULT_BACKUP_RESERVE_SOC_PCT,
+    DEFAULT_BALANCE_HYSTERESIS_ENABLED,
     DEFAULT_BALANCING_ALPHA,
     DEFAULT_BASELINE_FLOOR_MARGIN_W,
     DEFAULT_BASELINE_WINDOW_END_H,
@@ -168,6 +172,7 @@ from .core.controllers.anticipation import (
     compute_sink_budget,
     evaluate_anticipation,
 )
+from .core.controllers.balance_point import BalanceBand, BalancePointState, balance_band
 from .core.controllers.balancing import BalancingController, BalancingResult
 from .core.controllers.curtailment import CurtailmentController, distribute_pv_limit
 from .core.controllers.deadline import DeadlineDecision, evaluate_deadline
@@ -778,6 +783,15 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             self._zi_controller = ZeroInjectionController(kp=zi_kp, ki=0.0, hysteresis_w=hysteresis)
         self._zi_setpoint_w = float(cfg.get(CONF_ZERO_INJECTION_SETPOINT_W, 0))
         self._tick_s = tick
+        # Balance-point hysteresis: the deadband is memoryless, so an error hovering
+        # at the threshold flips the loop on and off every tick — and each flip is a
+        # real command to hardware that will not answer for ~30 s. Opt-in.
+        self._balance_hysteresis_enabled = bool(
+            cfg.get(CONF_BALANCE_HYSTERESIS_ENABLED, DEFAULT_BALANCE_HYSTERESIS_ENABLED)
+        )
+        self._actuator_lag_s = float(cfg.get(CONF_ACTUATOR_LAG_S, DEFAULT_ACTUATOR_LAG_S))
+        self._balance_state = BalancePointState()
+        self._balance_band: BalanceBand | None = None
 
         # Supervisory auto-tuner (always on): damps the ZI kp and the equaliser step
         # cap when they oscillate, restores them when calm. Bounded to the configured
@@ -2207,21 +2221,45 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             else:
                 assert isinstance(self._zi_controller, ZeroInjectionController)
                 assert isinstance(self._zi_state, ZeroInjectionState)
-                zi_result = self._zi_controller.step(
-                    grid_power_w=grid_filtered_w,
-                    setpoint_w=effective_setpoint_w,
-                    dt_s=float(self._tick_s),
-                    state=self._zi_state,
+                # Aggregate-only: with per-phase ZI the three errors are independent,
+                # and an aggregate near zero can hide two phases pulling against each
+                # other — holding on that would be holding on a fiction.
+                band = balance_band(
+                    enabled=self._balance_hysteresis_enabled,
+                    error_w=grid_filtered_w - effective_setpoint_w,
+                    base_hysteresis_w=self._zi_hysteresis_w,
+                    actuator_lag_s=self._actuator_lag_s,
+                    tick_s=float(self._tick_s),
+                    state=self._balance_state,
                 )
-                self._zi_state = zi_result.new_state
-                zi_correction_w = zi_result.correction_w
-                if not zi_result.in_deadband:
+                self._balance_state = band.new_state
+                self._balance_band = band
+                if band.settled:
+                    # Hold the last command and leave the integral alone: the previous
+                    # order is still on its way to the hardware.
+                    zi_correction_w = 0.0
                     _LOGGER.debug(
-                        "ZI correction %.0fW (grid=%.0fW filtered, setpoint=%.0fW)",
-                        zi_result.correction_w,
-                        grid_filtered_w,
-                        effective_setpoint_w,
+                        "ZI settled at the balance point (error=%.0fW, exit +%.0f/-%.0fW)",
+                        grid_filtered_w - effective_setpoint_w,
+                        band.exit_import_w,
+                        band.exit_export_w,
                     )
+                else:
+                    zi_result = self._zi_controller.step(
+                        grid_power_w=grid_filtered_w,
+                        setpoint_w=effective_setpoint_w,
+                        dt_s=float(self._tick_s),
+                        state=self._zi_state,
+                    )
+                    self._zi_state = zi_result.new_state
+                    zi_correction_w = zi_result.correction_w
+                    if not zi_result.in_deadband:
+                        _LOGGER.debug(
+                            "ZI correction %.0fW (grid=%.0fW filtered, setpoint=%.0fW)",
+                            zi_result.correction_w,
+                            grid_filtered_w,
+                            effective_setpoint_w,
+                        )
             if self._zi_tuner is not None:
                 # Damp the ZI gain when the correction oscillates (pumping).
                 self._zi_controller.set_kp(self._zi_tuner.step(zi_correction_w))
@@ -2418,6 +2456,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             settle_active=self._settle_state.active,
             near_full=near_full,
             anticipating=anticipation.active,
+            balance_settled=bool(self._balance_band and self._balance_band.settled),
         )
         self._explanation = explanation
         self._diagnostics = RegulationDiagnostics(

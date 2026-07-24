@@ -59,7 +59,8 @@
               "solar_fallback_safety_pct": "Repli solaire : part (%) du surplus *estimé* réellement commandée. Sous 100 % pour qu'une conso sous-estimée mange la marge au lieu de tirer sur le réseau.",
               "evening_peak_start_h": "Début du pic du soir (heure locale) couvert par la réserve.",
               "evening_peak_end_h": "Fin du pic du soir (heure locale).",
-              "evening_reserve_max_pct": "Part maximale (%) de la capacité utile que la réserve du soir peut réclamer, pour qu'un soir prévu coûteux ne fige pas tout le parc."
+              "evening_reserve_max_pct": "Part maximale (%) de la capacité utile que la réserve du soir peut réclamer, pour qu'un soir prévu coûteux ne fige pas tout le parc.",
+              "actuator_lag_s": "Retard de l'actionneur (s) : temps que met le matériel à appliquer une nouvelle consigne. ~30 s sur un EcoFlow STREAM en BLE. Détermine de combien le seuil de reprise au point d'équilibre est élargi ; 0 = aucun élargissement."
             }
           }
         }
@@ -109,7 +110,8 @@
           "appliance_power_entities": "Capteurs de puissance des appareils (machine à laver, lave-vaisselle…) — leurs cycles sont appris pour conseiller quand les lancer en solaire. Observés seulement, jamais pilotés.",
           "grid_backup_entity": "Compteur réseau de secours — utilisé quand le compteur PDL devient indisponible, pour qu'une coupure ne suspende plus la régulation. Même convention de signe que le PDL.",
           "solar_fallback_enabled": "Continuer à stocker le solaire quand le compteur est indisponible — estime le surplus depuis la PV mesurée moins la consommation apprise, et en charge une part minorée. Charge uniquement, jamais de décharge (sans compteur, une injection passerait inaperçue).",
-          "evening_reserve_enabled": "Garder ce dont le pic du soir aura besoin — dimensionne une réserve depuis la consommation du soir apprise moins la prévision PV, la tient dans la journée et la libère au pic. Bloque seulement une décharge, ne force jamais une charge. Fonctionne en tarif plat."
+          "evening_reserve_enabled": "Garder ce dont le pic du soir aura besoin — dimensionne une réserve depuis la consommation du soir apprise moins la prévision PV, la tient dans la journée et la libère au pic. Bloque seulement une décharge, ne force jamais une charge. Fonctionne en tarif plat.",
+          "balance_hysteresis_enabled": "Hystérésis au point d'équilibre — la bande morte n'a qu'un seuil, donc une erreur qui oscille autour la fait basculer entre régulation et repos à chaque tick, et chaque bascule est un vrai ordre à du matériel qui répond ~30 s plus tard. Ici on se pose dans la bande morte et on ne repart qu'au-delà d'un seuil plus large, proportionné au retard de l'actionneur. Élargi côté soutirage uniquement : l'injection n'obtient jamais de tolérance supplémentaire."
         },
         "sections": {
           "advanced": {
@@ -130,7 +132,8 @@
               "solar_fallback_safety_pct": "Repli solaire : part (%) du surplus *estimé* réellement commandée. Sous 100 % pour qu'une conso sous-estimée mange la marge au lieu de tirer sur le réseau.",
               "evening_peak_start_h": "Début du pic du soir (heure locale) couvert par la réserve.",
               "evening_peak_end_h": "Fin du pic du soir (heure locale).",
-              "evening_reserve_max_pct": "Part maximale (%) de la capacité utile que la réserve du soir peut réclamer, pour qu'un soir prévu coûteux ne fige pas tout le parc."
+              "evening_reserve_max_pct": "Part maximale (%) de la capacité utile que la réserve du soir peut réclamer, pour qu'un soir prévu coûteux ne fige pas tout le parc.",
+              "actuator_lag_s": "Retard de l'actionneur (s) : temps que met le matériel à appliquer une nouvelle consigne. ~30 s sur un EcoFlow STREAM en BLE. Détermine de combien le seuil de reprise au point d'équilibre est élargi ; 0 = aucun élargissement."
             }
           }
         }

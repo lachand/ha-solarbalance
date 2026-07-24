@@ -37,6 +37,34 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta80] — 2026-07-24
+
+### Added
+
+- **Hystérésis au point d'équilibre** (opt-in, *Régulation & comportements*). La bande morte
+  zéro-injection n'a **qu'un seuil** : agir au-delà de 50 W, ne rien faire en deçà. Ce n'est
+  pas une hystérésis, c'est un seuil sans mémoire — une erreur qui oscille *autour* fait
+  basculer la boucle entre régulation et repos **à chaque tick**. Et chaque bascule est un
+  ordre réel envoyé à du matériel qui met ~30 s à répondre : trois autres ticks arrivent avant
+  que le premier n'apparaisse au compteur. C'est le yoyo qui revient dans les logs autour de
+  l'équilibre, là où l'erreur est petite par définition.
+
+  Deux seuils au lieu d'un : on se **pose** quand l'erreur entre dans la bande morte, on ne
+  **repart** qu'au-delà d'un seuil plus large. Entre les deux, la boucle tient sa dernière
+  commande — exactement ce dont un actionneur lent a besoin. L'élargissement vient du retard
+  de l'actionneur (nouveau réglage *Retard de l'actionneur*, 30 s par défaut, mesuré sur le
+  STREAM en BLE) : un matériel qui répond en un tick n'obtient **aucun** élargissement et le
+  comportement est alors identique à aujourd'hui. Le facteur est plafonné — une bande large
+  est une boucle aveugle.
+
+  **Asymétrique, volontairement** : l'élargissement s'applique **au soutirage uniquement**.
+  Tolérer 50 W de soutirage de plus quelques secondes coûte une fraction de centime ; tolérer
+  50 W d'**injection** de plus, c'est renoncer à la seule chose que le zéro-injection existe
+  pour faire. Le côté injection garde donc le seuil de base et réagit aussi vite qu'avant.
+
+  Le tick silencieux est **expliqué** (« Au point d'équilibre : … ») plutôt que de donner
+  l'impression d'une boucle à l'arrêt, et les seuils apparaissent dans les diagnostics HA.
+
 ## [2.0.8-beta79] — 2026-07-24
 
 ### Added

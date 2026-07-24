@@ -138,6 +138,10 @@ DEFAULT_SOLAR_FALLBACK_SAFETY_PCT: Final = 70
 DEFAULT_EVENING_PEAK_START_H: Final = 18
 DEFAULT_EVENING_PEAK_END_H: Final = 22
 DEFAULT_EVENING_RESERVE_MAX_PCT: Final = 60
+# How long the hardware takes to act on a new setpoint. Measured on the EcoFlow
+# STREAM over BLE: a mode switch shows up in the meter about 30 s later.
+DEFAULT_ACTUATOR_LAG_S: Final = 30
+DEFAULT_BALANCE_HYSTERESIS_ENABLED: Final = False
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1
@@ -233,6 +237,11 @@ CONF_EVENING_RESERVE_ENABLED: Final = "evening_reserve_enabled"
 CONF_EVENING_PEAK_START_H: Final = "evening_peak_start_h"
 CONF_EVENING_PEAK_END_H: Final = "evening_peak_end_h"
 CONF_EVENING_RESERVE_MAX_PCT: Final = "evening_reserve_max_pct"
+# Two thresholds instead of one around the balance point: settle inside the
+# deadband, resume only past a wider one, scaled by how long the hardware takes
+# to answer. Touches control, so opt-in.
+CONF_BALANCE_HYSTERESIS_ENABLED: Final = "balance_hysteresis_enabled"
+CONF_ACTUATOR_LAG_S: Final = "actuator_lag_s"
 
 # Adaptive volatility damper: smooth the grid signal fed to the regulation loop
 # more when it is volatile (motor-type loads), so the battery tracks the slow

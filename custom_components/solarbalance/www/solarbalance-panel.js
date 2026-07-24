@@ -1287,6 +1287,8 @@ class SolarBalancePanel extends HTMLElement {
       fr = `Compteur indisponible : stockage d'un surplus solaire estimé, sans jamais décharger à l'aveugle.`;
     else if (key === "degraded_no_meter")
       fr = `Compteur réseau indisponible : le pilotage est suspendu jusqu'à son retour.`;
+    else if (key === "balance_settled")
+      fr = `Au point d'équilibre : le réseau est assez proche de la consigne pour que corriger encore ne ferait que courir après l'ordre précédent, encore en route.`;
     else if (key === "settle_hold")
       fr = `Pause volontaire après la chute d'une grosse charge, plutôt que de courir après le transitoire.`;
     else if (base === "discharge")

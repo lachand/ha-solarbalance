@@ -77,6 +77,7 @@ def explain_tick(
     settle_active: bool = False,
     near_full: bool = False,
     anticipating: bool = False,
+    balance_settled: bool = False,
 ) -> Explanation:
     """Compose the explanation for one regulation tick.
 
@@ -94,6 +95,8 @@ def explain_tick(
         settle_active: Holding after a big load drop.
         near_full: The fleet can no longer absorb.
         anticipating: Pre-curtailing from the forecast.
+        balance_settled: Holding still at the balance point while the previous
+            command reaches the hardware.
 
     Returns:
         An :class:`Explanation`. Never raises — an unknown ``binding`` is simply
@@ -132,6 +135,16 @@ def explain_tick(
             "settle_hold",
             prefix + "Holding steady for a moment after a big load dropped, "
             "rather than chasing the transient.",
+            params,
+        )
+
+    # A silent tick that is silent *on purpose* — without saying so, the panel
+    # shows a loop that appears to have stopped working.
+    if balance_settled:
+        return Explanation(
+            "balance_settled",
+            prefix + "Sitting at the balance point: the grid is close enough to target "
+            "that correcting again would only chase the last command still landing.",
             params,
         )
 
