@@ -270,6 +270,63 @@ class ApplianceCycles:
                     best = CycleMatch(template=template, program=program, confidence=score)
         return best
 
+    def predict_power_w(
+        self, name: str, now: float, horizon_s: float, *, min_confidence: float = 0.5
+    ) -> float | None:
+        """Mean power (W) the running cycle is expected to draw over the next horizon.
+
+        Returns ``None`` unless a cycle is actually running and its prefix matches a
+        stored template well enough — a guess here would be fed straight into the
+        anticipation's consumption forecast.
+        """
+        run = self._running.get(name)
+        if run is None or len(run.samples) < 2:
+            return None
+        best = self.match(name, run.samples)
+        if best is None or best.confidence < min_confidence:
+            return None
+        template = best.template
+        if template.duration_s <= 0:
+            return None
+        elapsed = now - run.started_at
+        start = elapsed / template.duration_s
+        end = (elapsed + max(0.0, horizon_s)) / template.duration_s
+        if start >= 1.0:
+            return 0.0  # already past the template's length: expect nothing more
+        steps = 8
+        span = max(0.0, min(1.0, end) - min(1.0, start))
+        if span <= 0:
+            return 0.0
+        total = sum(template.power_at(min(1.0, start + span * (i / steps))) for i in range(steps))
+        return total / steps
+
+    def anomaly_confidence(
+        self, name: str, template: CycleTemplate, *, min_templates: int = 3
+    ) -> float | None:
+        """How well a *finished* cycle resembles the others already recorded.
+
+        ``None`` when there is not enough history to judge — calling a cycle abnormal
+        on two samples would cry wolf. The template being scored is excluded by
+        identity, so a freshly-stored cycle does not match itself perfectly.
+        """
+        others = [
+            t
+            for by_program in (self.templates.get(name) or {}).values()
+            for t in by_program
+            if t is not template
+        ]
+        if len(others) < min_templates:
+            return None
+        best = 0.0
+        for other in others:
+            peak = max(other.curve_w) or 1.0
+            steps = min(len(other.curve_w), len(template.curve_w))
+            if steps == 0:
+                continue
+            err = sum(abs(template.curve_w[i] - other.curve_w[i]) for i in range(steps)) / steps
+            best = max(best, max(0.0, 1.0 - err / peak))
+        return best
+
     @property
     def learned_cycles(self) -> int:
         """Total stored templates across every appliance (diagnostic)."""

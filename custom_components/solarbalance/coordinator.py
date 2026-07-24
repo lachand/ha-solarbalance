@@ -137,6 +137,7 @@ from .const import (
     DEFAULT_ZI_SETTLE_MIN_DROP_W,
     DEFAULT_ZI_SETTLE_TICKS,
     DOMAIN,
+    EVENT_APPLIANCE_ANOMALY,
     EVENT_FORCE_CHARGE,
     EVENT_MODE_CHANGED,
     EVENT_SHEDDING,
@@ -242,6 +243,10 @@ _PLAN_EVERY_TICKS = 90
 # Ring-buffer depth of the per-tick debug history (the capture_debug service). ~2 h at
 # the default 10 s tick — enough to grab an event that happened a while before.
 _TICK_HISTORY_MAXLEN = 720
+# Below this similarity to every known cycle, a finished cycle is called unusual.
+_APPLIANCE_ANOMALY_CONFIDENCE = 0.45
+# How far ahead the running-appliance draw is folded into the consumption forecast.
+_APPLIANCE_FORECAST_HORIZON_S = 900.0
 # Smoothing factor of the background-load estimate fed to the advisory planner.
 _BASELINE_EMA_ALPHA = 0.05
 # SoC margin below soc_max at which a controllable battery is treated as unable to
@@ -2575,10 +2580,32 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             except (TypeError, ValueError):
                 continue
             name = self._appliance_name(entity_id)
-            was_running = self._appliance_cycles.is_running(name)
             closed = self._appliance_cycles.observe(name, now_s, power_w)
-            if closed is not None or (was_running and not self._appliance_cycles.is_running(name)):
-                _LOGGER.debug("SolarBalance: appliance %s finished a cycle", name)
+            if closed is None:
+                continue
+            _LOGGER.debug("SolarBalance: appliance %s finished a cycle", name)
+            # A finished cycle resembling none of the known ones is worth a word: a dead
+            # heater or a blocked drain shows up here long before anywhere else. Silent
+            # until there is enough history to judge — crying wolf on two samples would
+            # just train the user to ignore it.
+            score = self._appliance_cycles.anomaly_confidence(name, closed)
+            if score is not None and score < _APPLIANCE_ANOMALY_CONFIDENCE:
+                _LOGGER.warning(
+                    "SolarBalance: %s ran an unusual cycle (%.0f min, %.2f kWh) — "
+                    "it resembles none of the previous ones",
+                    name,
+                    closed.duration_s / 60.0,
+                    closed.energy_kwh,
+                )
+                self.hass.bus.async_fire(
+                    EVENT_APPLIANCE_ANOMALY,
+                    {
+                        "appliance": name,
+                        "duration_min": round(closed.duration_s / 60.0),
+                        "energy_kwh": round(closed.energy_kwh, 2),
+                        "similarity": round(score, 2),
+                    },
+                )
 
     @staticmethod
     def _appliance_name(entity_id: str) -> str:
@@ -3018,6 +3045,23 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         consumption_w = self.predicted_consumption_now_w
         if consumption_w is None:
             consumption_w = max(0.0, self._baseline_ema_w or snapshot.baseline_consumption_w)
+        # A running appliance is about to draw a known amount. The hour-of-day profile
+        # averages it away across days that mostly had no cycle at all, so it badly
+        # understates a live one. Fold in the predicted remaining draw. The appliance's
+        # own (diluted) share of that average is then counted twice, which is deliberate:
+        # over-stating consumption only ever makes the brake *less* eager, and keeping
+        # solar is the safe side of that error.
+        appliance_w = 0.0
+        for entity_id in self._appliance_entities:
+            predicted = self._appliance_cycles.predict_power_w(
+                self._appliance_name(entity_id),
+                snapshot.timestamp.timestamp(),
+                _APPLIANCE_FORECAST_HORIZON_S,
+            )
+            if predicted:
+                appliance_w += predicted
+        consumption_w = max(0.0, consumption_w) + appliance_w
+
         net_charge_w = sum(b.power_w for b in snapshot.batteries if b.available and b.power_w > 0.0)
         return evaluate_anticipation(
             AnticipationInputs(

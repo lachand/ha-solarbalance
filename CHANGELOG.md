@@ -37,6 +37,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta75] — 2026-07-24
+
+### Added
+
+- **Un cycle en cours affine la prévision de consommation du bridage anticipé.** Le profil
+  horaire moyenne un appareil sur des journées qui, pour la plupart, n'en faisaient pas
+  tourner — il sous-estime donc lourdement un cycle en cours. Quand un cycle est apparié
+  avec assez de confiance, sa **courbe restante** est repliée dans la conso prévue : plus
+  de pré-bridage cinq minutes avant une chauffe de 1,8 kW.
+  *Choix assumé* : la part (diluée) du même appareil déjà présente dans la moyenne est
+  alors comptée deux fois. Surestimer la consommation ne fait que rendre le frein **moins**
+  empressé — et garder du solaire est le bon côté de cette erreur.
+  *(Correction d'une première intention : compter l'appareil comme « puits » aurait été un
+  double-comptage bien plus grave, un puits absorbant le surplus de façon optionnelle alors
+  qu'une machine tourne de toute façon.)*
+
+- **Détection d'anomalie de cycle** — nouvel événement `solarbalance_appliance_anomaly`.
+  Un cycle terminé qui ne ressemble à **aucun** des précédents (résistance morte, vidange
+  bouchée, porte mal fermée) déclenche un avertissement et un événement exploitable en
+  automatisation. Deux garde-fous : le module reste **muet tant qu'il n'a pas au moins
+  3 cycles** de référence — alerter sur deux échantillons apprendrait juste à ignorer
+  l'alerte — et le cycle jugé est **exclu par identité** de la comparaison, sans quoi il se
+  ressemblerait parfaitement à lui-même et rien ne serait jamais signalé.
+
 ## [2.0.8-beta74] — 2026-07-24
 
 ### Added

@@ -246,3 +246,5 @@ EVENT_MODE_CHANGED: Final = "solarbalance_mode_changed"
 EVENT_SHEDDING: Final = "solarbalance_shedding"
 EVENT_TEMPO_RED_DAY: Final = "solarbalance_tempo_red_day"
 EVENT_FORCE_CHARGE: Final = "solarbalance_force_charge"
+# A finished appliance cycle that resembles none of the known ones.
+EVENT_APPLIANCE_ANOMALY: Final = "solarbalance_appliance_anomaly"

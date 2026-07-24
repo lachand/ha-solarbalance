@@ -145,3 +145,92 @@ def test_round_trip_through_the_store() -> None:
 def test_from_dict_survives_malformed_payloads() -> None:
     for bad in ({}, {"templates": "nope"}, {"templates": {"dw": {"auto": [{"curve_w": []}]}}}):
         assert ApplianceCycles.from_dict(bad).learned_cycles == 0
+
+
+# --- prediction of the remaining draw (feeds the consumption forecast) ------
+
+
+def _hot_template() -> CycleTemplate:
+    # 1 h cycle: 1800 W heating for the first half, 80 W circulation for the second.
+    return CycleTemplate(3600.0, 1.0, tuple([1800.0] * 12 + [80.0] * 12))
+
+
+def test_predicts_the_heating_burst_that_is_still_ahead() -> None:
+    # The point of C4: don't pre-curtail when 1.8 kW of heating is 5 minutes away.
+    ac = ApplianceCycles()
+    ac.add_template("wm", _hot_template(), program="60deg")
+    for i in range(6):  # 5 min into a matching cycle
+        ac.observe("wm", i * 60.0, 1800.0)
+    p = ac.predict_power_w("wm", 300.0, 600.0)
+    assert p is not None
+    assert p > 1000.0, "the heating phase still ahead was not predicted"
+
+
+def test_the_prediction_falls_once_the_heating_phase_is_behind() -> None:
+    # Compare the two moments rather than pick a threshold: straddling the
+    # heating/circulation boundary legitimately still includes some heating, so an
+    # absolute bound would be testing the sampling grid, not the behaviour.
+    ac = ApplianceCycles()
+    ac.add_template("wm", _hot_template(), program="60deg")
+    for i in range(6):
+        ac.observe("wm", i * 60.0, 1800.0)
+    early = ac.predict_power_w("wm", 300.0, 600.0)
+    for i in range(6, 41):  # run on well past the midpoint
+        ac.observe("wm", i * 60.0, 1800.0 if i < 30 else 80.0)
+    late = ac.predict_power_w("wm", 2400.0, 600.0)
+    assert early is not None and late is not None
+    assert late < early / 3, f"prediction did not fall after the heating ({early} -> {late})"
+
+
+def test_no_prediction_without_a_running_cycle_or_a_confident_match() -> None:
+    ac = ApplianceCycles()
+    ac.add_template("wm", _hot_template())
+    assert ac.predict_power_w("wm", 0.0, 600.0) is None  # nothing running
+    for i in range(6):
+        ac.observe("wm", i * 60.0, 1800.0)
+    # An impossible confidence bar → refuse rather than guess.
+    assert ac.predict_power_w("wm", 300.0, 600.0, min_confidence=1.01) is None
+
+
+# --- anomaly detection on a finished cycle ---------------------------------
+
+
+def test_a_cycle_like_the_others_is_not_flagged() -> None:
+    ac = ApplianceCycles()
+    for _ in range(4):
+        ac.add_template("dw", CycleTemplate(3600.0, 1.0, tuple([500.0] * 24)))
+    subject = CycleTemplate(3600.0, 1.0, tuple([505.0] * 24))
+    ac.add_template("dw", subject)
+    score = ac.anomaly_confidence("dw", subject)
+    assert score is not None and score > 0.9
+
+
+def test_a_cycle_unlike_anything_known_scores_low() -> None:
+    # e.g. the heater never came on: same duration, a fraction of the power.
+    ac = ApplianceCycles()
+    for _ in range(4):
+        ac.add_template("dw", CycleTemplate(3600.0, 1.0, tuple([1500.0] * 24)))
+    subject = CycleTemplate(3600.0, 0.1, tuple([60.0] * 24))
+    ac.add_template("dw", subject)
+    score = ac.anomaly_confidence("dw", subject)
+    assert score is not None and score < 0.3
+
+
+def test_no_verdict_before_there_is_enough_history() -> None:
+    # Crying wolf on two samples would train the user to ignore the alert.
+    ac = ApplianceCycles()
+    ac.add_template("dw", CycleTemplate(3600.0, 1.0, tuple([500.0] * 24)))
+    subject = CycleTemplate(3600.0, 0.1, tuple([50.0] * 24))
+    ac.add_template("dw", subject)
+    assert ac.anomaly_confidence("dw", subject) is None
+
+
+def test_a_cycle_is_not_compared_against_itself() -> None:
+    ac = ApplianceCycles()
+    for _ in range(3):
+        ac.add_template("dw", CycleTemplate(3600.0, 1.0, tuple([1500.0] * 24)))
+    subject = CycleTemplate(3600.0, 0.1, tuple([60.0] * 24))
+    ac.add_template("dw", subject)
+    # Identity exclusion: without it the just-stored cycle matches itself at 1.0
+    # and nothing would ever be flagged.
+    assert ac.anomaly_confidence("dw", subject) < 0.3
