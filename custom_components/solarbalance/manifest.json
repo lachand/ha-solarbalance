@@ -11,5 +11,5 @@
   "issue_tracker": "https://github.com/lachand/ha-solarbalance/issues",
   "loggers": ["custom_components.solarbalance"],
   "requirements": [],
-  "version": "2.0.8-beta67"
+  "version": "2.0.8-beta68"
 }

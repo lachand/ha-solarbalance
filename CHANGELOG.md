@@ -37,6 +37,26 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta68] — 2026-07-24
+
+### Fixed
+
+- **Dent de scie sur la consigne de décharge des STREAM : SolarBalance se battait contre
+  la régulation interne de l'appareil.** En `self_powered`, une STREAM **module elle-même**
+  son `base_load_power` pour suivre la charge maison réelle. `verify_writes()` — conçu pour
+  rattraper une écriture qui *n'a jamais abouti* — voyait cette baisse comme un échec et
+  **ré-écrivait la valeur en force** dès 20 W d'écart. Résultat observé en direct
+  (07:36-07:46) : `275 → 232 → 178 → 121 → 82`, puis retour brutal à 275, **période ~40 s,
+  amplitude ~190 W**, 94 écritures en 15 min — alors que la cible calculée était
+  parfaitement lisse (`unalloc = 0`, allocation monotone). Le réseau oscillait ±130 W.
+  Désormais, sur un setpoint que l'appareil **module légitimement** (la consigne de
+  décharge d'une batterie mode-switch), une dérive **vers le bas** n'est plus ré-assertée :
+  la boucle réseau répond déjà de l'écart. **Atténuations conservées** : on ré-écrit
+  toujours si la valeur **s'effondre** (< 10 W — signature d'une écriture perdue ou
+  annulée) et toujours si elle **dépasse** la commande (un surplus de sortie peut injecter).
+  Les autres setpoints — limites PV notamment, où une lecture basse signifie une production
+  bridée à tort — restent vérifiés à l'identique.
+
 ## [2.0.8-beta67] — 2026-07-23
 
 ### Added

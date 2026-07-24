@@ -39,6 +39,9 @@ _CHARGE_STEP_W = 10.0
 # this (W) is re-written (verify+retry) — catches a write that silently didn't land
 # (a wrong/intermittent entity, or an inverter that reverted it).
 _WRITE_VERIFY_TOLERANCE_W = 20.0
+# Below this a setpoint reads as "gone" rather than "eased down": a device-modulated
+# setpoint that collapsed here is a lost/cancelled write and is re-asserted.
+_WRITE_LOST_W = 10.0
 # Charge-gate hysteresis (for a charge-only station whose charge-power slider floors at
 # 100 W): open the gate (allow charging) above _ON, close it (stop via the SoC limit)
 # below _OFF, hold in between — so a charge target hovering near zero doesn't flap the
@@ -116,6 +119,15 @@ class ActiveControlPublisher:
             device.name: device.battery.reserve_soc_setpoint_entity
             for device in devices
             if device.battery is not None and device.battery.reserve_soc_setpoint_entity is not None
+        }
+        # Setpoints the device itself legitimately modulates below what we asked, so a
+        # downward drift is normal operation rather than a write that failed to stick.
+        # A mode-switch (solar-first) battery in self_powered follows the real house load
+        # with its base-load setpoint: re-asserting our value there fights its regulation.
+        self._device_modulated: set[str] = {
+            m.discharge_entity
+            for m in managed.values()
+            if m.mode_entity is not None and m.discharge_entity is not None
         }
         self._last_power: dict[str, float] = {}
         self._last_mode: dict[str, str] = {}
@@ -290,16 +302,30 @@ class ActiveControlPublisher:
                 actual = float(state.state)
             except (TypeError, ValueError):
                 continue
-            if abs(actual - commanded) > _WRITE_VERIFY_TOLERANCE_W:
-                _LOGGER.warning(
-                    "Active control: %s reads %.0f W but we commanded %.0f W — "
-                    "re-writing (is the entity correct and controllable?)",
-                    entity_id,
-                    actual,
-                    commanded,
-                )
-                failures[entity_id] = commanded
-                await self._write_power(entity_id, commanded, force=True)
+            if abs(actual - commanded) <= _WRITE_VERIFY_TOLERANCE_W:
+                continue
+            # A device that modulates this setpoint *downward* is doing its job, not
+            # dropping our write: re-asserting would fight it and produce a sawtooth on
+            # the setpoint (observed on a STREAM in self_powered — it eased its base load
+            # toward the real house load, we slammed it back every verify pass, ~190 W
+            # every ~40 s). Leave it: the grid-facing loop already answers for the
+            # shortfall. Still re-write when the value *collapsed*, which is what a lost
+            # or cancelled write looks like, and always when it exceeds what we asked.
+            if (
+                entity_id in self._device_modulated
+                and actual < commanded
+                and actual > _WRITE_LOST_W
+            ):
+                continue
+            _LOGGER.warning(
+                "Active control: %s reads %.0f W but we commanded %.0f W — "
+                "re-writing (is the entity correct and controllable?)",
+                entity_id,
+                actual,
+                commanded,
+            )
+            failures[entity_id] = commanded
+            await self._write_power(entity_id, commanded, force=True)
         self._verify_failures = failures
 
     def verify_failures(self) -> dict[str, float]:

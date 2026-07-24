@@ -622,3 +622,85 @@ async def test_skips_pv_limit_write_to_unavailable_entity() -> None:
     pub = ActiveControlPublisher(hass, [_mppt_device("pv", entity="number.pv_limit")])
     await pub.apply_pv_limits({"pv": 650.0})
     assert _calls(hass) == []
+
+
+def _stream_like(name: str = "stream"):
+    """A mode-switch (solar-first) battery: it modulates its own base-load setpoint."""
+    return _device(name, entity="number.base_load", mode_entity="select.strategy")
+
+
+def _state_map(overrides: dict[str, str]):
+    """hass.states.get returning a per-entity state (with attributes for clamping)."""
+    from types import SimpleNamespace
+
+    def get(eid: str):
+        return SimpleNamespace(state=overrides.get(eid, "0"), attributes={})
+
+    return get
+
+
+async def _armed_stream():
+    """Publisher whose base-load setpoint has actually been written and latched.
+
+    A mode-switch battery mutates one thing per tick, so the mode is driven first; the
+    power write only lands once the select already reads the discharge option.
+    """
+    hass = _hass()
+    hass.states.get = _state_map({"select.strategy": "discharge"})
+    pub = ActiveControlPublisher(hass, [_stream_like()])
+    await pub.apply({"stream": -275.0}, {"stream": 50.0})
+    assert ("number", "set_value", {"entity_id": "number.base_load", "value": 275.0}) in _calls(
+        hass
+    ), "setup failed: the base-load setpoint was never written, so nothing is latched"
+    return hass, pub
+
+
+async def test_verify_leaves_a_setpoint_the_device_eased_down() -> None:
+    # Observed live 2026-07-24 07:36-07:46: a STREAM in self_powered walks its base load
+    # down toward the real house load (275 -> 82 W). Re-asserting our value fought that
+    # regulation and sawtoothed the setpoint ~190 W every ~40 s. An eased-down value on a
+    # device-modulated setpoint must be left alone.
+    hass, pub = await _armed_stream()
+    hass.states.get = _state_map({"select.strategy": "discharge", "number.base_load": "82"})
+    hass.services.async_call.reset_mock()
+    await pub.verify_writes()
+    assert _calls(hass) == [], "re-asserted a value the device is legitimately modulating"
+
+
+async def test_verify_still_rewrites_a_collapsed_setpoint() -> None:
+    # The mitigation must not blind the check: a value that fell to ~0 is a lost or
+    # cancelled write, not modulation, and is still re-asserted.
+    hass, pub = await _armed_stream()
+    hass.states.get = _state_map({"select.strategy": "discharge", "number.base_load": "0"})
+    hass.services.async_call.reset_mock()
+    await pub.verify_writes()
+    assert ("number", "set_value", {"entity_id": "number.base_load", "value": 275.0}) in _calls(
+        hass
+    )
+
+
+async def test_verify_still_rewrites_when_the_device_exceeds_the_command() -> None:
+    # Overshoot is never "regulation we allow" — more output than asked can push export.
+    hass, pub = await _armed_stream()
+    hass.states.get = _state_map({"select.strategy": "discharge", "number.base_load": "900"})
+    hass.services.async_call.reset_mock()
+    await pub.verify_writes()
+    assert ("number", "set_value", {"entity_id": "number.base_load", "value": 275.0}) in _calls(
+        hass
+    )
+
+
+async def test_verify_pv_limit_still_rewrites_on_downward_drift() -> None:
+    # A PV *limit* is not device-modulated: reading lower than commanded means the array
+    # is over-restricted and we lose production — that must still be corrected.
+    from types import SimpleNamespace
+
+    hass = _hass()
+    pub = ActiveControlPublisher(hass, [_mppt_device("pv", entity="number.pv_limit")])
+    await pub.apply_pv_limits({"pv": 800.0})
+    hass.states.get = lambda eid: SimpleNamespace(state="400", attributes={})
+    hass.services.async_call.reset_mock()
+    await pub.verify_writes()
+    assert _calls(hass) == [
+        ("number", "set_value", {"entity_id": "number.pv_limit", "value": 800.0})
+    ]
