@@ -190,6 +190,7 @@ from .core.controllers.zero_injection import (
     ZeroInjectionState,
 )
 from .core.energy import DailyEnergyAccumulator
+from .core.explain import Explanation, explain_tick
 from .core.filters import AdaptiveVolatilityDamper, RollingMedian
 from .core.forecast import (
     ForecastConfig,
@@ -397,6 +398,9 @@ class RegulationDiagnostics:
     solar_fallback_active: bool = False
     solar_fallback_w: float = 0.0
     solar_fallback_reason: str = "disabled"
+    # Plain-language account of this tick (key for a UI, text for logbook/attribute).
+    explain_key: str = ""
+    explain_text: str = ""
 
 
 def _ui_tariff_spec(cfg: Mapping[str, Any]) -> dict[str, Any] | None:
@@ -864,6 +868,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             / 100.0
         )
         self._solar_fallback: SolarFallbackResult | None = None
+        self._explanation: Explanation | None = None
         # Real-time PV-drop detector (passing cloud) — exposed for observability,
         # and (opt-in) feeds a fast discharge feed-forward via the settle window.
         self._pv_drop = PvDropDetector()
@@ -2297,6 +2302,23 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # Expose the per-inverter applied limit for the per-MPPT diagnostic sensor.
         self._pv_limits_by_device = dict(pv_limits)
 
+        explanation: Explanation = explain_tick(
+            target_w=total_power_w,
+            house_w=natural_grid_w,
+            pv_w=controllable_mppt_w,
+            binding=regulation_result.binding,
+            # How far the clamp actually moved the target — a clamp that merely
+            # grazed it decided nothing and must not be named as a cause.
+            binding_moved_w=abs(regulation_result.total_w - regulation_result.base_w),
+            degraded=self._mode is HemsMode.DEGRADED,
+            grid_source=self._reader.grid_source,
+            solar_fallback_active=bool(self._solar_fallback and self._solar_fallback.active),
+            solar_fallback_w=(self._solar_fallback.charge_w if self._solar_fallback else 0.0),
+            settle_active=self._settle_state.active,
+            near_full=near_full,
+            anticipating=anticipation.active,
+        )
+        self._explanation = explanation
         self._diagnostics = RegulationDiagnostics(
             grid_filtered_w=grid_filtered_w,
             zero_injection_correction_w=zi_correction_w,
@@ -2330,6 +2352,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             solar_fallback_reason=(
                 self._solar_fallback.reason if self._solar_fallback else "disabled"
             ),
+            explain_key=explanation.key,
+            explain_text=explanation.text,
         )
         self._autotune_suggestions()
 

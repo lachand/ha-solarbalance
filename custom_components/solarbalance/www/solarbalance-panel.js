@@ -55,6 +55,7 @@ const STR_EN = {
   "en cours": "running",
   "peu de cycles": "few cycles",
   "apprentissage — aucun cycle complet enregistré": "learning — no complete cycle recorded yet",
+  "Ce que fait le système": "What the system is doing",
   Puissance: "Power",
   "Flux instantané": "Instant flow",
   "Pic capteur masqué": "Hidden sensor spike",
@@ -1152,6 +1153,36 @@ class SolarBalancePanel extends HTMLElement {
     )}</h3>${rows}</div>`;
   }
 
+  _explainCard() {
+    // The regulator's own account of this tick. Rendered from the key + params so
+    // the wording is localised here rather than baked into the core.
+    const key = this._attr(this._E.regDebug, "explanation_key");
+    const text = this._attr(this._E.regDebug, "explanation");
+    if (!text && !key) return "";
+    const p = {
+      t: this._w(Math.abs(this._num2(this._attr(this._E.regDebug, "target_w")) || 0)),
+      h: this._w(Math.abs(this._num2(this._attr(this._E.regDebug, "natural_grid_w")) || 0)),
+      pv: this._w(Math.abs(this._num2(this._attr(this._E.regDebug, "controllable_mppt_w")) || 0)),
+    };
+    const base = String(key || "").split("_")[0];
+    let fr;
+    if (key === "degraded_solar_fallback")
+      fr = `Compteur indisponible : stockage d'un surplus solaire estimé, sans jamais décharger à l'aveugle.`;
+    else if (key === "degraded_no_meter")
+      fr = `Compteur réseau indisponible : le pilotage est suspendu jusqu'à son retour.`;
+    else if (key === "settle_hold")
+      fr = `Pause volontaire après la chute d'une grosse charge, plutôt que de courir après le transitoire.`;
+    else if (base === "discharge")
+      fr = `Décharge ${p.t} : la maison tire ${p.h}, le solaire en couvre ${p.pv}.`;
+    else if (base === "charge")
+      fr = `Charge ${p.t} : le solaire produit ${p.pv}, la maison tire ${p.h}.`;
+    else if (base === "idle") fr = `Parc à l'arrêt : production et consommation s'équilibrent.`;
+    else fr = text;
+    const lang = (this._hass && this._hass.language) || "";
+    return `<div class="card explain"><h3>💬 ${this._t("Ce que fait le système")}</h3>
+      <div class="explain-txt">${lang.startsWith("en") ? text : fr}</div></div>`;
+  }
+
   _curtailCard() {
     const devs = Object.values(this._devices()).filter((k) => k.mppt_power || k.mppt_limit);
     if (!devs.length) return "";
@@ -1441,6 +1472,8 @@ class SolarBalancePanel extends HTMLElement {
             ${this._regSparkline()}
           </div>
 
+          ${this._explainCard()}
+
           ${this._curtailCard()}
 
           ${this._applianceCard()}
@@ -1603,6 +1636,8 @@ class SolarBalancePanel extends HTMLElement {
         .legend .sw.grid { background:var(--info-color,#3d8bff); }
         .legend .sw.batt { background:var(--success-color,#27ae60); }
         .legend .sw.fc { background:var(--warning-color,#f5a623); opacity:.6; }
+        .explain-txt { font-size:.9rem; line-height:1.45; }
+        .card.explain { border-left:3px solid var(--primary-color,#03a9f4); }
         .app-row { padding:6px 0; border-bottom:1px solid var(--divider-color,#eee); }
         .app-row:last-child { border-bottom:none; }
         .app-name { font-weight:600; }

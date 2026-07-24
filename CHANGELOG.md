@@ -37,6 +37,29 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta74] — 2026-07-24
+
+### Added
+
+- **Le système explique lui-même ce qu'il fait**, en une phrase, dans le panneau et en
+  attribut du capteur de régulation. Lire l'état demandait jusqu'ici de savoir ce que
+  signifient `binding`, `no_charge_floor` ou `unalloc` — chaque incident de la semaine
+  s'est terminé par une traduction manuelle de ce jargon.
+  Exemple : *« Décharge 800 W : la maison tire 900 W, le solaire en couvre 100 ;
+  plafonné au solaire du parc, donc rien n'est chargé depuis le réseau. »*
+
+  Deux choix de conception :
+  - Le cœur renvoie une **clé + des paramètres**, pas une phrase toute faite : il n'a pas
+    à contenir de texte français ou anglais, et une interface a de toute façon besoin des
+    nombres séparément pour les formater. Le panneau rend la phrase dans ta langue.
+  - **Un clamp n'est nommé que s'il a réellement déplacé la cible** (> 10 W). Le
+    clignotement cosmétique `base ↔ no_charge_floor` corrigé en beta62 avait un plancher à
+    2 W de la cible : le nommer comme cause aurait laissé croire qu'il décidait quelque
+    chose. Un `binding` inconnu n'est simplement pas mentionné, jamais affiché brut.
+
+  Quand le compteur manque, la phrase **ne cite pas** la consommation maison : celle-ci
+  est dérivée de la mesure absente, et l'annoncer serait une précision qui n'existe pas.
+
 ## [2.0.8-beta73] — 2026-07-24
 
 ### Added
