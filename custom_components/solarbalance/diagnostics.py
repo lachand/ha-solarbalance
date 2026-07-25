@@ -101,6 +101,13 @@ async def async_get_config_entry_diagnostics(
     }
     data["anomaly_timeline"] = coord.anomaly_timeline
 
+    data["loop_tuning"] = {
+        "enabled": coord._loop_tuning_enabled,
+        "configured_zi_kp": round(coord._configured_zi_kp, 3),
+        "effective_zi_kp": round(coord._effective_zi_kp, 3),
+        "actuator_lag_s": coord._actuator_lag_s,
+    }
+
     band = coord._balance_band
     if band is not None:
         data["balance_point"] = {

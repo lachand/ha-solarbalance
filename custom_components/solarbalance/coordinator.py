@@ -58,6 +58,7 @@ from .const import (
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_LOCAL_AC_LOAD_ENTITIES,
+    CONF_LOOP_TUNING_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_NO_BATTERY_EXPORT,
     CONF_NONCONTROLLABLE_STALE_S,
@@ -123,6 +124,7 @@ from .const import (
     DEFAULT_HC_START,
     DEFAULT_HP_PRICE,
     DEFAULT_IMPORT_PRICE,
+    DEFAULT_LOOP_TUNING_ENABLED,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_NO_BATTERY_EXPORT,
     DEFAULT_NONCONTROLLABLE_STALE_S,
@@ -187,6 +189,7 @@ from .core.controllers.evening_shed import (
 )
 from .core.controllers.load_dispatch import LoadCommand, LoadDispatchController, load_eligible
 from .core.controllers.load_settle import SettleState, advance_settle, arm_settle
+from .core.controllers.loop_tuning import tuned_kp
 from .core.controllers.overload import SheddableLoad, relieve_overload
 from .core.controllers.pv_drop import PvDropDetector
 from .core.controllers.regulation import (
@@ -778,6 +781,20 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # already integrates the error. A second integrator would double-count and
         # oscillate — the source of the residual limit cycle.
         zi_kp = float(cfg.get(CONF_ZERO_INJECTION_KP, DEFAULT_ZERO_INJECTION_KP))
+        # D1 (opt-in): derate the gain for the actuator's dead time before the loop
+        # or the auto-tuner ever sees it, so a slow box (STREAM) starts calm rather
+        # than ringing until the tuner damps it. Only ever lowers the configured gain.
+        self._loop_tuning_enabled = bool(
+            cfg.get(CONF_LOOP_TUNING_ENABLED, DEFAULT_LOOP_TUNING_ENABLED)
+        )
+        self._configured_zi_kp = zi_kp
+        if self._loop_tuning_enabled:
+            zi_kp = tuned_kp(
+                base_kp=zi_kp,
+                actuator_lag_s=float(cfg.get(CONF_ACTUATOR_LAG_S, DEFAULT_ACTUATOR_LAG_S)),
+                tick_s=float(tick),
+            )
+        self._effective_zi_kp = zi_kp
         if self._per_phase_zi:
             self._zi_controller: ZeroInjectionController | PerPhaseZeroInjectionController = (
                 PerPhaseZeroInjectionController(kp=zi_kp, ki=0.0, hysteresis_w=hysteresis)

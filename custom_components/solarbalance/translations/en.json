@@ -111,7 +111,8 @@
           "grid_backup_entity": "Backup grid sensor — used when the PDL meter goes unavailable, so a meter dropout no longer suspends regulation. Same sign convention as the PDL.",
           "solar_fallback_enabled": "Keep storing solar when the grid meter is unavailable — estimates the surplus from measured PV minus the learned house load and charges a derated share of it. Charge only, never discharge (without a meter an export could not be detected).",
           "evening_reserve_enabled": "Keep back what the evening peak will need — sizes a reserve from the learned evening consumption minus the PV forecast, holds it through the day and releases it at the peak. Only ever blocks a discharge, never forces a charge. Works on a flat tariff.",
-          "balance_hysteresis_enabled": "Balance-point hysteresis — the deadband is a single threshold, so an error hovering at it flips the loop between regulating and idle every tick, and each flip is a real command to hardware that answers ~30 s later. This settles inside the deadband and resumes only past a wider one, scaled by the actuator lag. Widened on the import side only: export never gets extra tolerance."
+          "balance_hysteresis_enabled": "Balance-point hysteresis — the deadband is a single threshold, so an error hovering at it flips the loop between regulating and idle every tick, and each flip is a real command to hardware that answers ~30 s later. This settles inside the deadband and resumes only past a wider one, scaled by the actuator lag. Widened on the import side only: export never gets extra tolerance.",
+          "loop_tuning_enabled": "Actuator-lag loop tuning"
         },
         "sections": {
           "advanced": {

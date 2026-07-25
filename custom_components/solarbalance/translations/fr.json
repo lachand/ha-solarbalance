@@ -111,7 +111,8 @@
           "grid_backup_entity": "Compteur réseau de secours — utilisé quand le compteur PDL devient indisponible, pour qu'une coupure ne suspende plus la régulation. Même convention de signe que le PDL.",
           "solar_fallback_enabled": "Continuer à stocker le solaire quand le compteur est indisponible — estime le surplus depuis la PV mesurée moins la consommation apprise, et en charge une part minorée. Charge uniquement, jamais de décharge (sans compteur, une injection passerait inaperçue).",
           "evening_reserve_enabled": "Garder ce dont le pic du soir aura besoin — dimensionne une réserve depuis la consommation du soir apprise moins la prévision PV, la tient dans la journée et la libère au pic. Bloque seulement une décharge, ne force jamais une charge. Fonctionne en tarif plat.",
-          "balance_hysteresis_enabled": "Hystérésis au point d'équilibre — la bande morte n'a qu'un seuil, donc une erreur qui oscille autour la fait basculer entre régulation et repos à chaque tick, et chaque bascule est un vrai ordre à du matériel qui répond ~30 s plus tard. Ici on se pose dans la bande morte et on ne repart qu'au-delà d'un seuil plus large, proportionné au retard de l'actionneur. Élargi côté soutirage uniquement : l'injection n'obtient jamais de tolérance supplémentaire."
+          "balance_hysteresis_enabled": "Hystérésis au point d'équilibre — la bande morte n'a qu'un seuil, donc une erreur qui oscille autour la fait basculer entre régulation et repos à chaque tick, et chaque bascule est un vrai ordre à du matériel qui répond ~30 s plus tard. Ici on se pose dans la bande morte et on ne repart qu'au-delà d'un seuil plus large, proportionné au retard de l'actionneur. Élargi côté soutirage uniquement : l'injection n'obtient jamais de tolérance supplémentaire.",
+          "loop_tuning_enabled": "Réglage de boucle selon le retard de l'actionneur"
         },
         "sections": {
           "advanced": {

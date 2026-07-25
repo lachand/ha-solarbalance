@@ -142,6 +142,7 @@ DEFAULT_EVENING_RESERVE_MAX_PCT: Final = 60
 # STREAM over BLE: a mode switch shows up in the meter about 30 s later.
 DEFAULT_ACTUATOR_LAG_S: Final = 30
 DEFAULT_BALANCE_HYSTERESIS_ENABLED: Final = False
+DEFAULT_LOOP_TUNING_ENABLED: Final = False
 DEFAULT_STORM_TARGET_SOC_PCT: Final = 95
 DEFAULT_STORM_LEAD_TIME_H: Final = 6
 DEFAULT_STORM_RELEASE_HYSTERESIS_H: Final = 1
@@ -242,6 +243,10 @@ CONF_EVENING_RESERVE_MAX_PCT: Final = "evening_reserve_max_pct"
 # to answer. Touches control, so opt-in.
 CONF_BALANCE_HYSTERESIS_ENABLED: Final = "balance_hysteresis_enabled"
 CONF_ACTUATOR_LAG_S: Final = "actuator_lag_s"
+# Derate the zero-injection proportional gain from the actuator lag: a slow
+# actuator (STREAM ~30 s over BLE) needs a gentler gain to stay stable. Opt-in,
+# and only ever lowers the configured gain.
+CONF_LOOP_TUNING_ENABLED: Final = "loop_tuning_enabled"
 
 # Adaptive volatility damper: smooth the grid signal fed to the regulation loop
 # more when it is volatile (motor-type loads), so the battery tracks the slow

@@ -46,6 +46,7 @@ from .const import (
     CONF_IMPORT_PRICE,
     CONF_LOAD_CONTROL_ENABLED,
     CONF_LOCAL_AC_LOAD_ENTITIES,
+    CONF_LOOP_TUNING_ENABLED,
     CONF_MAX_RAMP_W,
     CONF_NO_BATTERY_EXPORT,
     CONF_NONCONTROLLABLE_STALE_S,
@@ -99,6 +100,7 @@ from .const import (
     DEFAULT_HC_START,
     DEFAULT_HP_PRICE,
     DEFAULT_IMPORT_PRICE,
+    DEFAULT_LOOP_TUNING_ENABLED,
     DEFAULT_MAX_RAMP_W,
     DEFAULT_NO_BATTERY_EXPORT,
     DEFAULT_NONCONTROLLABLE_STALE_S,
@@ -221,6 +223,10 @@ def _general_main_fields(d: dict[str, Any]) -> dict[Any, Any]:
         vol.Optional(
             CONF_BALANCE_HYSTERESIS_ENABLED,
             default=d.get(CONF_BALANCE_HYSTERESIS_ENABLED, DEFAULT_BALANCE_HYSTERESIS_ENABLED),
+        ): bool,
+        vol.Optional(
+            CONF_LOOP_TUNING_ENABLED,
+            default=d.get(CONF_LOOP_TUNING_ENABLED, DEFAULT_LOOP_TUNING_ENABLED),
         ): bool,
         vol.Optional(
             CONF_PV_DROP_COMPENSATION_ENABLED,

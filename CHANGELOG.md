@@ -37,6 +37,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta85] — 2026-07-25
+
+### Added
+
+- **Réglage de boucle calé sur l'actionneur** (D1, opt-in). Le gain proportionnel zéro-injection
+  a une valeur sûre qui **dépend du temps mort** entre la consigne et sa lecture au compteur :
+  un gain calme sur un onduleur qui répond en un tick devient un gain qui dépasse et oscille
+  sur un EcoFlow STREAM à ~30 s en BLE — la boucle continue de pousser parce que les trois
+  dernières commandes ne sont pas encore arrivées, puis rebondit quand elles arrivent d'un
+  coup. `core/controllers/loop_tuning.py` (pur) dérive le gain du retard :
+  `kp = kp_config / (retard / tick)`, borné. Un actionneur qui répond en un tick garde le gain
+  configuré (donc comportement identique à aujourd'hui), et le gain n'est **jamais** relevé
+  au-dessus du réglage ni abaissé sous un plancher où la boucle ne corrigerait plus. C'est le
+  gain de *base* — l'auto-tuner amortit toujours à partir de là, avec moins à défaire.
+
+### Note
+
+- **G2** (charge modulante) et **G3** (arbitrage tarifaire) restaient déjà couverts par le type
+  de charge `modulating` et le contrôle prédictif existants — voir beta83. Le lot demandé
+  (D1, E1, E4, E3, G2, G3, F3, F4) est ainsi complet.
+
 ## [2.0.8-beta84] — 2026-07-25
 
 ### Added
