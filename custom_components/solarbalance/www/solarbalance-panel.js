@@ -57,6 +57,11 @@ const STR_EN = {
   "cycle(s) non étiqueté(s)": "unlabelled cycle(s)",
   "Étiqueter le dernier": "Label the last one",
   "en attendant": "by waiting",
+  "Santé de l'installation": "Installation health",
+  "Frise d'anomalies": "Anomaly timeline",
+  healthy: "healthy",
+  fair: "fair",
+  degraded: "degraded",
   "Liaisons peu fiables (24 h)": "Unreliable links (24 h)",
   dispo: "up",
   trou: "gap",
@@ -407,6 +412,8 @@ class SolarBalancePanel extends HTMLElement {
       appliances: id("appliance_advice", "sensor.solarbalance_appliance_advice"),
       linkHealth: id("link_health", "sensor.solarbalance_link_health_weakest"),
       orchGain: id("orchestration_gain", "sensor.solarbalance_orchestration_gain_today"),
+      installScore: id("install_score", "sensor.solarbalance_installation_health_score"),
+      anomalyTimeline: id("anomaly_timeline", "sensor.solarbalance_anomaly_timeline"),
       planPower: id("planner_recommended_power", "sensor.solarbalance_planner_recommended_power_advisory"),
       planCost: id("planner_expected_cost", "sensor.solarbalance_planner_expected_cost_advisory"),
     };
@@ -1288,6 +1295,46 @@ class SolarBalancePanel extends HTMLElement {
     return (n / 3600).toFixed(1) + " h";
   }
 
+  _installScoreCard() {
+    const score = this._num2(this._state(this._E.installScore));
+    if (score == null) return "";
+    const verdict = this._attr(this._E.installScore, "verdict") || "";
+    const deductions = this._attr(this._E.installScore, "deductions");
+    // A green score every day trains the eye to skip it; only show the card when
+    // something is actually pulling the installation down.
+    if (score >= 90 && (!Array.isArray(deductions) || !deductions.length)) return "";
+    const cls = score >= 90 ? "ok" : score >= 65 ? "warn" : "bad";
+    const rows = Array.isArray(deductions)
+      ? deductions.map((d) => `<div class="row"><span>${d}</span></div>`).join("")
+      : "";
+    return `<div class="card"><h3>🩺 ${this._t("Santé de l'installation")}</h3>
+      ${this._row(
+        "Score",
+        `<b><span class="sun-now ${cls}">${score.toFixed(0)}/100</span> ${this._t(verdict)}</b>`
+      )}
+      ${rows}</div>`;
+  }
+
+  _anomalyCard() {
+    const events = this._attr(this._E.anomalyTimeline, "events");
+    if (!Array.isArray(events) || !events.length) return "";
+    const icon = { info: "•", warning: "▲", error: "✖" };
+    const rows = events
+      .slice(0, 12)
+      .map((e) => {
+        const when = String(e.at || "").slice(0, 16).replace("T", " ");
+        const sev = e.severity || "warning";
+        const n = e.count > 1 ? ` <span class="ev-n">×${e.count}</span>` : "";
+        return `<div class="ev-row ev-${sev}">
+            <span class="ev-mark">${icon[sev] || "▲"}</span>
+            <span class="ev-when">${when}</span>
+            <span class="ev-msg">${e.message}${n}</span>
+          </div>`;
+      })
+      .join("");
+    return `<div class="card"><h3>🕔 ${this._t("Frise d'anomalies")}</h3>${rows}</div>`;
+  }
+
   _linkHealthCard() {
     // Only shown once something is actually wrong: a green table every day trains
     // the eye to skip it, and this is precisely the card that must be noticed.
@@ -1661,6 +1708,10 @@ class SolarBalancePanel extends HTMLElement {
 
           ${this._explainCard()}
 
+          ${this._installScoreCard()}
+
+          ${this._anomalyCard()}
+
           ${this._linkHealthCard()}
 
           ${this._orchestrationCard()}
@@ -1845,6 +1896,13 @@ class SolarBalancePanel extends HTMLElement {
         .p-best { color:var(--info-color,#3d8bff); }
         .p-cost { color:var(--primary-text-color); font-weight:600; }
         .p-save { color:var(--success-color,#27ae60); }
+        .ev-row { display:grid; grid-template-columns:16px 96px 1fr; gap:6px; align-items:baseline;
+                  padding:2px 0; font-size:.78rem; }
+        .ev-when { color:var(--secondary-text-color); font-size:.72rem; font-variant-numeric:tabular-nums; }
+        .ev-n { color:var(--secondary-text-color); }
+        .ev-info .ev-mark { color:var(--info-color,#3d8bff); }
+        .ev-warning .ev-mark { color:var(--warning-color,#f5a623); }
+        .ev-error .ev-mark { color:var(--error-color,#e74c3c); }
         .p-edit { background:none; border:none; cursor:pointer; padding:0 4px;
                   font-size:.72rem; opacity:.55; }
         .p-edit:hover { opacity:1; }

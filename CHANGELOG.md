@@ -37,6 +37,27 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta84] — 2026-07-25
+
+### Added
+
+- **Frise d'anomalies** (F3). Chaque incident du mois se terminait pareil : quelqu'un
+  remontait le journal HA pour reconstituer *quand* le compteur s'est tu, *quand* la batterie
+  cloud a lâché, *quand* cette lecture d'export impossible a été rejetée. Les signaux
+  existaient tous, mais éparpillés. Un anneau borné (`core/event_log.py`, pur) rassemble
+  désormais l'essentiel — compteur perdu/revenu, lecture rejetée, liaison peu fiable, cycle
+  d'appareil inhabituel — chaque ligne datée, avec une gravité, **dé-dupliquée** (un compteur
+  qui clignote incrémente un compteur au lieu d'inonder la frise). Persistée, exposée en
+  capteur et en carte de panneau.
+
+- **Score de santé de l'installation** (F4). Un seul nombre 0-100 (`core/install_score.py`,
+  pur) qui agrège ce qui existait déjà — santé des liaisons, garde-fou de plausibilité,
+  problèmes de configuration, source du compteur, mode dégradé — **avec la liste de ce qui l'a
+  fait baisser**, la déduction la plus lourde d'abord. Perdre le compteur (primaire ET
+  secours) coûte le plus, le secours seul est une dégradation survivable, une liaison
+  instable coûte au prorata de ce qu'elle a réellement perdu. Capteur + carte de panneau qui
+  ne s'affiche que quand quelque chose cloche.
+
 ## [2.0.8-beta83] — 2026-07-25
 
 ### Added

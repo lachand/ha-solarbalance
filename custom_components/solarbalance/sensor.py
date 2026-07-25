@@ -43,6 +43,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from . import COORDINATOR_KEY
 from .const import DOMAIN
 from .coordinator import SolarBalanceCoordinator
+from .core.install_score import deductions_as_text
 from .core.models import Chemistry, Snapshot, estimate_soh_pct
 
 _LOGGER = logging.getLogger(__name__)
@@ -106,6 +107,8 @@ async def async_setup_entry(
         SolarBalanceConsumptionForecastErrorSensor(coordinator, entry),
         SolarBalanceLinkHealthSensor(coordinator, entry),
         SolarBalanceOrchestrationGainSensor(coordinator, entry),
+        SolarBalanceInstallScoreSensor(coordinator, entry),
+        SolarBalanceAnomalyTimelineSensor(coordinator, entry),
     ]
     if coordinator._curtailment is not None:
         entities.append(
@@ -1518,6 +1521,70 @@ class SolarBalanceOrchestrationGainSensor(_SolarBalanceSensor):
             "naive_export_kwh": res.naive_export_kwh,
             "stored_delta_kwh": res.stored_delta_kwh,
             "hours_compared": res.hours,
+        }
+
+
+class SolarBalanceInstallScoreSensor(_SolarBalanceSensor):
+    """One aggregated health score for the whole installation (0-100).
+
+    Rolls up link health, the plausibility guard, config issues, the meter source
+    and degraded mode into a single number, with the reasons for any shortfall in
+    the attributes — so "should I be worried?" is one glance (F4).
+    """
+
+    _unrecorded_attributes = frozenset({"deductions"})
+
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:heart-pulse"
+    _attr_suggested_display_precision = 0
+    _attr_translation_key = "install_score"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "install_score")
+
+    @property
+    def native_value(self) -> float:
+        return self.coordinator.installation_score.score
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        res = self.coordinator.installation_score
+        return {"verdict": res.verdict, "deductions": deductions_as_text(res.deductions)}
+
+
+class SolarBalanceAnomalyTimelineSensor(_SolarBalanceSensor):
+    """A short timeline of notable incidents; state is how many are recorded (F3)."""
+
+    _unrecorded_attributes = frozenset({"events"})
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:timeline-alert"
+    _attr_translation_key = "anomaly_timeline"
+
+    def __init__(self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry, "anomaly_timeline")
+
+    @property
+    def native_value(self) -> int:
+        return len(self.coordinator.anomaly_timeline)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        events = self.coordinator.anomaly_timeline
+        return {
+            "events": [
+                {
+                    "at": datetime.fromtimestamp(e["at"]).isoformat(),
+                    "kind": e["kind"],
+                    "severity": e["severity"],
+                    "message": e["message"],
+                    "count": e["count"],
+                }
+                for e in events
+            ]
         }
 
 

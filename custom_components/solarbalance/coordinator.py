@@ -207,6 +207,7 @@ from .core.controllers.zero_injection import (
 )
 from .core.counterfactual import Counterfactual, CounterfactualResult
 from .core.energy import DailyEnergyAccumulator
+from .core.event_log import SEVERITY_ERROR, SEVERITY_INFO, SEVERITY_WARNING, EventLog
 from .core.explain import Explanation, explain_tick
 from .core.filters import AdaptiveVolatilityDamper, RollingMedian
 from .core.forecast import (
@@ -215,6 +216,7 @@ from .core.forecast import (
     build_forecast_slots,
     build_pv_w_by_hour,
 )
+from .core.install_score import InstallScore, install_score
 from .core.link_health import LinkHealth, LinkStats
 from .core.models import (
     BatteryTarget,
@@ -937,6 +939,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # cycles (SoH for packs with no vendor cycle count). Persisted lifetime.
         self._battery_energy = BatteryEnergyTracker()
 
+        # A short timeline of the notable incidents (meter lost, reading rejected,
+        # link down, appliance anomaly) so "what went wrong lately?" is one glance
+        # instead of a scroll through the logbook. Persisted.
+        self._event_log = EventLog()
+        self._last_grid_source: str | None = None
+        self._last_degraded = False
+        self._last_weakest_verdict: str | None = None
+        # Recent grid-read outcomes (1 = rejected as impossible), for the reject rate
+        # that feeds the installation score. Bounded to the last ~40 min at a 10 s tick.
+        self._grid_read_window: deque[int] = deque(maxlen=240)
+
         # The shadow's capacity is the SoC *span* the fleet may actually use, so its
         # stored kWh means the same thing as `_stored_above_min_kwh` and the two are
         # comparable. Giving it the raw capacity would hand it a battery the real
@@ -1069,6 +1082,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if isinstance(be, dict):
             with contextlib.suppress(Exception):
                 self._battery_energy = BatteryEnergyTracker.from_dict(be)
+        el = (data or {}).get("event_log")
+        if isinstance(el, dict):
+            with contextlib.suppress(Exception):
+                self._event_log = EventLog.from_dict(el)
         energy = (data or {}).get("energy")
         if not energy:
             return
@@ -1231,6 +1248,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             "link_health": self._link_health.to_dict(),
             "counterfactual": self._counterfactual.to_dict(),
             "battery_energy": self._battery_energy.to_dict(),
+            "event_log": self._event_log.to_dict(),
         }
 
     @property
@@ -1888,6 +1906,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             battery_w=snapshot.battery_power_total_w,
             last_valid_w=self._last_plausible_grid_w,
         )
+        self._grid_read_window.append(1 if plausible.rejected else 0)
         if plausible.rejected:
             self._grid_rejects += 1
             _LOGGER.warning(
@@ -1899,8 +1918,17 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 snapshot.battery_power_total_w,
                 plausible.grid_w,
             )
+            self._event_log.record(
+                snapshot.timestamp.timestamp(),
+                "grid_rejected",
+                f"Impossible grid reading {snapshot.grid_power_w:.0f} W rejected "
+                f"(max export {plausible.max_export_w:.0f} W) — held last valid value",
+                SEVERITY_WARNING,
+            )
         else:
             self._last_plausible_grid_w = plausible.grid_w
+
+        self._record_health_transitions(snapshot)
 
         # --- Grid median filter (B): clean the value handed to the regulator;
         # the displayed grid sensor keeps snapshot.grid_power_w (raw). ---
@@ -2746,6 +2774,86 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             self._link_health.observe(key, now_s, age_s)
         self._link_health.forget(set(ages))
 
+    def _record_health_transitions(self, snapshot: Snapshot) -> None:
+        """Log meter-source, degraded and weakest-link *edges* to the timeline (F3)."""
+        now_s = snapshot.timestamp.timestamp()
+        source = self._reader.grid_source
+        if source != self._last_grid_source:
+            if self._last_grid_source is not None:  # skip the first-ever tick
+                if source == "none":
+                    self._event_log.record(
+                        now_s,
+                        "meter_lost",
+                        "Grid meter unavailable — no source answering",
+                        SEVERITY_ERROR,
+                    )
+                elif source == "backup":
+                    self._event_log.record(
+                        now_s,
+                        "meter_backup",
+                        "Grid meter lost — running on the backup sensor",
+                        SEVERITY_WARNING,
+                    )
+                elif source == "primary" and self._last_grid_source in ("backup", "none"):
+                    self._event_log.record(
+                        now_s, "meter_back", "Grid meter recovered", SEVERITY_INFO
+                    )
+            self._last_grid_source = source
+
+        degraded = self._mode is HemsMode.DEGRADED
+        if degraded != self._last_degraded:
+            if degraded:
+                self._event_log.record(
+                    now_s, "degraded", "Regulation suspended (degraded mode)", SEVERITY_ERROR
+                )
+            elif self._last_grid_source is not None:
+                self._event_log.record(now_s, "recovered", "Regulation resumed", SEVERITY_INFO)
+            self._last_degraded = degraded
+
+        worst = self._link_health.worst(now_s)
+        verdict = worst.verdict if worst is not None else None
+        if verdict == "unreliable" and self._last_weakest_verdict != "unreliable":
+            self._event_log.record(
+                now_s,
+                "link_down",
+                f"Link {worst.key} unreliable ({worst.score:.0f}/100, "
+                f"longest gap {worst.longest_gap_s / 60:.0f} min)",
+                SEVERITY_WARNING,
+            )
+        self._last_weakest_verdict = verdict
+
+    @property
+    def anomaly_timeline(self) -> list[dict[str, Any]]:
+        """Recent notable incidents, newest first (F3)."""
+        return [
+            {
+                "at": e.at_s,
+                "kind": e.kind,
+                "severity": e.severity,
+                "message": e.message,
+                "count": e.count,
+            }
+            for e in self._event_log.recent()
+        ]
+
+    @property
+    def installation_score(self) -> InstallScore:
+        """One aggregated health score for the installation, with reasons (F4)."""
+        worst = self._link_health.worst(dt_util.utcnow().timestamp())
+        reject_rate = (
+            sum(self._grid_read_window) / len(self._grid_read_window)
+            if self._grid_read_window
+            else 0.0
+        )
+        return install_score(
+            grid_source=self._reader.grid_source,
+            degraded=self._mode is HemsMode.DEGRADED,
+            weakest_link_score=worst.score if worst is not None else None,
+            grid_reject_rate=reject_rate,
+            config_issue_count=len(self.config_issues),
+            tariff_degraded=self._tariff_degraded,
+        )
+
     @property
     def link_health(self) -> list[LinkStats]:
         """Per-entity reporting record over the last 24 h, worst first."""
@@ -2879,6 +2987,13 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         "energy_kwh": round(closed.energy_kwh, 2),
                         "similarity": round(score, 2),
                     },
+                )
+                self._event_log.record(
+                    now_s,
+                    "appliance_anomaly",
+                    f"{name} ran an unusual cycle ({closed.duration_s / 60:.0f} min, "
+                    f"{closed.energy_kwh:.2f} kWh) — unlike any learned program",
+                    SEVERITY_WARNING,
                 )
 
     @staticmethod

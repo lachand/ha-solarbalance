@@ -871,6 +871,12 @@
       },
       "orchestration_gain": {
         "name": "Orchestration gain today"
+      },
+      "install_score": {
+        "name": "Installation health score"
+      },
+      "anomaly_timeline": {
+        "name": "Anomaly timeline"
       }
     },
     "select": {

@@ -93,6 +93,14 @@ async def async_get_config_entry_diagnostics(
                 "round_trip_pct": stats.round_trip_pct,
             }
 
+    score = coord.installation_score
+    data["installation_score"] = {
+        "score": score.score,
+        "verdict": score.verdict,
+        "deductions": [{"points": d.points, "reason": d.reason} for d in score.deductions],
+    }
+    data["anomaly_timeline"] = coord.anomaly_timeline
+
     band = coord._balance_band
     if band is not None:
         data["balance_point"] = {
