@@ -157,10 +157,12 @@ from .const import (
     STORE_KEY,
     STORE_VERSION,
 )
+from .core.appliance_cost import cycle_cost
 from .core.appliance_cycles import ApplianceCycles
 from .core.arbitrer import Arbiter, ArbitrationResult
 from .core.autotuner import RegulationAutoTuner
 from .core.baseline import NightBaselineEstimator
+from .core.battery_energy import BatteryEnergyStats, BatteryEnergyTracker
 from .core.consumption_profile import ConsumptionProfile, segment_for
 from .core.controllers.anticipation import (
     SINK_CLOUD_BATTERY,
@@ -931,6 +933,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         # What the orchestration is worth against the same hardware left to plain
         # self-consumption — the marginal question, which the existing savings
         # figure (PV + battery vs no PV at all) does not answer.
+        # Per-battery throughput: real round-trip efficiency and equivalent full
+        # cycles (SoH for packs with no vendor cycle count). Persisted lifetime.
+        self._battery_energy = BatteryEnergyTracker()
+
         # The shadow's capacity is the SoC *span* the fleet may actually use, so its
         # stored kWh means the same thing as `_stored_above_min_kwh` and the two are
         # comparable. Giving it the raw capacity would hand it a battery the real
@@ -1059,6 +1065,10 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         if isinstance(cf, dict):
             with contextlib.suppress(Exception):
                 self._counterfactual.restore(cf)
+        be = (data or {}).get("battery_energy")
+        if isinstance(be, dict):
+            with contextlib.suppress(Exception):
+                self._battery_energy = BatteryEnergyTracker.from_dict(be)
         energy = (data or {}).get("energy")
         if not energy:
             return
@@ -1220,6 +1230,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             "appliance_cycles": self._appliance_cycles.to_dict(),
             "link_health": self._link_health.to_dict(),
             "counterfactual": self._counterfactual.to_dict(),
+            "battery_energy": self._battery_energy.to_dict(),
         }
 
     @property
@@ -1847,6 +1858,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             baseline_w=snapshot.baseline_consumption_w,
         )
         self._observe_links(snapshot)
+        for b in snapshot.batteries:
+            if b.available:
+                self._battery_energy.observe(
+                    b.device_name, snapshot.timestamp, b.power_w, b.soc_pct
+                )
         self._counterfactual.update(
             now=snapshot.timestamp,
             local_date=local_now.date(),
@@ -2698,6 +2714,11 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
 
     # ------------------------------------------------------------------ helpers
 
+    def battery_energy_stats(self, device_name: str) -> BatteryEnergyStats | None:
+        """Round-trip efficiency and equivalent cycles for one battery (E3/E4)."""
+        usable = self._usable_capacity_by_device.get(device_name, 0.0)
+        return self._battery_energy.stats(device_name, usable_capacity_kwh=usable)
+
     def _stored_above_min_kwh(self, snapshot: Snapshot) -> float:
         """Energy the controllable fleet still holds above its own SoC floor (kWh)."""
         total = 0.0
@@ -2894,6 +2915,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             # Align the house profile (hour-of-day) with the forecast (0 = current hour).
             house_by_hour = [house[(local.hour + i) % 24] for i in range(len(pv_by_hour))]
         now_s = snap.timestamp.timestamp() if snap is not None else 0.0
+        import_price = self._tariff.current_import_price(local)
 
         out: list[dict[str, Any]] = []
         for entity_id in self._appliance_entities:
@@ -2960,6 +2982,25 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                         if spot is not None:
                             entry["best_hour"] = (local.hour + spot.start_hour) % 24
                             entry["best_pct"] = round(spot.solar_fraction * 100)
+                    # E1: what this program costs at the current tariff, given the
+                    # solar it would catch now vs at the best hour.
+                    cost = cycle_cost(
+                        energy_kwh=candidate.energy_kwh,
+                        import_price_eur=import_price,
+                        solar_fraction_now=(
+                            entry.get("solar_now_pct", 0) / 100.0 if pv_by_hour else None
+                        ),
+                        solar_fraction_best=(
+                            entry.get("best_pct", entry.get("solar_now_pct", 0)) / 100.0
+                            if pv_by_hour
+                            else None
+                        ),
+                    )
+                    if cost is not None:
+                        entry["cost_now_eur"] = cost.now_eur
+                        entry["cost_grid_eur"] = cost.grid_only_eur
+                        if cost.saving_by_waiting_eur > 0:
+                            entry["saving_by_waiting_eur"] = cost.saving_by_waiting_eur
                     programs.append(entry)
                 item["programs"] = programs
             out.append(item)

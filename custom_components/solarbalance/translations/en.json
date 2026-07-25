@@ -777,6 +777,12 @@
       "batt_soh": {
         "name": "State of Health (SoH)"
       },
+      "batt_round_trip": {
+        "name": "Round-trip efficiency"
+      },
+      "batt_equivalent_cycles": {
+        "name": "Equivalent full cycles"
+      },
       "mppt_power": {
         "name": "PV power"
       },

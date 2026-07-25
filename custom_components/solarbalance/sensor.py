@@ -182,6 +182,17 @@ async def async_setup_entry(
                     SolarBalanceBatteryMetricSensor(coordinator, entry, device.name, "cycles"),
                     SolarBalanceBatterySohSensor(coordinator, entry, device.name),
                 ]
+            elif device.battery.controllable:
+                # No vendor cycle count: SolarBalance measures throughput itself, so
+                # this pack still gets a State-of-Health estimate (E3).
+                dev_entities.append(SolarBalanceBatterySohSensor(coordinator, entry, device.name))
+            # Round-trip efficiency and equivalent cycles from measured throughput
+            # (E3/E4) — only where the battery power is actually known to us.
+            if device.battery.controllable or device.battery.cycles_entity is not None:
+                dev_entities += [
+                    SolarBalanceBatteryRoundTripSensor(coordinator, entry, device.name),
+                    SolarBalanceBatteryEquivalentCyclesSensor(coordinator, entry, device.name),
+                ]
         if device.mppt is not None:
             dev_entities.append(
                 SolarBalanceMpptPowerSensor(coordinator, entry, device.name, dev_info)
@@ -996,7 +1007,82 @@ class SolarBalanceBatterySohSensor(_SolarBalanceSensor):
         state = next((b for b in snap.batteries if b.device_name == self._device_name), None)
         if state is None or not state.available:
             return None
-        return estimate_soh_pct(state.cycles, self._chemistry)
+        soh = estimate_soh_pct(state.cycles, self._chemistry)
+        if soh is not None:
+            return soh
+        # No vendor cycle count: fall back to the cycles SolarBalance measured itself.
+        stats = self.coordinator.battery_energy_stats(self._device_name)
+        if stats is None:
+            return None
+        return estimate_soh_pct(stats.equivalent_full_cycles, self._chemistry)
+
+
+class SolarBalanceBatteryRoundTripSensor(_SolarBalanceSensor):
+    """Measured charge-to-discharge round-trip efficiency (%).
+
+    From the energy actually put in and taken out, corrected for the charge still
+    stored — not the spec sheet's flat 90 %. Blank until enough energy has flowed
+    for the figure to mean something.
+    """
+
+    _attr_translation_key = "batt_round_trip"
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:battery-sync"
+    _attr_suggested_display_precision = 0
+
+    def __init__(
+        self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry, device_name: str
+    ) -> None:
+        super().__init__(
+            coordinator,
+            entry,
+            f"{device_name}_round_trip",
+            device_info=_battery_device_info(entry, device_name),
+        )
+        self._device_name = device_name
+
+    @property
+    def native_value(self) -> float | None:
+        stats = self.coordinator.battery_energy_stats(self._device_name)
+        return stats.round_trip_pct if stats is not None else None
+
+    @property
+    def extra_state_attributes(self) -> dict[str, object] | None:
+        stats = self.coordinator.battery_energy_stats(self._device_name)
+        if stats is None:
+            return None
+        return {
+            "charge_in_kwh": stats.charge_in_kwh,
+            "discharge_out_kwh": stats.discharge_out_kwh,
+        }
+
+
+class SolarBalanceBatteryEquivalentCyclesSensor(_SolarBalanceSensor):
+    """Equivalent full cycles from measured throughput (delivered energy / capacity)."""
+
+    _attr_translation_key = "batt_equivalent_cycles"
+    _attr_state_class = SensorStateClass.TOTAL_INCREASING
+    _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_icon = "mdi:battery-clock"
+    _attr_suggested_display_precision = 1
+
+    def __init__(
+        self, coordinator: SolarBalanceCoordinator, entry: ConfigEntry, device_name: str
+    ) -> None:
+        super().__init__(
+            coordinator,
+            entry,
+            f"{device_name}_equivalent_cycles",
+            device_info=_battery_device_info(entry, device_name),
+        )
+        self._device_name = device_name
+
+    @property
+    def native_value(self) -> float | None:
+        stats = self.coordinator.battery_energy_stats(self._device_name)
+        return stats.equivalent_full_cycles if stats is not None else None
 
 
 class SolarBalanceMpptPowerSensor(_SolarBalanceSensor):

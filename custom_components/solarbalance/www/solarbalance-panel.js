@@ -56,6 +56,7 @@ const STR_EN = {
     "Name the cycle you just ran (e.g. Cottons 40):",
   "cycle(s) non étiqueté(s)": "unlabelled cycle(s)",
   "Étiqueter le dernier": "Label the last one",
+  "en attendant": "by waiting",
   "Liaisons peu fiables (24 h)": "Unreliable links (24 h)",
   dispo: "up",
   trou: "gap",
@@ -1231,10 +1232,20 @@ class SolarBalancePanel extends HTMLElement {
             const edit = `<button class="p-edit" title="${this._t(
               "Renommer ce programme"
             )}" data-rename-appliance="${a.name}" data-rename-program="${pr.program}">✏️</button>`;
+            // E1: what it costs to run now, and the euros saved by waiting for the sun.
+            let cost = "";
+            if (pr.cost_now_eur != null) {
+              cost = ` · <span class="p-cost">${pr.cost_now_eur.toFixed(2)} €</span>`;
+              if (pr.saving_by_waiting_eur != null && pr.saving_by_waiting_eur >= 0.01) {
+                cost += ` <span class="p-save">−${pr.saving_by_waiting_eur.toFixed(2)} € ${this._t(
+                  "en attendant"
+                )}</span>`;
+              }
+            }
             return `<div class="p-row">
                 <div class="p-name">${pr.program} <span class="p-n">×${pr.samples}</span>${edit}</div>
                 <div class="p-spark">${this._cycleSpark(pr.curve_w)}</div>
-                <div class="p-meta">${pr.duration_min} min · ${pr.energy_kwh} kWh ${pct}${better}</div>
+                <div class="p-meta">${pr.duration_min} min · ${pr.energy_kwh} kWh ${pct}${better}${cost}</div>
               </div>`;
           })
           .join("");
@@ -1832,6 +1843,8 @@ class SolarBalancePanel extends HTMLElement {
         .p-meta { grid-column:1 / -1; font-size:.7rem; color:var(--secondary-text-color); }
         .p-sun { color:var(--success-color,#27ae60); font-weight:600; }
         .p-best { color:var(--info-color,#3d8bff); }
+        .p-cost { color:var(--primary-text-color); font-weight:600; }
+        .p-save { color:var(--success-color,#27ae60); }
         .p-edit { background:none; border:none; cursor:pointer; padding:0 4px;
                   font-size:.72rem; opacity:.55; }
         .p-edit:hover { opacity:1; }

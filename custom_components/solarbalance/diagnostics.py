@@ -80,6 +80,19 @@ async def async_get_config_entry_diagnostics(
         "stored_delta_kwh": cf.stored_delta_kwh,
         "hours": cf.hours,
     }
+    data["battery_energy"] = {}
+    for device in coord._devices:
+        if device.battery is None:
+            continue
+        stats = coord.battery_energy_stats(device.name)
+        if stats is not None:
+            data["battery_energy"][device.name] = {
+                "charge_in_kwh": stats.charge_in_kwh,
+                "discharge_out_kwh": stats.discharge_out_kwh,
+                "equivalent_full_cycles": stats.equivalent_full_cycles,
+                "round_trip_pct": stats.round_trip_pct,
+            }
+
     band = coord._balance_band
     if band is not None:
         data["balance_point"] = {

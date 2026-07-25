@@ -37,6 +37,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta83] — 2026-07-25
+
+### Added
+
+- **Rendement aller-retour mesuré, par batterie** (E4). Le planificateur et le contrefactuel
+  supposent 90 % à plat ; un parc tombé à 82 % fausse silencieusement tous leurs calculs, et
+  rien ne le mesurait. SolarBalance intègre désormais l'énergie **entrée** et **sortie** de
+  chaque batterie et en tire le rendement réel — **corrigé de la charge encore stockée** (un
+  parc qui finit plus plein a *gardé* de l'énergie, pas perdu), ce qui rend l'estimation
+  exacte sur n'importe quelle fenêtre. Affiché une fois assez d'énergie passée pour que le
+  chiffre veuille dire quelque chose.
+
+- **Cycles complets équivalents + SoH sans compteur constructeur** (E3). À partir du même
+  bilan d'énergie, l'énergie délivrée sur une capacité utile donne les cycles équivalents —
+  et donc une estimation d'**état de santé** pour les batteries qui n'exposent aucun compteur
+  de cycles (jusqu'ici SoH restait *inconnu* pour elles). Deux capteurs de diagnostic par
+  batterie (rendement, cycles équivalents), totaux persistés.
+
+- **Coût par cycle d'appareil** (E1). Chaque programme appris affiche ce qu'il **coûte** au
+  tarif courant : euros s'il tournait maintenant (selon la part solaire du moment) vs euros
+  **économisés en attendant** l'heure la plus ensoleillée. Visible sur chaque ligne de
+  programme du panneau.
+
+### Note
+
+- **G2** (charge modulante : ballon / PAC) et **G3** (arbitrage tarifaire) étaient **déjà
+  implémentés** — respectivement le type de charge `modulating` (dispatch continu du surplus
+  vers `power_set_entity`) et le *contrôle prédictif* (`predictive_steering_w`, option
+  existante) qui charge en heures creuses / décharge en heures pleines vers la consigne du
+  planificateur. Rien à ajouter.
+
 ## [2.0.8-beta82] — 2026-07-24
 
 ### Changed
