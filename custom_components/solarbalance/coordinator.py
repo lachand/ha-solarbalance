@@ -2614,7 +2614,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._last_load_commands = {c.load_name: c for c in commands}
         if not self._dry_run:
             await self._load_publisher.apply(commands)
-        self._update_load_settle(commands)
+        self._update_load_settle(commands, {ls.name: ls.actual_power_w for ls in snapshot.loads})
 
         self._publisher.publish(result, balancing_result=balancing_result)
         soc_by_device = {b.device_name: b.soc_pct for b in snapshot.batteries}
@@ -3682,13 +3682,31 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                 powers[c.load_name] = float(_load_nominal_w(ld)) if ld is not None else 0.0
         return powers
 
-    def _update_load_settle(self, commands: tuple[LoadCommand, ...]) -> None:
+    def _update_load_settle(
+        self,
+        commands: tuple[LoadCommand, ...],
+        measured_w: Mapping[str, float] | None = None,
+    ) -> None:
         """Arm the anti-yoyo settle window when this tick dropped a big load.
 
         Only meaningful when load control actually drives the loads; otherwise
         the "drop" is hypothetical and must not feed-forward onto the batteries.
+
+        ``measured_w`` caps what a load is credited with drawing: a load that was
+        commanded on but is unreachable or idle (the reader reports 0 W) returns no
+        surplus to the grid when it is switched off, so feeding it forward would
+        only push the batteries the wrong way. Loads without a power measurement
+        keep the commanded figure.
         """
         current = self._command_load_powers(commands)
+        drawn = (
+            current
+            if measured_w is None
+            else {
+                name: min(power, max(0.0, measured_w[name])) if name in measured_w else power
+                for name, power in current.items()
+            }
+        )
         if self._load_publisher.enabled:
             armed = arm_settle(
                 prev_loads=self._prev_load_power_w,
@@ -3699,7 +3717,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             if armed is not None:
                 self._settle_state = armed
                 _LOGGER.debug("ZI settle armed: %.0fW load dropped", armed.feedforward_w)
-        self._prev_load_power_w = current
+        self._prev_load_power_w = drawn
 
     def _evaluate_evening_shed(self, snapshot: Snapshot) -> ShedDecision:
         """Assemble inputs and evaluate the evening battery-priority shedding."""

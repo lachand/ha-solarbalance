@@ -63,6 +63,28 @@ async def test_anti_yoyo_settle_arms_on_load_drop(coord) -> None:
     assert coord._settle_state.feedforward_w == pytest.approx(2000.0)
 
 
+@pytest.mark.parametrize(
+    ("measured_w", "expected_ff_w"),
+    [
+        ({"voiture": 2000.0}, 2000.0),
+        ({"voiture": 900.0}, 900.0),
+        ({"voiture": 0.0}, None),
+        ({}, 2000.0),
+    ],
+    ids=["drawing-as-commanded", "drawing-less", "idle-or-unreachable", "no-measurement"],
+)
+async def test_settle_feedforward_capped_by_measured_power(
+    coord, measured_w: dict[str, float], expected_ff_w: float | None
+) -> None:
+    """The feed-forward credits a dropped load with what it really drew, not its command."""
+    coord._update_load_settle(
+        (LoadCommand(load_name="voiture", on=True, power_w=2000),), measured_w
+    )
+    coord._update_load_settle((LoadCommand(load_name="voiture", on=False),), {"voiture": 0.0})
+    assert coord._settle_state.active == (expected_ff_w is not None)
+    assert coord._settle_state.feedforward_w == pytest.approx(expected_ff_w or 0.0)
+
+
 async def test_grid_only_force_charge_offset(coord) -> None:
     """The grid-only offset tracks the forced load's measured power (battery spared)."""
     from types import SimpleNamespace

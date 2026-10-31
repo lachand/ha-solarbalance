@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta86] — 2026-10-31
+
+### Fixed
+
+- **Anti-yoyo : le feed-forward ne crédite plus une charge de ce qu'elle ne tirait pas.** Le
+  « settle » mesurait la charge coupée à partir de sa puissance *commandée* (ou nominale). Une
+  charge pilotée injoignable ou à l'arrêt (chargeur indisponible, voiture débranchée) déclenchait
+  donc, à chaque bascule du répartiteur, un feed-forward de plusieurs centaines de watts qui
+  poussait les batteries dans le mauvais sens — visible comme un pic régulier de
+  `zero_injection_correction` (1380 W) calé sur les marches d'une autre charge cyclique
+  (radiateur à cycle de 10 min). La puissance retenue est maintenant `min(commandée, mesurée)`
+  pour les charges qui ont une `actual_power_entity` (0 W si l'entité est indisponible) ; les
+  charges sans mesure gardent le comportement précédent.
+
 ## [2.0.8-beta85] — 2026-07-25
 
 ### Added
