@@ -124,6 +124,19 @@ class TestBatteryRole:
         assert role.power_sign_convention is convention
 
 
+class TestBatterySocEntities:
+    def test_soc_entities_primary_then_fallbacks_deduplicated(self) -> None:
+        role = BatteryRole(
+            capacity_kwh=1.9,
+            max_charge_power_w=1000,
+            max_discharge_power_w=1000,
+            soc_entity="sensor.soc_ble",
+            extra_soc_entities=("sensor.soc_wifi", "sensor.soc_ble", ""),
+            power_entity="sensor.p",
+        )
+        assert role.soc_entities == ("sensor.soc_ble", "sensor.soc_wifi")
+
+
 class TestMpptRole:
     def test_power_entities_defaults_to_just_the_primary(self) -> None:
         role = MpptRole(peak_power_w=1000, power_entity="sensor.pv")
@@ -137,6 +150,15 @@ class TestMpptRole:
         )
         # Primary first, extras appended, duplicates and blanks dropped.
         assert role.power_entities == ("sensor.mppt1", "sensor.mppt2")
+
+    def test_fallback_power_entities_are_not_part_of_the_summed_set(self) -> None:
+        role = MpptRole(
+            peak_power_w=800,
+            power_entity="sensor.pv_ble",
+            fallback_power_entities=("sensor.pv_wifi",),
+        )
+        assert role.power_entities == ("sensor.pv_ble",)
+        assert role.fallback_power_entities == ("sensor.pv_wifi",)
 
 
 class TestDevice:

@@ -4639,6 +4639,7 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
                     monitored.append(d.battery.power_entity)
             if d.mppt:
                 optional.extend(d.mppt.power_entities)
+                optional.extend(d.mppt.fallback_power_entities)
             if d.inverter:
                 optional.append(d.inverter.ac_output_power_entity)
         return critical, monitored, optional

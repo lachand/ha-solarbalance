@@ -177,6 +177,9 @@ class BatteryRole:
     discharges 800 W total, not 1600). Batteries with the same non-empty label get the
     group's total discharge written to each of their discharge entities; charge stays
     per-battery. ``None`` = independent (current behaviour)."""
+    extra_soc_entities: tuple[str, ...] = ()
+    """Fallback SoC sensors, tried in order after ``soc_entity`` — the first *available*
+    one wins. Lets a Wi-Fi/cloud sensor stand in while the primary (e.g. BLE) is down."""
 
     def __post_init__(self) -> None:
         if self.power_entity is None and (
@@ -220,6 +223,11 @@ class BatteryRole:
         """Candidate battery-power entities, in priority order (first available wins)."""
         return tuple(e for e in (self.power_entity, *self.extra_power_entities) if e)
 
+    @property
+    def soc_entities(self) -> tuple[str, ...]:
+        """Candidate SoC entities, in priority order (first available wins)."""
+        return tuple(dict.fromkeys(e for e in (self.soc_entity, *self.extra_soc_entities) if e))
+
 
 @dataclass(slots=True, frozen=True)
 class MpptRole:
@@ -241,6 +249,10 @@ class MpptRole:
     """
     power_limit_setpoint_entity: str | None = None
     """HA entity (number/input_number) receiving the max output power (W)."""
+    fallback_power_entities: tuple[str, ...] = ()
+    """Production sensors read *instead of* ``power_entities`` when none of those is
+    available (summed, like the primary set). Never added to the primary sum, so a
+    Wi-Fi twin of a BLE sensor is not double-counted while both are up."""
 
     def __post_init__(self) -> None:
         if self.active_control_enabled and self.power_limit_setpoint_entity is None:

@@ -252,7 +252,8 @@
             "idle_mode_option": "Option de mode repos (optionnel)",
             "reserve_soc_setpoint_entity": "Réserve / SoC mini du device (number %)",
             "ac_charge_limit_w": "Limite de charge AC (W)",
-            "discharge_mirror_group": "Groupe de décharge partagée (ex. stream)"
+            "discharge_mirror_group": "Groupe de décharge partagée (ex. stream)",
+            "extra_soc_entities": "Entités SoC de secours (optionnel)"
           },
           "data_description": {
             "capacity_kwh": "Capacité nominale. Ex : 3.92",
@@ -266,7 +267,8 @@
             "charge_ceiling_soc_pct": "SoC jusqu'où le gate relève la limite quand il y a du surplus (défaut = SoC max).",
             "charge_priority_target_soc_pct": "Si renseigné, cette batterie est chargée en premier depuis le surplus (avant le parc) jusqu'à ce SoC — pour une petite station qu'on veut garder pleine.",
             "reserve_soc_setpoint_entity": "SoC mini en mode tempête (number %), relevé à la cible pendant les tempêtes. Ex : number.ef_xxxxxx_backup_reserve. PAS le gate de charge — laisse vide sur une River 2 charge-only (utilise le champ gate ci-dessus).",
-            "ac_charge_limit_w": "Puissance max absorbée depuis l'AC (équaliseur de SoC)."
+            "ac_charge_limit_w": "Puissance max absorbée depuis l'AC (équaliseur de SoC).",
+            "extra_soc_entities": "Utilisées dans l'ordre quand l'entité SoC ci-dessus est indisponible — ex. le jumeau Wi-Fi/cloud d'un capteur Bluetooth. Même unité (%), même échelle."
           }
         },
         "reconfigure": {
@@ -301,7 +303,8 @@
             "idle_mode_option": "Option de mode repos (optionnel)",
             "reserve_soc_setpoint_entity": "Réserve / SoC mini du device (number %)",
             "ac_charge_limit_w": "Limite de charge AC (W)",
-            "discharge_mirror_group": "Groupe de décharge partagée (ex. stream)"
+            "discharge_mirror_group": "Groupe de décharge partagée (ex. stream)",
+            "extra_soc_entities": "Entités SoC de secours (optionnel)"
           },
           "data_description": {
             "capacity_kwh": "Capacité nominale. Ex : 3.92",
@@ -315,7 +318,8 @@
             "charge_ceiling_soc_pct": "SoC jusqu'où le gate relève la limite quand il y a du surplus (défaut = SoC max).",
             "charge_priority_target_soc_pct": "Si renseigné, cette batterie est chargée en premier depuis le surplus (avant le parc) jusqu'à ce SoC — pour une petite station qu'on veut garder pleine.",
             "reserve_soc_setpoint_entity": "SoC mini en mode tempête (number %), relevé à la cible pendant les tempêtes. Ex : number.ef_xxxxxx_backup_reserve. PAS le gate de charge — laisse vide sur une River 2 charge-only (utilise le champ gate ci-dessus).",
-            "ac_charge_limit_w": "Puissance max absorbée depuis l'AC (équaliseur de SoC)."
+            "ac_charge_limit_w": "Puissance max absorbée depuis l'AC (équaliseur de SoC).",
+            "extra_soc_entities": "Utilisées dans l'ordre quand l'entité SoC ci-dessus est indisponible — ex. le jumeau Wi-Fi/cloud d'un capteur Bluetooth. Même unité (%), même échelle."
           }
         }
       },
@@ -424,12 +428,14 @@
             "daily_energy_entity": "Entité énergie du jour",
             "temperature_entity": "Capteur de température (°C)",
             "active_control_enabled": "Bridage actif (limiter la sortie)",
-            "power_limit_setpoint_entity": "Entité limite de sortie (number, W)"
+            "power_limit_setpoint_entity": "Entité limite de sortie (number, W)",
+            "fallback_power_entities": "Capteurs de production de secours (W, optionnel)"
           },
           "data_description": {
             "peak_power_w": "Puissance max de l'onduleur ; borne haute du bridage.",
             "power_entities": "Listez tous les capteurs de production. Pour un onduleur avec un capteur par string et sans total (ex. Indevolt), ajoutez-les tous — ils sont additionnés.",
-            "power_limit_setpoint_entity": "number/W que l'onduleur obéit comme limite de sortie (bridage zéro-injection)."
+            "power_limit_setpoint_entity": "number/W que l'onduleur obéit comme limite de sortie (bridage zéro-injection).",
+            "fallback_power_entities": "Lus uniquement quand aucun capteur de production ci-dessus n'est disponible (ex. le jumeau Wi-Fi d'un capteur Bluetooth). Jamais ajoutés à ceux-ci, donc rien n'est compté deux fois."
           }
         },
         "reconfigure": {
@@ -442,12 +448,14 @@
             "daily_energy_entity": "Entité énergie du jour",
             "temperature_entity": "Capteur de température (°C)",
             "active_control_enabled": "Bridage actif (limiter la sortie)",
-            "power_limit_setpoint_entity": "Entité limite de sortie (number, W)"
+            "power_limit_setpoint_entity": "Entité limite de sortie (number, W)",
+            "fallback_power_entities": "Capteurs de production de secours (W, optionnel)"
           },
           "data_description": {
             "peak_power_w": "Puissance max de l'onduleur ; borne haute du bridage.",
             "power_entities": "Listez tous les capteurs de production. Pour un onduleur avec un capteur par string et sans total (ex. Indevolt), ajoutez-les tous — ils sont additionnés.",
-            "power_limit_setpoint_entity": "number/W que l'onduleur obéit comme limite de sortie (bridage zéro-injection)."
+            "power_limit_setpoint_entity": "number/W que l'onduleur obéit comme limite de sortie (bridage zéro-injection).",
+            "fallback_power_entities": "Lus uniquement quand aucun capteur de production ci-dessus n'est disponible (ex. le jumeau Wi-Fi d'un capteur Bluetooth). Jamais ajoutés à ceux-ci, donc rien n'est compté deux fois."
           }
         }
       },
@@ -555,12 +563,16 @@
             "mppt_daily_energy_entity": "MPPT : énergie du jour",
             "mppt_temperature_entity": "Capteur de température onduleur (°C)",
             "mppt_active_control_enabled": "MPPT : bridage actif",
-            "mppt_power_limit_setpoint_entity": "MPPT : entité limite de sortie (number, W)"
+            "mppt_power_limit_setpoint_entity": "MPPT : entité limite de sortie (number, W)",
+            "extra_soc_entities": "Entités SoC de secours (optionnel)",
+            "mppt_fallback_power_entities": "MPPT : capteurs de production de secours (W, optionnel)"
           },
           "data_description": {
             "power_entity": "Puissance batterie signée. Doit être POSITIVE en charge.",
             "mppt_power_entities": "Capteur(s) de production de l'entrée PV de l'appareil (additionnés).",
-            "mppt_power_limit_setpoint_entity": "number/W pour brider la sortie PV (zéro-injection)."
+            "mppt_power_limit_setpoint_entity": "number/W pour brider la sortie PV (zéro-injection).",
+            "extra_soc_entities": "Utilisées dans l'ordre quand l'entité SoC ci-dessus est indisponible — ex. le jumeau Wi-Fi/cloud d'un capteur Bluetooth. Même unité (%), même échelle.",
+            "mppt_fallback_power_entities": "Lus uniquement quand aucun capteur de production MPPT ci-dessus n'est disponible (ex. le jumeau Wi-Fi d'un capteur Bluetooth). Jamais ajoutés à ceux-ci, donc rien n'est compté deux fois."
           }
         },
         "reconfigure": {
@@ -601,12 +613,16 @@
             "mppt_daily_energy_entity": "MPPT : énergie du jour",
             "mppt_temperature_entity": "Capteur de température onduleur (°C)",
             "mppt_active_control_enabled": "MPPT : bridage actif",
-            "mppt_power_limit_setpoint_entity": "MPPT : entité limite de sortie (number, W)"
+            "mppt_power_limit_setpoint_entity": "MPPT : entité limite de sortie (number, W)",
+            "extra_soc_entities": "Entités SoC de secours (optionnel)",
+            "mppt_fallback_power_entities": "MPPT : capteurs de production de secours (W, optionnel)"
           },
           "data_description": {
             "power_entity": "Puissance batterie signée. Doit être POSITIVE en charge.",
             "mppt_power_entities": "Capteur(s) de production de l'entrée PV de l'appareil (additionnés).",
-            "mppt_power_limit_setpoint_entity": "number/W pour brider la sortie PV (zéro-injection)."
+            "mppt_power_limit_setpoint_entity": "number/W pour brider la sortie PV (zéro-injection).",
+            "extra_soc_entities": "Utilisées dans l'ordre quand l'entité SoC ci-dessus est indisponible — ex. le jumeau Wi-Fi/cloud d'un capteur Bluetooth. Même unité (%), même échelle.",
+            "mppt_fallback_power_entities": "Lus uniquement quand aucun capteur de production MPPT ci-dessus n'est disponible (ex. le jumeau Wi-Fi d'un capteur Bluetooth). Jamais ajoutés à ceux-ci, donc rien n'est compté deux fois."
           }
         }
       },

@@ -252,7 +252,8 @@
             "idle_mode_option": "Idle mode option (optional)",
             "reserve_soc_setpoint_entity": "Device reserve / min-SoC (number %)",
             "ac_charge_limit_w": "AC charge limit (W)",
-            "discharge_mirror_group": "Shared-discharge group (e.g. stream)"
+            "discharge_mirror_group": "Shared-discharge group (e.g. stream)",
+            "extra_soc_entities": "Fallback SoC entities (optional)"
           },
           "data_description": {
             "capacity_kwh": "Nominal capacity. E.g. 3.92",
@@ -266,7 +267,8 @@
             "charge_ceiling_soc_pct": "SoC the gate raises the limit to when there is surplus (default = max SoC).",
             "charge_priority_target_soc_pct": "If set, this battery is charged first from surplus (before the fleet) until this SoC — for a small station you want topped up.",
             "reserve_soc_setpoint_entity": "Storm-mode min-SoC (number %), raised to the target during storms. E.g. number.ef_xxxxxx_backup_reserve. NOT the charge gate — leave empty on a charge-only River 2 (use the charge-gate field above).",
-            "ac_charge_limit_w": "Max power absorbed from AC (SoC equaliser)."
+            "ac_charge_limit_w": "Max power absorbed from AC (SoC equaliser).",
+            "extra_soc_entities": "Used in order when the SoC entity above is unavailable — e.g. the Wi-Fi/cloud twin of a Bluetooth sensor. Same unit (%), same scale."
           }
         },
         "reconfigure": {
@@ -301,7 +303,8 @@
             "idle_mode_option": "Idle mode option (optional)",
             "reserve_soc_setpoint_entity": "Device reserve / min-SoC (number %)",
             "ac_charge_limit_w": "AC charge limit (W)",
-            "discharge_mirror_group": "Shared-discharge group (e.g. stream)"
+            "discharge_mirror_group": "Shared-discharge group (e.g. stream)",
+            "extra_soc_entities": "Fallback SoC entities (optional)"
           },
           "data_description": {
             "capacity_kwh": "Nominal capacity. E.g. 3.92",
@@ -315,7 +318,8 @@
             "charge_ceiling_soc_pct": "SoC the gate raises the limit to when there is surplus (default = max SoC).",
             "charge_priority_target_soc_pct": "If set, this battery is charged first from surplus (before the fleet) until this SoC — for a small station you want topped up.",
             "reserve_soc_setpoint_entity": "Storm-mode min-SoC (number %), raised to the target during storms. E.g. number.ef_xxxxxx_backup_reserve. NOT the charge gate — leave empty on a charge-only River 2 (use the charge-gate field above).",
-            "ac_charge_limit_w": "Max power absorbed from AC (SoC equaliser)."
+            "ac_charge_limit_w": "Max power absorbed from AC (SoC equaliser).",
+            "extra_soc_entities": "Used in order when the SoC entity above is unavailable — e.g. the Wi-Fi/cloud twin of a Bluetooth sensor. Same unit (%), same scale."
           }
         }
       },
@@ -424,12 +428,14 @@
             "daily_energy_entity": "Daily energy entity",
             "temperature_entity": "Temperature sensor (°C)",
             "active_control_enabled": "Active curtailment (limit output)",
-            "power_limit_setpoint_entity": "Output limit entity (number, W)"
+            "power_limit_setpoint_entity": "Output limit entity (number, W)",
+            "fallback_power_entities": "Fallback production sensors (W, optional)"
           },
           "data_description": {
             "peak_power_w": "Inverter max power; the curtailment upper bound.",
             "power_entities": "List every production sensor. For inverters with one per string and no total (e.g. Indevolt), add them all — they are summed.",
-            "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment)."
+            "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment).",
+            "fallback_power_entities": "Read only when none of the production sensors above is available (e.g. the Wi-Fi twin of a Bluetooth sensor). Never added to them, so nothing is counted twice."
           }
         },
         "reconfigure": {
@@ -442,12 +448,14 @@
             "daily_energy_entity": "Daily energy entity",
             "temperature_entity": "Temperature sensor (°C)",
             "active_control_enabled": "Active curtailment (limit output)",
-            "power_limit_setpoint_entity": "Output limit entity (number, W)"
+            "power_limit_setpoint_entity": "Output limit entity (number, W)",
+            "fallback_power_entities": "Fallback production sensors (W, optional)"
           },
           "data_description": {
             "peak_power_w": "Inverter max power; the curtailment upper bound.",
             "power_entities": "List every production sensor. For inverters with one per string and no total (e.g. Indevolt), add them all — they are summed.",
-            "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment)."
+            "power_limit_setpoint_entity": "number/W the inverter obeys as its output limit (zero-injection curtailment).",
+            "fallback_power_entities": "Read only when none of the production sensors above is available (e.g. the Wi-Fi twin of a Bluetooth sensor). Never added to them, so nothing is counted twice."
           }
         }
       },
@@ -555,12 +563,16 @@
             "mppt_daily_energy_entity": "MPPT: daily energy",
             "mppt_temperature_entity": "Inverter temperature sensor (°C)",
             "mppt_active_control_enabled": "MPPT: active curtailment",
-            "mppt_power_limit_setpoint_entity": "MPPT: output limit entity (number, W)"
+            "mppt_power_limit_setpoint_entity": "MPPT: output limit entity (number, W)",
+            "extra_soc_entities": "Fallback SoC entities (optional)",
+            "mppt_fallback_power_entities": "MPPT: fallback production sensors (W, optional)"
           },
           "data_description": {
             "power_entity": "Signed battery power. Must be POSITIVE while charging.",
             "mppt_power_entities": "Production sensor(s) of the device's PV input (summed).",
-            "mppt_power_limit_setpoint_entity": "number/W to curtail PV output (zero-injection)."
+            "mppt_power_limit_setpoint_entity": "number/W to curtail PV output (zero-injection).",
+            "extra_soc_entities": "Used in order when the SoC entity above is unavailable — e.g. the Wi-Fi/cloud twin of a Bluetooth sensor. Same unit (%), same scale.",
+            "mppt_fallback_power_entities": "Read only when none of the MPPT production sensors above is available (e.g. the Wi-Fi twin of a Bluetooth sensor). Never added to them, so nothing is counted twice."
           }
         },
         "reconfigure": {
@@ -601,12 +613,16 @@
             "mppt_daily_energy_entity": "MPPT: daily energy",
             "mppt_temperature_entity": "Inverter temperature sensor (°C)",
             "mppt_active_control_enabled": "MPPT: active curtailment",
-            "mppt_power_limit_setpoint_entity": "MPPT: output limit entity (number, W)"
+            "mppt_power_limit_setpoint_entity": "MPPT: output limit entity (number, W)",
+            "extra_soc_entities": "Fallback SoC entities (optional)",
+            "mppt_fallback_power_entities": "MPPT: fallback production sensors (W, optional)"
           },
           "data_description": {
             "power_entity": "Signed battery power. Must be POSITIVE while charging.",
             "mppt_power_entities": "Production sensor(s) of the device's PV input (summed).",
-            "mppt_power_limit_setpoint_entity": "number/W to curtail PV output (zero-injection)."
+            "mppt_power_limit_setpoint_entity": "number/W to curtail PV output (zero-injection).",
+            "extra_soc_entities": "Used in order when the SoC entity above is unavailable — e.g. the Wi-Fi/cloud twin of a Bluetooth sensor. Same unit (%), same scale.",
+            "mppt_fallback_power_entities": "Read only when none of the MPPT production sensors above is available (e.g. the Wi-Fi twin of a Bluetooth sensor). Never added to them, so nothing is counted twice."
           }
         }
       },

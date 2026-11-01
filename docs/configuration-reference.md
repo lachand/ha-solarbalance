@@ -70,7 +70,9 @@ Complete reference of every SolarBalance option. Two places hold configuration:
 | `capacity_kwh` | ✓ | Nominal capacity. |
 | `max_charge_power_w` / `max_discharge_power_w` | ✓ | Power limits (W). |
 | `soc_entity` | ✓ | SoC sensor (%). |
+| `extra_soc_entities` | | Fallback SoC sensors, tried in order when `soc_entity` is unavailable (e.g. the Wi-Fi twin of a Bluetooth sensor). |
 | `power_entity` | ✓* | Signed power sensor; or both `charge_power_entity` + `discharge_power_entity`. |
+| `extra_power_entities` | | Fallback power sensors: the first *available* among `power_entity` then these is used. |
 | `controllable` | | `true` (default) = part of the balancing fleet; `false` = steered indirectly. |
 | `active_control_enabled` | | Write setpoints to this battery (requires controllable). |
 | `discharge_power_setpoint_entity` | | `number` receiving the discharge setpoint (W). |
@@ -88,6 +90,8 @@ Complete reference of every SolarBalance option. Two places hold configuration:
 |---|---|---|
 | `peak_power_w` | ✓ | Inverter peak power (W) = curtailment upper bound. |
 | `power_entity` | ✓ | Current production (W). |
+| `extra_power_entities` | | Further production sensors **summed** with `power_entity` (one per string, e.g. Indevolt). |
+| `fallback_power_entities` | | Production sensors read **only when none of the above is available** (e.g. the Wi-Fi twin of a Bluetooth sensor). Never added to them, so nothing is double-counted. |
 | `active_control_enabled` | | Enable PV curtailment for this inverter. |
 | `power_limit_setpoint_entity` | | `number` receiving the max output power (**W**). |
 

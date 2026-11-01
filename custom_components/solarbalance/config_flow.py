@@ -804,6 +804,9 @@ def _battery_subentry_schema(d: dict[str, Any]) -> vol.Schema:
                 0, step=50, unit="W"
             ),
             vol.Required("soc_entity", default=d.get("soc_entity")): _entity("sensor"),
+            vol.Optional(
+                "extra_soc_entities", default=d.get("extra_soc_entities", [])
+            ): _entity_multi("sensor"),
             vol.Optional("power_entity", default=d.get("power_entity", "")): _entity("sensor"),
             vol.Optional(
                 "extra_power_entities", default=d.get("extra_power_entities", [])
@@ -892,6 +895,7 @@ _BATTERY_ROLE_KEYS = (
     "max_charge_power_w",
     "max_discharge_power_w",
     "soc_entity",
+    "extra_soc_entities",
     "power_entity",
     "extra_power_entities",
     "charge_power_entity",
@@ -1375,6 +1379,9 @@ def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
             vol.Required("power_entities", default=_combine_power_entities(m)): _entity_multi(
                 "sensor"
             ),
+            vol.Optional(
+                "fallback_power_entities", default=m.get("fallback_power_entities", [])
+            ): _entity_multi("sensor"),
             vol.Optional("daily_energy_entity", default=m.get("daily_energy_entity", "")): _entity(
                 "sensor"
             ),
@@ -1393,6 +1400,7 @@ def _mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
 
 _MPPT_ROLE_KEYS = (
     "peak_power_w",
+    "fallback_power_entities",
     "daily_energy_entity",
     "temperature_entity",
     "active_control_enabled",
@@ -1553,6 +1561,9 @@ def _battery_mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
                 "sensor"
             ),
             vol.Optional(
+                "mppt_fallback_power_entities", default=m.get("fallback_power_entities", [])
+            ): _entity_multi("sensor"),
+            vol.Optional(
                 "mppt_daily_energy_entity", default=m.get("daily_energy_entity", "")
             ): _entity("sensor"),
             vol.Optional(
@@ -1572,6 +1583,7 @@ def _battery_mppt_subentry_schema(d: dict[str, Any]) -> vol.Schema:
 
 _MPPT_PREFIXED = {
     "mppt_peak_power_w": "peak_power_w",
+    "mppt_fallback_power_entities": "fallback_power_entities",
     "mppt_daily_energy_entity": "daily_energy_entity",
     "mppt_temperature_entity": "temperature_entity",
     "mppt_active_control_enabled": "active_control_enabled",

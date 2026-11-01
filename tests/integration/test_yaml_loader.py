@@ -148,6 +148,34 @@ def test_mppt_extra_power_entities_round_trip() -> None:
     )
 
 
+def test_soc_and_mppt_fallback_entities_round_trip() -> None:
+    cfg = {
+        "devices": [
+            {
+                "name": "stream",
+                "roles": {
+                    "battery": {
+                        "capacity_kwh": 1.9,
+                        "max_charge_power_w": 1000,
+                        "max_discharge_power_w": 1000,
+                        "soc_entity": "sensor.soc_ble",
+                        "extra_soc_entities": ["sensor.soc_wifi"],
+                        "power_entity": "sensor.p",
+                    },
+                    "mppt": {
+                        "peak_power_w": 800,
+                        "power_entity": "sensor.pv_ble",
+                        "fallback_power_entities": ["sensor.pv_wifi"],
+                    },
+                },
+            }
+        ]
+    }
+    devices, *_rest = parse_yaml_config(cfg)
+    assert devices[0].battery.soc_entities == ("sensor.soc_ble", "sensor.soc_wifi")
+    assert devices[0].mppt.fallback_power_entities == ("sensor.pv_wifi",)
+
+
 def test_meter_invert_sign_round_trip() -> None:
     cfg = {
         "meters": [

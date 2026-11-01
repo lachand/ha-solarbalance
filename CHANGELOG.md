@@ -37,6 +37,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta88] — 2026-11-01
+
+### Added
+
+- **Entités de secours : le jumeau Wi-Fi prend le relais quand le Bluetooth décroche.** Un
+  micro-onduleur ou une batterie EcoFlow STREAM piloté en BLE perd parfois sa liaison ; deux
+  nouveaux champs permettent de déclarer le capteur Wi-Fi équivalent.
+  - **SoC** : `extra_soc_entities` (YAML) / « Entités SoC de secours » (UI). Le premier capteur
+    *disponible* parmi `soc_entity` puis ces entités est lu.
+  - **Production MPPT** : `fallback_power_entities` (YAML) / « Capteurs de production de
+    secours » (UI). Lus uniquement quand aucun capteur principal ne répond, et jamais
+    additionnés à lui : pas de double comptage tant que les deux liaisons sont actives (à la
+    différence de `extra_power_entities`, qui somme les strings d'un même onduleur).
+  - La santé des liaisons et la détection de batterie « périmée » retiennent la lecture la plus
+    récente parmi principal et secours : un BLE coupé ne marque plus la batterie hors ligne tant
+    que le Wi-Fi répond. La bascule se fait sur `unavailable` / `unknown`, pas sur une valeur figée.
+
 ## [2.0.8-beta87] — 2026-11-01
 
 ### Fixed

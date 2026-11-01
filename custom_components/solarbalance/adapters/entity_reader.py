@@ -170,7 +170,7 @@ class EntityReader:
         for device in self._devices:
             if device.battery is None:
                 continue
-            soc = self._read_float(device.battery.soc_entity, default=None)
+            soc = self._read_first_available(device.battery.soc_entities)
             power = self._read_battery_power(device)
             available = soc is not None and power is not None
             temperature = (
@@ -213,8 +213,13 @@ class EntityReader:
         """
         if self._stale_s <= 0:
             return (None, None)
-        soc_entity = getattr(battery, "soc_entity", None)
-        soc_age = self._entity_age_s(soc_entity) if soc_entity else None
+        soc_ages = [
+            age
+            for e in getattr(battery, "soc_entities", ())
+            for age in (self._entity_age_s(e),)
+            if age is not None
+        ]
+        soc_age = min(soc_ages) if soc_ages else None
         if soc_age is not None and soc_age > self._stale_s:
             return ("soc", soc_age)
         entities = [
@@ -267,9 +272,13 @@ class EntityReader:
         for device in self._devices:
             if device.battery is not None:
                 if device.battery.soc_entity:
-                    ages[f"{device.name}/soc"] = self._entity_age_s(
-                        device.battery.soc_entity, reported=True
-                    )
+                    soc_ages = [
+                        age
+                        for eid in device.battery.soc_entities
+                        for age in (self._entity_age_s(eid, reported=True),)
+                        if age is not None
+                    ]
+                    ages[f"{device.name}/soc"] = min(soc_ages) if soc_ages else None
                 power_entities = [
                     *device.battery.power_entities,
                     device.battery.charge_power_entity,
@@ -290,7 +299,7 @@ class EntityReader:
             if device.mppt is not None and device.mppt.power_entities:
                 mppt_ages = [
                     age
-                    for eid in device.mppt.power_entities
+                    for eid in (*device.mppt.power_entities, *device.mppt.fallback_power_entities)
                     if eid
                     for age in (self._entity_age_s(eid, reported=True),)
                     if age is not None
@@ -299,17 +308,23 @@ class EntityReader:
 
         return ages
 
+    def _read_first_available(self, entity_ids: Sequence[str]) -> float | None:
+        for eid in entity_ids:
+            value = self._read_float(eid, default=None)
+            if value is not None:
+                return value
+        return None
+
+    def _read_all_available(self, entity_ids: Sequence[str]) -> list[float]:
+        return [v for eid in entity_ids if (v := self._read_float(eid, default=None)) is not None]
+
     def _read_battery_power(self, device: Device) -> float | None:
         battery = device.battery
         assert battery is not None  # guarded by caller
         if battery.power_entity is not None:
             # Use the first *available* candidate — the STREAM system-power sensor can hop
             # between the two batteries' entities, so follow whichever is currently live.
-            raw = None
-            for eid in battery.power_entities:
-                raw = self._read_float(eid, default=None)
-                if raw is not None:
-                    break
+            raw = self._read_first_available(battery.power_entities)
             if raw is None:
                 return None
             if battery.power_sign_convention is PowerSignConvention.DISCHARGE_POSITIVE:
@@ -330,11 +345,9 @@ class EntityReader:
             # Sum every declared production sensor (inverters that expose one entity per
             # string, e.g. Indevolt). Available as long as at least one reads back, so a
             # single sensor blip undercounts briefly rather than zeroing the whole array.
-            readings = [
-                v
-                for entity in device.mppt.power_entities
-                if (v := self._read_float(entity, default=None)) is not None
-            ]
+            readings = self._read_all_available(device.mppt.power_entities)
+            if not readings:
+                readings = self._read_all_available(device.mppt.fallback_power_entities)
             temperature = (
                 self._read_float(device.mppt.temperature_entity, default=None)
                 if device.mppt.temperature_entity
