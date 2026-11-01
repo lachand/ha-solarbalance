@@ -25,11 +25,13 @@ def _cloud_device() -> Device:
     )
 
 
-def _state(value: object, age_s: float) -> SimpleNamespace:
+def _state(value: object, age_s: float, reported_age_s: float | None = None) -> SimpleNamespace:
+    now = dt_util.utcnow()
     return SimpleNamespace(
         state=str(value),
         attributes={},
-        last_updated=dt_util.utcnow() - timedelta(seconds=age_s),
+        last_updated=now - timedelta(seconds=age_s),
+        last_reported=now - timedelta(seconds=age_s if reported_age_s is None else reported_age_s),
     )
 
 
@@ -104,3 +106,12 @@ def test_battery_power_follows_live_candidate_and_dedups() -> None:
     batts = reader._read_batteries()
     assert batts[0].power_w == 400.0
     assert batts[1].power_w == 400.0
+
+
+def test_battery_staleness_still_reads_last_updated() -> None:
+    # An unchanged cloud SoC that keeps being rewritten is exactly the frozen reading the
+    # staleness check exists to catch, so only the link-health score uses last_reported.
+    reader = _reader(
+        {"sensor.soc": _state(34, 400, reported_age_s=5), "sensor.pow": _state(-100, 5)}
+    )
+    assert reader._read_batteries()[0].stale is True

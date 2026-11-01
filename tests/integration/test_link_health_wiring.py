@@ -21,11 +21,15 @@ from custom_components.solarbalance.core.models import (
 )
 
 
-def _state(value: object, *, age_s: float = 2.0) -> SimpleNamespace:
+def _state(
+    value: object, *, age_s: float = 2.0, reported_age_s: float | None = None
+) -> SimpleNamespace:
+    now = dt_util.utcnow()
     return SimpleNamespace(
         state=str(value),
         attributes={},
-        last_updated=dt_util.utcnow() - timedelta(seconds=age_s),
+        last_updated=now - timedelta(seconds=age_s),
+        last_reported=now - timedelta(seconds=age_s if reported_age_s is None else reported_age_s),
     )
 
 
@@ -185,3 +189,36 @@ async def test_the_record_is_persisted_and_restored(hass: HomeAssistant) -> None
     await fresh._store.async_save(payload)
     await fresh.async_restore()
     assert fresh.link_health[0].samples == 60
+
+
+@pytest.mark.parametrize(
+    ("link", "entity"),
+    [
+        ("stream/soc", "sensor.stream_soc"),
+        ("stream/mppt", "sensor.stream_pv"),
+        ("stream/power", "sensor.stream_power"),
+        ("grid/pdl", "sensor.pdl"),
+        ("grid/backup", "sensor.backup"),
+    ],
+)
+def test_an_unchanged_value_still_rewritten_is_a_live_link(link: str, entity: str) -> None:
+    """A SoC parked at 34 % or a PV at 0 W overnight is old by ``last_updated`` only."""
+    states = {
+        "sensor.pdl": _state(100.0),
+        "sensor.backup": _state(100.0),
+        "sensor.stream_soc": _state(50),
+        "sensor.stream_power": _state(-100),
+        "sensor.stream_pv": _state(0),
+    }
+    states[entity] = _state(0, age_s=14_400.0, reported_age_s=5.0)
+    assert _reader(states).link_ages()[link] == pytest.approx(5.0, abs=1.0)
+
+
+def test_a_link_nothing_has_written_to_is_old() -> None:
+    states = {
+        "sensor.pdl": _state(100.0),
+        "sensor.stream_soc": _state(50, age_s=14_400.0),
+        "sensor.stream_power": _state(-100),
+        "sensor.stream_pv": _state(0),
+    }
+    assert _reader(states).link_ages()["stream/soc"] == pytest.approx(14_400.0, abs=1.0)

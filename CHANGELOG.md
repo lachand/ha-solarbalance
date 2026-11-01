@@ -37,6 +37,20 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta87] — 2026-11-01
+
+### Fixed
+
+- **Score de santé : une valeur qui ne change pas n'est plus une liaison morte.** L'âge d'une
+  entité était mesuré depuis `last_updated`, que Home Assistant ne fait avancer que lorsque la
+  valeur *change*. Un SoC resté à 34 % pendant des heures, ou un PV à 0 W toute la nuit, passait
+  donc pour une liaison coupée : disponibilité de quelques pourcents sur 24 h, score de liaison
+  à 0/100, et le score d'installation perdait ses 20 points pour un matériel qui répondait très
+  bien. La santé des liaisons se mesure maintenant depuis `last_reported` (la dernière écriture
+  de l'intégration, même à valeur identique). Un capteur auquel plus rien n'écrit reste vu
+  comme ancien. La détection de batterie « périmée » (`stale`), qui s'appuie sur un SoC cloud
+  figé, continue de lire `last_updated` : la régulation et les garde-fous ne changent pas.
+
 ## [2.0.8-beta86] — 2026-10-31
 
 ### Fixed

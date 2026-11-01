@@ -229,12 +229,20 @@ class EntityReader:
             return ("power", min(ages))
         return (None, None)
 
-    def _entity_age_s(self, entity_id: str) -> float | None:
-        """Seconds since the entity last updated, or None if it has no state."""
+    def _entity_age_s(self, entity_id: str, *, reported: bool = False) -> float | None:
+        """Seconds since the entity last updated, or None if it has no state.
+
+        ``reported`` measures from the last time the integration *wrote* the state, even
+        with an unchanged value. Home Assistant only moves ``last_updated`` on a change,
+        so a SoC parked at 34 % or a PV at 0 W overnight looks hours old although its
+        link is perfectly alive — right for judging a link, wrong for battery staleness,
+        which relies on an unchanged cloud SoC reading as frozen.
+        """
         state = self._get_state(entity_id)
         if state is None or state.state in _INVALID_STATES:
             return None
-        return (dt_util.utcnow() - state.last_updated).total_seconds()
+        since = state.last_reported if reported else state.last_updated
+        return (dt_util.utcnow() - since).total_seconds()
 
     def link_ages(self) -> dict[str, float | None]:
         """Age of every entity the loop depends on, keyed by a stable label.
@@ -252,14 +260,16 @@ class EntityReader:
 
         pdl = next((m for m in self._meters if m.kind is MeterKind.PDL), None)
         if pdl is not None:
-            ages["grid/pdl"] = self._entity_age_s(pdl.power_entity)
+            ages["grid/pdl"] = self._entity_age_s(pdl.power_entity, reported=True)
         if self._grid_backup_entity:
-            ages["grid/backup"] = self._entity_age_s(self._grid_backup_entity)
+            ages["grid/backup"] = self._entity_age_s(self._grid_backup_entity, reported=True)
 
         for device in self._devices:
             if device.battery is not None:
                 if device.battery.soc_entity:
-                    ages[f"{device.name}/soc"] = self._entity_age_s(device.battery.soc_entity)
+                    ages[f"{device.name}/soc"] = self._entity_age_s(
+                        device.battery.soc_entity, reported=True
+                    )
                 power_entities = [
                     *device.battery.power_entities,
                     device.battery.charge_power_entity,
@@ -272,7 +282,7 @@ class EntityReader:
                     age
                     for eid in power_entities
                     if eid
-                    for age in (self._entity_age_s(eid),)
+                    for age in (self._entity_age_s(eid, reported=True),)
                     if age is not None
                 ]
                 if fresh or any(power_entities):
@@ -282,7 +292,7 @@ class EntityReader:
                     age
                     for eid in device.mppt.power_entities
                     if eid
-                    for age in (self._entity_age_s(eid),)
+                    for age in (self._entity_age_s(eid, reported=True),)
                     if age is not None
                 ]
                 ages[f"{device.name}/mppt"] = min(mppt_ages) if mppt_ages else None
