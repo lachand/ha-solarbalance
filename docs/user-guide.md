@@ -612,12 +612,30 @@ Puis redémarrer HA.
 
 ```yaml
 type: custom:solarbalance-card
-# Aucun paramètre obligatoire — la carte lit les entités solarbalance automatiquement
+title: Tableau de bord solaire   # facultatif
+contrast: false                  # facultatif : thème à contraste fort
 ```
+
+Aucun paramètre n'est obligatoire : la carte retrouve les entités SolarBalance par leur clé de traduction (les installations en français, dont les `entity_id` sont localisés, fonctionnent donc sans réglage). Les options `mode_entity`, `strategy_entity`, `grid_power_entity`, `pv_power_entity`, `battery_power_entity` et `battery_soc_entity` permettent de forcer une entité précise.
+
+La carte et le panneau partagent le même dessin (schéma de flux, tampons d'état, mesures) et le système de design **Signature** : jetons de couleur, polices auto-hébergées (Fraunces, Inter Tight, IBM Plex Mono) et thèmes clair, sombre et contraste fort. Rien n'est chargé depuis Internet.
 
 ### 10.4 Panneau plein écran (sidebar)
 
-Une page **« SolarBalance »** est aussi enregistrée automatiquement dans la **barre latérale** (panneau plein écran). Elle regroupe en 4 sections — flux & état, régulation/diagnostic, plan prédictif, et **détail par appareil** (SoC, puissance, température, consignes) — en lisant les capteurs `sensor.solarbalance_*` en temps réel. Rien à configurer ; si elle n'apparaît pas, redémarre HA et vide le cache du navigateur (Ctrl+Maj+R).
+Une page **« SolarBalance »** est aussi enregistrée automatiquement dans la **barre latérale** (panneau plein écran). Un bandeau de mesures en direct (solaire, réseau, batteries, maison, niveau moyen) reste visible, et **quatre onglets** regroupent le reste :
+
+| Onglet | Contenu |
+|---|---|
+| **Maintenant** | alertes, schéma de flux en temps réel, bilan du jour (énergie, argent), ce que fait le système, graphique de puissance (1 h, 6 h, 24 h, jour) avec prévision solaire |
+| **Pilotage** | régulation (cible, garde-fou, correction), contrôles rapides, bascules par consommateur, puissance souscrite, appareils et solaire récupérable, plan indicatif sur 24 h, bridage solaire |
+| **Batteries** | une carte par batterie (niveau de charge et plancher, puissance, consignes, production solaire, températures, état de la liaison), niveau de charge sur la période |
+| **Santé** | score d'installation, alertes en cours, frise d'anomalies, liaisons peu fiables, apport de l'orchestration, talon de veille, diagnostic de la régulation (replié) |
+
+Un badge sur l'onglet **Santé** et un bandeau sous les onglets signalent les points d'attention, pour ne pas avoir à ouvrir l'onglet chaque jour. Chaque état se lit par une couleur, une icône de forme propre et un libellé (« Normal », « Attention », « Critique », « Inactif »), et chaque série d'un graphique par un trait et un marqueur en plus de sa teinte. Le bouton **Contraste élevé** de l'en-tête bascule vers le thème AAA ; le choix est mémorisé dans le navigateur. Le thème clair ou sombre suit celui de Home Assistant.
+
+Convention du compteur : une puissance réseau **positive** est un soutirage, **négative** une injection. Le mot correspondant est écrit sous la valeur.
+
+**Thème Home Assistant (facultatif).** Pour que le reste de Home Assistant reprenne la même palette, copiez `custom_components/solarbalance/www/vendor/signature/signature-ha-theme.yaml` dans le dossier `themes/` de votre configuration, rechargez les thèmes, puis choisissez « signature » (ou « signature_contrast ») dans votre profil.
 
 Le détail par appareil s'appuie sur les capteurs `sensor.solarbalance_<device>_soc` / `_power` / `_temperature` (température seulement si `temperature_entity` est déclarée) et `_setpoint_charge` / `_setpoint_discharge`.
 

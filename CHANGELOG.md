@@ -37,6 +37,37 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta89] — 2026-11-06
+
+### Changed
+
+- **Nouvelle interface : le panneau et la carte Lovelace passent au design Signature.**
+  - **Panneau plein écran en quatre onglets** (Maintenant, Pilotage, Batteries, Santé) sous un
+    bandeau de mesures en direct. Les ~20 cartes empilées sont regroupées ; les doublons
+    disparaissent (valeurs du schéma répétées en tuiles, quatre cartes de santé, deux vues du
+    niveau de charge). Un badge sur l'onglet Santé et un bandeau signalent les points d'attention.
+  - **Un état se lit par une couleur, une icône de forme propre et un libellé** (« Normal »,
+    « Attention », « Critique », « Inactif »), jamais par la couleur seule. Les séries des graphiques
+    se distinguent par un trait (plein, tirets, points) et un marqueur en plus de la teinte.
+  - **Jetons Signature** (clair, sombre, contraste fort AAA) et polices auto-hébergées (Fraunces,
+    Inter Tight, IBM Plex Mono) : plus aucune couleur en dur, aucune requête vers Internet.
+    Bouton « Contraste élevé » dans l'en-tête ; le thème clair ou sombre suit Home Assistant.
+  - **Convention de couleurs des flux alignée sur Signature** : solaire en bleu, réseau en orange,
+    batteries en violet (auparavant solaire orange et réseau bleu).
+  - **Formats français** : virgule décimale, espace insécable avant l'unité, durées `3 h 42`,
+    dates `29/11/2026`, vocabulaire sans anglicisme ; un capteur absent n'affiche plus de tuile
+    (au lieu de `—`).
+  - Les fenêtres natives `confirm` / `prompt` sont remplacées par une boîte de dialogue intégrée
+    (focus piégé, Échap) ; le rendu ne remplace plus que le HTML modifié, le focus clavier est
+    conservé ; le bouton de menu de Home Assistant est affiché sur mobile.
+  - **Carte Lovelace** : même schéma de flux, mêmes tampons et mêmes mesures que le panneau (code
+    partagé), entités retrouvées par clé de traduction (installations en français), option
+    `contrast`.
+  - Le code du panneau est découpé en modules ES (`www/panel/`), toujours sans étape de build.
+    Les fichiers Signature sont copiés tels quels dans `www/vendor/signature/` ;
+    `scripts/scope_signature.py` régénère la variante `tokens.scoped.css` pour le shadow DOM.
+  - Tests Node sans dépendance : `node --test "tests/frontend/*.test.mjs"` (`make test-frontend`).
+
 ## [2.0.8-beta88] — 2026-11-01
 
 ### Added
