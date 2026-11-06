@@ -37,6 +37,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta90] — 2026-11-06
+
+### Fixed
+
+- **Après une mise à jour, la page SolarBalance affichait encore l'ancienne interface.** Home
+  Assistant sert le module d'un panneau tel quel et le chemin statique n'envoie pas de
+  `Cache-Control` : le navigateur gardait l'ancien fichier d'entrée. Le panneau et la carte sont
+  désormais servis sous `/solarbalance_static/<version>/`, de sorte que chaque version a des URL
+  neuves (les `import` relatifs du panneau en héritent). `/solarbalance_card/` reste disponible
+  pour une ressource Lovelace ajoutée à la main.
+
 ## [2.0.8-beta89] — 2026-11-06
 
 ### Changed

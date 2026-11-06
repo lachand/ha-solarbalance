@@ -35,18 +35,26 @@ COORDINATOR_KEY = "coordinator"
 YAML_CONFIG_KEY = "yaml_config"
 YAML_RAW_KEY = "yaml_raw"
 
-_CARD_URL = "/solarbalance_card/solarbalance-card.js"
+_STATIC_URL = "/solarbalance_card"
+# Home Assistant serves a panel's module_url as-is, and this static path has no
+# Cache-Control, so a browser keeps the entry file under heuristic caching and a plain
+# update can leave the old UI on screen. The frontend files are therefore also served
+# under a path that carries the integration version: each release gets fresh URLs, and
+# the relative imports between the panel modules inherit it. The unversioned path stays
+# for dashboards that registered the card as a manual resource.
+_VERSIONED_URL = "/solarbalance_static"
+_FRONTEND_URLS_KEY = "_frontend_urls"
 _CARD_REGISTERED_KEY = "_card_frontend_registered"
-_PANEL_URL = "/solarbalance_card/solarbalance-panel.js"
 _PANEL_REGISTERED_KEY = "_panel_registered"
 
 
-def _register_card_frontend(hass: HomeAssistant) -> None:
-    """Register the static path and JS module URL with the HA frontend.
+async def _register_card_frontend(hass: HomeAssistant) -> None:
+    """Register the static paths and JS module URL with the HA frontend.
 
-    Idempotent — safe to call from both async_setup and async_setup_entry.
+    Idempotent: safe to call from both async_setup and async_setup_entry.
     """
-    if hass.data.get(DOMAIN, {}).get(_CARD_REGISTERED_KEY):
+    domain_data = hass.data.setdefault(DOMAIN, {})
+    if domain_data.get(_CARD_REGISTERED_KEY):
         return
 
     import pathlib
@@ -54,17 +62,25 @@ def _register_card_frontend(hass: HomeAssistant) -> None:
     from homeassistant.components.frontend import add_extra_js_url
     from homeassistant.components.http import StaticPathConfig
 
-    www_path = pathlib.Path(__file__).parent / "www"
-    hass.async_create_task(
-        hass.http.async_register_static_paths(
-            [StaticPathConfig("/solarbalance_card", str(www_path), cache_headers=False)]
-        )
+    version = str((await async_get_integration(hass, DOMAIN)).version)
+    versioned = f"{_VERSIONED_URL}/{version}"
+    www_path = str(pathlib.Path(__file__).parent / "www")
+    await hass.http.async_register_static_paths(
+        [
+            StaticPathConfig(_STATIC_URL, www_path, cache_headers=False),
+            StaticPathConfig(versioned, www_path, cache_headers=False),
+        ]
     )
-    add_extra_js_url(hass, _CARD_URL)
-    hass.data.setdefault(DOMAIN, {})[_CARD_REGISTERED_KEY] = True
+    card_url = f"{versioned}/solarbalance-card.js"
+    domain_data[_FRONTEND_URLS_KEY] = {
+        "card": card_url,
+        "panel": f"{versioned}/solarbalance-panel.js",
+    }
+    add_extra_js_url(hass, card_url)
+    domain_data[_CARD_REGISTERED_KEY] = True
     _LOGGER.info(
         "SolarBalance: carte Lovelace disponible à %s — ajoutez une carte custom:solarbalance-card",
-        _CARD_URL,
+        card_url,
     )
 
 
@@ -83,7 +99,7 @@ async def _register_panel(hass: HomeAssistant) -> None:
             hass,
             frontend_url_path="solarbalance",
             webcomponent_name="solarbalance-panel",
-            module_url=_PANEL_URL,
+            module_url=hass.data[DOMAIN][_FRONTEND_URLS_KEY]["panel"],
             sidebar_title="SolarBalance",
             sidebar_icon="mdi:solar-power-variant",
             require_admin=False,
@@ -100,7 +116,7 @@ async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
     from .yaml_loader import parse_yaml_config
 
     hass.data.setdefault(DOMAIN, {})
-    _register_card_frontend(hass)
+    await _register_card_frontend(hass)
     await _register_panel(hass)
     raw = config.get(DOMAIN)
     if raw:
@@ -371,7 +387,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     _LOGGER.debug("Setting up SolarBalance entry %s", entry.entry_id)
     hass.data.setdefault(DOMAIN, {})
-    _register_card_frontend(hass)
+    await _register_card_frontend(hass)
 
     yaml_cfg = hass.data[DOMAIN].get(YAML_CONFIG_KEY)
     yaml_devices, yaml_meters, yaml_loads, forecast, tariff_spec = (

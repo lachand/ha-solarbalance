@@ -451,8 +451,10 @@ La carte lit les entités SolarBalance via `hass.states`. Pour ajouter un élém
 ### Enregistrement côté HA
 
 Dans `__init__.py`, `_register_card_frontend()` :
-1. Enregistre `www/` comme chemin statique HTTP → `/solarbalance_card/...`
-2. Appelle `frontend.add_extra_js_url(hass, "/solarbalance_card/solarbalance-card.js")` → le module est chargé automatiquement dans le frontend HA
+1. Enregistre `www/` comme chemin statique HTTP, deux fois : `/solarbalance_card/...` (stable, pour une ressource Lovelace manuelle) et `/solarbalance_static/<version>/...` (versionné).
+2. Appelle `frontend.add_extra_js_url(hass, "/solarbalance_static/<version>/solarbalance-card.js")` → le module est chargé automatiquement dans le frontend HA. Le panneau est enregistré avec le même préfixe versionné.
+
+Le préfixe versionné existe parce que HA sert le `module_url` d'un panneau tel quel et que ce chemin n'envoie pas de `Cache-Control` : sans lui, le navigateur garde l'ancien fichier d'entrée et une mise à jour de l'intégration laisse l'ancienne interface à l'écran. Les `import` relatifs entre modules du panneau héritent du préfixe, donc chaque version a des URL neuves.
 
 ---
 
