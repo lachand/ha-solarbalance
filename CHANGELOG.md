@@ -37,6 +37,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta93] — 2026-11-06
+
 ### Fixed
 
 - **Un micro-onduleur éteint la nuit n'est plus signalé « peu fiable ».** Sa liaison de production
