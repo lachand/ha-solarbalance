@@ -207,3 +207,125 @@ def test_forgetting_an_entity_clears_its_in_flight_gap_too() -> None:
     assert "gone" not in health._buckets
     assert "gone" not in health._gap_start_s
     assert "gone" not in health._last_fresh
+
+
+# ---- links that are only expected to answer part of the day (micro-inverters) -------
+
+_NIGHT_TICKS = int(10 * 3600 / _TICK_S)  # kept short so every scenario fits the 24 h window
+_DAY_TICKS = int(6 * 3600 / _TICK_S)
+
+
+def _run_expected(
+    health: LinkHealth,
+    key: str,
+    phases: list[tuple[int, float | None, bool]],
+    *,
+    start_s: float = _T0,
+) -> float:
+    """Feed ``(ticks, age, expected)`` phases in order; return the last timestamp."""
+    now = start_s
+    for ticks, age, expected in phases:
+        for _ in range(ticks):
+            health.observe(key, now, age, expected=expected)
+            now += _TICK_S
+    return now - _TICK_S
+
+
+def test_a_micro_inverter_that_sleeps_at_night_is_healthy() -> None:
+    """The reported case: 43 % availability and a 14 h gap on a perfectly fine device."""
+    health = LinkHealth()
+    end = _run_expected(
+        health,
+        "inverter/mppt",
+        [(_DAY_TICKS, 4.0, True), (_NIGHT_TICKS, None, False), (_DAY_TICKS, 4.0, True)],
+    )
+
+    stats = health.stats("inverter/mppt", end)
+    assert stats.available_pct == 100.0
+    assert stats.longest_gap_s == 0.0
+    assert stats.dropouts == 0
+    assert stats.verdict == "healthy"
+    assert stats.conditional is True
+
+
+def test_the_same_night_without_an_expectation_is_still_an_outage() -> None:
+    """Judged unconditionally (the default), nothing changes: no regression for other links."""
+    health = LinkHealth()
+    end = _run(health, "pdl/power", [4.0] * _DAY_TICKS + [None] * _NIGHT_TICKS + [4.0] * 100)
+
+    stats = health.stats("pdl/power", end)
+    assert stats.verdict == "unreliable"
+    assert stats.conditional is False
+
+
+def test_powering_down_just_before_the_sun_is_gone_is_not_a_dropout() -> None:
+    """At dusk the inverter stops a few minutes before the expectation turns off."""
+    health = LinkHealth()
+    end = _run_expected(
+        health,
+        "inverter/mppt",
+        [
+            (_DAY_TICKS, 4.0, True),
+            (30, None, True),  # 5 min of silence while light is still expected
+            (_NIGHT_TICKS, None, False),
+            (_DAY_TICKS, 4.0, True),
+        ],
+    )
+
+    stats = health.stats("inverter/mppt", end)
+    assert stats.dropouts == 0
+    assert stats.longest_gap_s == 0.0
+    assert stats.available_pct == 100.0
+
+
+def test_a_real_daytime_outage_is_still_scored() -> None:
+    health = LinkHealth()
+    end = _run_expected(
+        health,
+        "inverter/mppt",
+        [
+            (int(4 * 3600 / _TICK_S), 4.0, True),
+            (int(45 * 60 / _TICK_S), None, True),  # 45 min dead in full sun
+            (int(4 * 3600 / _TICK_S), 4.0, True),
+            (int(8 * 3600 / _TICK_S), None, False),
+        ],
+    )
+
+    stats = health.stats("inverter/mppt", end)
+    assert stats.dropouts == 1
+    assert stats.longest_gap_s >= 2600
+    assert stats.verdict in ("flaky", "unreliable")
+
+
+def test_an_outage_that_runs_into_the_night_keeps_the_length_it_reached() -> None:
+    """Dead since the afternoon: the daytime part of the hole is real and stays visible."""
+    health = LinkHealth()
+    end = _run_expected(
+        health,
+        "inverter/mppt",
+        [
+            (int(4 * 3600 / _TICK_S), 4.0, True),
+            (int(3 * 3600 / _TICK_S), None, True),  # 3 h of silence in daylight
+            (int(10 * 3600 / _TICK_S), None, False),
+        ],
+    )
+
+    stats = health.stats("inverter/mppt", end)
+    assert 10700 <= stats.longest_gap_s <= 10900, "stops growing when the night starts"
+    assert stats.verdict == "unreliable"
+
+
+def test_an_answering_link_is_counted_even_when_nothing_was_expected() -> None:
+    health = LinkHealth()
+    end = _run_expected(health, "inverter/mppt", [(100, 4.0, False)])
+
+    assert health.stats("inverter/mppt", end).available_pct == 100.0
+
+
+def test_forget_drops_the_conditional_marker() -> None:
+    health = LinkHealth()
+    _run_expected(health, "inverter/mppt", [(30, 4.0, True)])
+    health.forget(set())
+
+    health.observe("inverter/mppt", _T0 + 10_000, 4.0)
+    assert health.stats("inverter/mppt", _T0 + 10_000).conditional is False

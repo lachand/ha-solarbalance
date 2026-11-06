@@ -72,7 +72,7 @@ export function makeHass({ dark = false, lang = "fr", degraded = false, lowScore
       { name: "Lave-vaisselle", running: true, elapsed_min: 22, samples: 0 },
     ],
   });
-  add("sensor.sb_link", "link_health", "ok", { links: [{ key: "ef_xxxxxx", verdict: "flaky", available_pct: 91, longest_gap_s: 640, dropouts: 4, score: 62 }] });
+  add("sensor.sb_link", "link_health", "ok", { links: [{ key: "ef_xxxxxx", verdict: "flaky", available_pct: 91, longest_gap_s: 640, dropouts: 4, score: 62 }, { key: "ef_bkxxxx/mppt", verdict: "flaky", available_pct: 93, longest_gap_s: 900, dropouts: 2, score: 71, daylight_only: true }] });
   add("sensor.sb_orch", "orchestration_gain", "0.84", { hours_compared: 9, actual_cost_eur: 0.42, naive_cost_eur: 1.26, stored_delta_kwh: 1.8 });
   add("sensor.sb_score", "install_score", lowScore ? 78 : 96, { deductions: lowScore ? ["Liaison instable : ef_xxxxxx", "Talon recalculé deux fois"] : [] });
   add("sensor.sb_anom", "anomaly_timeline", "ok", {

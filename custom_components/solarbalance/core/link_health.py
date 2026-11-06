@@ -22,6 +22,12 @@ instead of 8 640 timestamps, which keeps a restart-persistable footprint whateve
 the tick rate. The cost is a median read off a coarse histogram, which is ample
 for "is this link healthy" and never pretends to more precision than it has.
 
+Some links are only *expected* to answer part of the day: a micro-inverter powers down
+with its panels every night. Judging it over 24 h would read each night as a 14-hour
+outage and flag a healthy device as unreliable. ``observe(..., expected=False)`` excuses
+the observations taken while nothing is expected: they count neither as samples nor as a
+gap, so the score reflects only the hours the link was supposed to answer.
+
 Pure module — no Home Assistant imports; persist via ``to_dict`` / ``from_dict``.
 """
 
@@ -47,6 +53,11 @@ _GAP_PENALTY = 40.0
 # Below this, an entity has not been watched long enough for its score to mean
 # anything, and reporting one would invite acting on noise.
 _MIN_SAMPLES = 20
+
+# A link that goes quiet and is then excused within this long was most likely just
+# powering down with the sun (a micro-inverter at dusk), not failing. Such a young gap
+# is taken back out of the books entirely instead of being scored as a daytime outage.
+_POWER_DOWN_REWIND_S = 1800.0
 
 
 @dataclass(slots=True)
@@ -104,6 +115,9 @@ class LinkStats:
     verdict: str
     """``healthy`` | ``flaky`` | ``unreliable`` | ``unknown`` (not enough samples)."""
 
+    conditional: bool = False
+    """True when the link is only judged while it is expected to answer (e.g. daylight)."""
+
 
 @dataclass(slots=True)
 class LinkHealth:
@@ -117,9 +131,19 @@ class LinkHealth:
     stale_s: float = 300.0
     _buckets: dict[str, list[_Bucket]] = field(default_factory=dict)
     _gap_start_s: dict[str, float] = field(default_factory=dict)
-    _last_fresh: dict[str, bool] = field(default_factory=dict)
+    _gap_prior_longest_s: dict[str, float] = field(default_factory=dict)
+    _gap_missed_samples: dict[str, int] = field(default_factory=dict)
+    _last_fresh: dict[str, bool | None] = field(default_factory=dict)
+    _conditional: set[str] = field(default_factory=set)
 
-    def observe(self, key: str, now_s: float, age_s: float | None) -> None:
+    def observe(
+        self,
+        key: str,
+        now_s: float,
+        age_s: float | None,
+        *,
+        expected: bool | None = None,
+    ) -> None:
         """Record one observation.
 
         Args:
@@ -128,12 +152,23 @@ class LinkHealth:
                 and how long a gap has lasted.
             age_s: Seconds since the entity last updated, or ``None`` when it has
                 no usable state at all — which counts as a gap, not as a large age.
+            expected: ``None`` for a link that should always answer. ``True`` / ``False``
+                for a link that only answers part of the day (a micro-inverter):
+                whether it is expected to answer *right now*. While ``False`` a silent
+                link is excused: nothing is counted, and an outage that opened less than
+                half an hour ago is taken back out of the score as a power-down.
         """
         hour = int(now_s // _HOUR_S)
         bucket = self._bucket(key, hour)
-        bucket.samples += 1
-
         fresh = age_s is not None and age_s <= self.stale_s
+
+        if expected is not None:
+            self._conditional.add(key)
+        if not fresh and expected is False:
+            self._excuse(key, now_s, bucket)
+            return
+
+        bucket.samples += 1
         was_fresh = self._last_fresh.get(key)
         self._last_fresh[key] = fresh
 
@@ -142,6 +177,8 @@ class LinkHealth:
             assert age_s is not None  # narrowed by `fresh`
             bucket.hist[_bucket_for(age_s)] += 1
             started = self._gap_start_s.pop(key, None)
+            self._gap_prior_longest_s.pop(key, None)
+            self._gap_missed_samples.pop(key, None)
             if started is not None:
                 # Close the gap in the bucket where it *ended*, so a gap is only
                 # ever counted once however many hours it spanned.
@@ -149,14 +186,35 @@ class LinkHealth:
             return
 
         if was_fresh is not False:
-            # First observation, or a fall from fresh: either way a gap opens here.
+            # First observation, or a fall from fresh (or from an excused stretch):
+            # either way a gap opens here.
             bucket.dropouts += 1
             self._gap_start_s[key] = now_s
+            self._gap_prior_longest_s[key] = bucket.longest_gap_s
+            self._gap_missed_samples[key] = 0
+        self._gap_missed_samples[key] = self._gap_missed_samples.get(key, 0) + 1
         started = self._gap_start_s.get(key)
         if started is not None:
             # Keep an in-flight gap visible: an outage still running is precisely
             # the one worth seeing, and waiting for it to end would hide it.
             bucket.longest_gap_s = max(bucket.longest_gap_s, now_s - started)
+
+    def _excuse(self, key: str, now_s: float, bucket: _Bucket) -> None:
+        """A silent link that is not expected to answer: stop judging it."""
+        started = self._gap_start_s.pop(key, None)
+        prior_longest = self._gap_prior_longest_s.pop(key, 0.0)
+        missed = self._gap_missed_samples.pop(key, 0)
+        self._last_fresh[key] = None
+        if started is None:
+            return
+        same_hour = int(started // _HOUR_S) == bucket.hour
+        if same_hour and now_s - started <= _POWER_DOWN_REWIND_S:
+            # Powered down with the sun, not failed: undo what the opening gap cost.
+            bucket.dropouts = max(0, bucket.dropouts - 1)
+            bucket.samples = max(0, bucket.samples - missed)
+            bucket.longest_gap_s = prior_longest
+        # Otherwise a real outage that ran on into the night keeps the length it had
+        # reached; it simply stops growing now.
 
     def stats(self, key: str, now_s: float) -> LinkStats:
         """Summarise the last 24 hours for one entity."""
@@ -196,6 +254,7 @@ class LinkHealth:
             dropouts=dropouts,
             score=round(score, 1),
             verdict=verdict,
+            conditional=key in self._conditional,
         )
 
     def summary(self, now_s: float) -> list[LinkStats]:
@@ -215,7 +274,10 @@ class LinkHealth:
             if key not in keys:
                 del self._buckets[key]
                 self._gap_start_s.pop(key, None)
+                self._gap_prior_longest_s.pop(key, None)
+                self._gap_missed_samples.pop(key, None)
                 self._last_fresh.pop(key, None)
+                self._conditional.discard(key)
 
     def _bucket(self, key: str, hour: int) -> _Bucket:
         buckets = self._buckets.setdefault(key, [])

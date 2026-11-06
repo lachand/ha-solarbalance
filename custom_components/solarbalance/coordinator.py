@@ -315,6 +315,17 @@ _BATTERY_POWER_EMA_ALPHA = 0.2
 # Below this |smoothed power| (W) the fleet is treated as idle → time remaining is N/A
 # (dividing the energy by ~0 is meaningless).
 _TIME_REMAINING_MIN_POWER_W = 50.0
+# A micro-inverter powers down with its panels. Light is expected at its panels when the
+# other MPPTs together produce at least ``_SOLAR_OTHERS_W``, or the PV forecast for the
+# current hour is at least ``_SOLAR_FORECAST_W``. Both are deliberately high: the EcoFlow
+# STREAM reports a bogus ~50 W of "PV" at night, which must never read as daylight.
+_SOLAR_OTHERS_W = 200.0
+_SOLAR_FORECAST_W = 100.0
+# A forecast below this means it is dark, whatever the other MPPTs claim.
+_SOLAR_DARK_FORECAST_W = 5.0
+# After the light comes back, give a sleeping micro-inverter this long to wake before its
+# silence counts as an outage (it starts a few minutes after the other MPPTs).
+_SOLAR_WAKE_GRACE_S = 900.0
 
 _STRATEGY_CLASSES = {
     StrategyKind.SELF_CONSUMPTION.value: SelfConsumptionStrategy,
@@ -949,6 +960,8 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
         self._link_health = LinkHealth(
             stale_s=float(cfg.get(CONF_NONCONTROLLABLE_STALE_S, DEFAULT_NONCONTROLLABLE_STALE_S))
         )
+        # When light became expected again for each MPPT link (wake-up grace, see above).
+        self._solar_expected_since: dict[str, float] = {}
         # What the orchestration is worth against the same hardware left to plain
         # self-consumption — the marginal question, which the existing savings
         # figure (PV + battery vs no PV at all) does not answer.
@@ -2779,6 +2792,27 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             total += max(0.0, (state.soc_pct - battery.soc_min_pct) / 100.0 * usable)
         return total
 
+    def _solar_expected(
+        self, snapshot: Snapshot, exclude: str, hour_forecast_w: float | None
+    ) -> bool:
+        """Whether light is expected at the panels of MPPT ``exclude`` right now.
+
+        The evidence is the PV forecast for the current hour and the production of the
+        *other* MPPTs. A forecast that says it is dark wins over any production reading;
+        otherwise either source above its threshold is enough. With no evidence at all (a
+        lone MPPT and no forecast) the answer is ``True``: without a way to tell night
+        from a fault, the link keeps being judged as it always was.
+        """
+        if hour_forecast_w is not None and hour_forecast_w < _SOLAR_DARK_FORECAST_W:
+            return False
+        signals: list[bool] = []
+        others = [m for m in snapshot.mppts if m.available and m.device_name != exclude]
+        if others:
+            signals.append(sum(m.power_w for m in others) >= _SOLAR_OTHERS_W)
+        if hour_forecast_w is not None:
+            signals.append(hour_forecast_w >= _SOLAR_FORECAST_W)
+        return any(signals) if signals else True
+
     def _observe_links(self, snapshot: Snapshot) -> None:
         """Record one reporting sample per watched entity (see core/link_health.py)."""
         try:
@@ -2787,8 +2821,23 @@ class SolarBalanceCoordinator(DataUpdateCoordinator[Snapshot | None]):
             _LOGGER.debug("Link health sampling failed", exc_info=True)
             return
         now_s = snapshot.timestamp.timestamp()
+        hour_forecast_w: float | None = None
+        if any(key.endswith("/mppt") for key in ages):
+            forecast = self._forecast_pv_by_hour(snapshot)
+            hour_forecast_w = forecast[0] if forecast else None
         for key, age_s in ages.items():
-            self._link_health.observe(key, now_s, age_s)
+            expected: bool | None = None
+            if key.endswith("/mppt"):
+                # A micro-inverter is off at night: only judge it while light is expected.
+                expected = self._solar_expected(
+                    snapshot, key.removesuffix("/mppt"), hour_forecast_w
+                )
+                if expected:
+                    since = self._solar_expected_since.setdefault(key, 0.0)
+                    expected = now_s - since >= _SOLAR_WAKE_GRACE_S
+                else:
+                    self._solar_expected_since[key] = now_s
+            self._link_health.observe(key, now_s, age_s, expected=expected)
         self._link_health.forget(set(ages))
 
     def _record_health_transitions(self, snapshot: Snapshot) -> None:

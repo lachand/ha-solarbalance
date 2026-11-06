@@ -18,6 +18,7 @@ from custom_components.solarbalance.core.models import (
     Meter,
     MeterKind,
     MpptRole,
+    MpptState,
 )
 
 
@@ -222,3 +223,118 @@ def test_a_link_nothing_has_written_to_is_old() -> None:
         "sensor.stream_pv": _state(0),
     }
     assert _reader(states).link_ages()["stream/soc"] == pytest.approx(14_400.0, abs=1.0)
+
+
+# ---- a micro-inverter that sleeps at night -----------------------------------------
+
+
+def _snapshot(now: object, *, others_w: float | None, forecast_w: float | None) -> SimpleNamespace:
+    mppts = (
+        ()
+        if others_w is None
+        else (MpptState(device_name="other", power_w=others_w, available=True),)
+    )
+    return SimpleNamespace(timestamp=now, mppts=mppts, pv_forecast_now_w=forecast_w)
+
+
+def _micro_inverter_coordinator(hass: HomeAssistant) -> SolarBalanceCoordinator:
+    coord = _coordinator(hass)
+    coord._reader = MagicMock()  # type: ignore[assignment]
+    return coord
+
+
+@pytest.mark.parametrize(
+    ("others_w", "forecast_w", "expected"),
+    [
+        (0.0, 0.0, False),  # night: nothing producing, forecast dark
+        (100.0, 0.0, False),  # bogus ~50 W per STREAM at night, forecast says dark
+        (400.0, 30.0, True),  # other panels producing under a gloomy forecast
+        (0.0, 800.0, True),  # the forecast says sun, the others have not started yet
+        (None, 800.0, True),  # a lone MPPT: the forecast alone decides
+        (None, 0.0, False),
+        (0.0, None, False),  # no forecast configured: the other MPPTs alone decide
+        (400.0, None, True),
+        (None, None, True),  # no evidence at all: judged as before, never silently excused
+    ],
+)
+@pytest.mark.asyncio
+async def test_light_is_expected_from_the_other_panels_or_the_forecast(
+    hass: HomeAssistant, others_w: float | None, forecast_w: float | None, expected: bool
+) -> None:
+    coord = _micro_inverter_coordinator(hass)
+    snap = _snapshot(dt_util.utcnow(), others_w=others_w, forecast_w=forecast_w)
+
+    assert coord._solar_expected(snap, "stream", forecast_w) is expected
+
+
+@pytest.mark.asyncio
+async def test_a_micro_inverter_silent_all_night_is_not_flagged(hass: HomeAssistant) -> None:
+    coord = _micro_inverter_coordinator(hass)
+    coord._reader.link_ages.return_value = {"inverter/mppt": None}  # type: ignore[attr-defined]
+    coord._forecast_pv_by_hour = lambda snap: [0.0]  # type: ignore[method-assign]
+    now = dt_util.utcnow()
+
+    # Answers by day, silent from dusk through the night, back at dawn.
+    for i in range(0, 60):
+        coord._reader.link_ages.return_value = {"inverter/mppt": 4.0}  # type: ignore[attr-defined]
+        coord._forecast_pv_by_hour = lambda snap: [600.0]  # type: ignore[method-assign]
+        coord._observe_links(
+            _snapshot(now + timedelta(seconds=10 * i), others_w=500.0, forecast_w=600.0)
+        )
+    for i in range(60, 2000):
+        coord._reader.link_ages.return_value = {"inverter/mppt": None}  # type: ignore[attr-defined]
+        coord._forecast_pv_by_hour = lambda snap: [0.0]  # type: ignore[method-assign]
+        coord._observe_links(
+            _snapshot(now + timedelta(seconds=10 * i), others_w=0.0, forecast_w=0.0)
+        )
+
+    row = next(s for s in coord.link_health if s.key == "inverter/mppt")
+    assert row.conditional is True
+    assert row.available_pct == 100.0
+    assert row.longest_gap_s == 0.0
+    assert row.verdict == "healthy"
+
+
+@pytest.mark.asyncio
+async def test_a_silent_micro_inverter_is_flagged_while_the_sun_is_up(hass: HomeAssistant) -> None:
+    coord = _micro_inverter_coordinator(hass)
+    coord._reader.link_ages.return_value = {"inverter/mppt": None}  # type: ignore[attr-defined]
+    coord._forecast_pv_by_hour = lambda snap: [900.0]  # type: ignore[method-assign]
+    now = dt_util.utcnow()
+
+    for i in range(0, 400):
+        coord._observe_links(
+            _snapshot(now + timedelta(seconds=10 * i), others_w=700.0, forecast_w=900.0)
+        )
+
+    row = next(s for s in coord.link_health if s.key == "inverter/mppt")
+    assert row.available_pct == 0.0
+    assert row.verdict == "unreliable"
+
+
+@pytest.mark.asyncio
+async def test_the_wake_up_grace_spares_a_late_riser(hass: HomeAssistant) -> None:
+    """The micro-inverter starts minutes after the others: that is not an outage."""
+    coord = _micro_inverter_coordinator(hass)
+    now = dt_util.utcnow()
+    coord._forecast_pv_by_hour = lambda snap: [0.0]  # type: ignore[method-assign]
+    coord._reader.link_ages.return_value = {"inverter/mppt": None}  # type: ignore[attr-defined]
+    for i in range(0, 100):  # night
+        coord._observe_links(
+            _snapshot(now + timedelta(seconds=10 * i), others_w=0.0, forecast_w=0.0)
+        )
+
+    coord._forecast_pv_by_hour = lambda snap: [500.0]  # type: ignore[method-assign]
+    for i in range(100, 160):  # 10 min of light, inverter still asleep (within the 15 min grace)
+        coord._observe_links(
+            _snapshot(now + timedelta(seconds=10 * i), others_w=400.0, forecast_w=500.0)
+        )
+    coord._reader.link_ages.return_value = {"inverter/mppt": 3.0}  # type: ignore[attr-defined]
+    for i in range(160, 200):
+        coord._observe_links(
+            _snapshot(now + timedelta(seconds=10 * i), others_w=400.0, forecast_w=500.0)
+        )
+
+    row = next(s for s in coord.link_health if s.key == "inverter/mppt")
+    assert row.dropouts == 0
+    assert row.available_pct == 100.0

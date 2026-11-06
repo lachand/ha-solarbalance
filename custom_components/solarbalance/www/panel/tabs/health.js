@@ -151,7 +151,10 @@ function linksCard(m) {
         .filter(Boolean)
         .join(" · ");
       const state = l.verdict === "unreliable" ? "critique" : "attention";
-      return `<div class="alert-row">${stamp(state, l.verdict === "unreliable" ? m.t("Peu fiable") : m.t("Instable"))}<span><b>${esc(l.key)}</b> <span class="cote">${fmtNum(Number(l.score), 0, m.lang)}/100 · ${esc(detail)}</span></span></div>`;
+      const daylight = l.daylight_only
+        ? ` <span class="tag" title="${esc(m.t("Jugée seulement quand le soleil est attendu (production des autres panneaux ou prévision solaire)."))}">${icon("sun", 12)}<span>${m.t("Jour seulement")}</span></span>`
+        : "";
+      return `<div class="alert-row">${stamp(state, l.verdict === "unreliable" ? m.t("Peu fiable") : m.t("Instable"))}<span><b>${esc(l.key)}</b>${daylight} <span class="cote">${fmtNum(Number(l.score), 0, m.lang)}/100 · ${esc(detail)}</span></span></div>`;
     })
     .join("");
   return card(m.t("Liaisons peu fiables (24 h)"), rows);

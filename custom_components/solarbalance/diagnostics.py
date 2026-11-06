@@ -65,6 +65,7 @@ async def async_get_config_entry_diagnostics(
             "dropouts": s.dropouts,
             "samples": s.samples,
             "verdict": s.verdict,
+            "daylight_only": s.conditional,
         }
         for s in coord.link_health
     ]

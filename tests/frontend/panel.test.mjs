@@ -94,3 +94,12 @@ for (const file of FILES) {
     assert.doesNotMatch(text, /\brgba?\(|\bhsla?\(/);
   });
 }
+
+test("a daylight-only link is labelled as such and an always-on link is not", () => {
+  const html = renderHealth(modelFor(), state());
+  const rows = html.split('class="alert-row"').filter((r) => r.includes("ef_"));
+  const daylight = rows.find((r) => r.includes("ef_bkxxxx/mppt"));
+  const always = rows.find((r) => r.includes("ef_xxxxxx<"));
+  assert.match(daylight, /Jour seulement/);
+  assert.doesNotMatch(always, /Jour seulement/);
+});

@@ -183,6 +183,9 @@ export const STR_EN = {
   "Liaisons peu fiables (24 h)": "Unreliable links (24 h)",
   "Toutes les liaisons sont stables.": "All links are stable.",
   "Peu fiable": "Unreliable",
+  "Jour seulement": "Daytime only",
+  "Jugée seulement quand le soleil est attendu (production des autres panneaux ou prévision solaire).":
+    "Judged only while sun is expected (other panels' production or the solar forecast).",
   Instable: "Flaky",
   disponibilité: "availability",
   "plus long trou": "longest gap",

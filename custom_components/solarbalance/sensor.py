@@ -1481,6 +1481,7 @@ class SolarBalanceLinkHealthSensor(_SolarBalanceSensor):
                     "dropouts": s.dropouts,
                     "samples": s.samples,
                     "verdict": s.verdict,
+                    "daylight_only": s.conditional,
                 }
                 for s in rows
             ],

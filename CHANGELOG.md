@@ -37,6 +37,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+### Fixed
+
+- **Un micro-onduleur éteint la nuit n'est plus signalé « peu fiable ».** Sa liaison de production
+  (`<appareil>/mppt`) affichait par exemple 43 % de disponibilité et un trou de 14 h, soit un score
+  de 3/100 pour un appareil sain, ce qui tirait aussi vers le bas le score de santé de
+  l'installation. Elle n'est désormais évaluée que lorsque le soleil est attendu : les autres MPPT
+  produisent au moins 200 W, ou la prévision solaire de l'heure atteint 100 W (une prévision
+  inférieure à 5 W l'emporte, pour ignorer la fausse production d'environ 50 W de l'EcoFlow STREAM
+  la nuit). Les heures sans soleil ne comptent pas, un arrêt de moins d'une demi-heure juste avant
+  la nuit est annulé, et 15 minutes de délai sont accordées au réveil. Sans autre MPPT ni prévision,
+  le comportement est inchangé. Les liaisons concernées portent l'attribut `daylight_only` et
+  l'étiquette « Jour seulement » dans l'onglet Santé du panneau.
+
 ## [2.0.8-beta92] — 2026-11-06
 
 ### Fixed
