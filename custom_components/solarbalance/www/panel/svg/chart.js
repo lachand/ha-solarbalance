@@ -358,17 +358,3 @@ export function regSparkline(m, h) {
     <path d="${path("fleet")}" fill="none" stroke="${fleet.color}" stroke-width="${fleet.w}" vector-effect="non-scaling-stroke"/></svg>
     <div class="legend small">${legendItem(target, m.t("Cible"))}${legendItem(fleet, m.t("Parc réel"))}</div>`;
 }
-
-/** Tiny profile of one appliance cycle, scaled to its own peak (a shape, not a magnitude). */
-export function cycleSpark(curve) {
-  if (!Array.isArray(curve) || curve.length < 2) return "";
-  const W = 120;
-  const H = 22;
-  const peak = Math.max(...curve, 1);
-  const pts = curve
-    .map((v, i) => `${f((i / (curve.length - 1)) * W)},${f(H - (v / peak) * H)}`)
-    .join(" ");
-  return `<svg viewBox="0 0 ${W} ${H}" class="cyc" preserveAspectRatio="none" aria-hidden="true">
-    <polygon points="0,${H} ${pts} ${W},${H}" class="cyc-fill"/>
-    <polyline points="${pts}" class="cyc-line" vector-effect="non-scaling-stroke"/></svg>`;
-}

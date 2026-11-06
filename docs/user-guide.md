@@ -626,8 +626,8 @@ Une page **« SolarBalance »** est aussi enregistrée automatiquement dans la *
 
 | Onglet | Contenu |
 |---|---|
-| **Maintenant** | alertes, schéma de flux en temps réel, bilan du jour (énergie, argent), ce que fait le système, graphique de puissance (1 h, 6 h, 24 h, jour) avec prévision solaire |
-| **Pilotage** | régulation (cible, garde-fou, correction), contrôles rapides, bascules par consommateur, puissance souscrite, appareils et solaire récupérable, plan indicatif sur 24 h, bridage solaire |
+| **Maintenant** | alertes, schéma de flux en temps réel et graphique de puissance (1 h, 6 h, 24 h, jour) avec prévision solaire à gauche ; ce que fait le système et bilan du jour (énergie, argent) à droite |
+| **Pilotage** | régulation (cible, garde-fou, correction), contrôles rapides, bascules par consommateur, puissance souscrite, plan indicatif sur 24 h, bridage solaire |
 | **Batteries** | une carte par batterie (niveau de charge et plancher, puissance, consignes, production solaire, températures, état de la liaison), niveau de charge sur la période |
 | **Santé** | score d'installation, alertes en cours, frise d'anomalies, liaisons peu fiables, apport de l'orchestration, talon de veille, diagnostic de la régulation (replié) |
 

@@ -1,10 +1,10 @@
 /**
  * « Pilotage » tab: regulation, quick controls, per-load switches, subscribed power,
- * appliances (solar-recoverable), the advisory 24 h plan and PV curtailment.
+ * the advisory 24 h plan and PV curtailment.
  */
 
 import { NBSP, esc, fmtNum, fmtPower, hourLabel, withUnit } from "../format.js";
-import { cycleSpark, planChart, regSparkline } from "../svg/chart.js";
+import { planChart, regSparkline } from "../svg/chart.js";
 import { button, card, icon, meter, measure, measureOf, row, stamp } from "../ui.js";
 
 function tag(state, text) {
@@ -86,72 +86,6 @@ function subscribedCard(m) {
   );
 }
 
-function applianceCard(m) {
-  const list = m.attr(m.E.appliances, "appliances");
-  if (!Array.isArray(list) || !list.length) return "";
-  const eur = (v) => withUnit(fmtNum(v, 2, m.lang), "€");
-  const at = (h) => `${String(h).padStart(2, "0")}${NBSP}h`;
-  const rows = list
-    .map((a) => {
-      const run = a.running
-        ? ` ${tag("info", `${m.t("en cours")}${a.elapsed_min != null ? ` ${a.elapsed_min}${NBSP}min` : ""}`)}`
-        : "";
-      if (!a.samples) {
-        return `<div class="app-row"><div class="app-name">${esc(a.name)}${run}</div>
-          <p class="note">${m.t("Apprentissage en cours : aucun cycle complet enregistré.")}</p></div>`;
-      }
-      const dur = a.duration_min != null ? `${Math.round(a.duration_min)}${NBSP}min` : "—";
-      const kwh = a.energy_kwh != null ? withUnit(fmtNum(a.energy_kwh, 2, m.lang), "kWh") : "—";
-      const now = a.solar_now_pct;
-      let advice = "";
-      if (now != null) {
-        const state = now >= 70 ? "ok" : now >= 40 ? "attention" : "inactif";
-        advice = tag(state, `${fmtNum(now, 0, m.lang)}${NBSP}% ${m.t("de solaire maintenant")}`);
-        if (a.best_hour != null && a.best_pct >= now + 10)
-          advice += ` <span class="cote">${fmtNum(a.best_pct, 0, m.lang)}${NBSP}% ${m.t("à")} ${at(a.best_hour)}</span>`;
-      }
-      const conf = a.samples < 3 ? ` ${tag("attention", m.t("peu de cycles"))}` : "";
-      const progs = Array.isArray(a.programs) ? a.programs : [];
-      const progRows = progs
-        .map((pr) => {
-          const pct = pr.solar_now_pct != null ? `<b>${fmtNum(pr.solar_now_pct, 0, m.lang)}${NBSP}%</b>` : "";
-          const better =
-            pr.best_hour != null && pr.best_pct != null && pr.best_pct >= (pr.solar_now_pct || 0) + 10
-              ? ` <span class="cote">→ ${fmtNum(pr.best_pct, 0, m.lang)}${NBSP}% ${m.t("à")} ${at(pr.best_hour)}</span>`
-              : "";
-          let cost = "";
-          if (pr.cost_now_eur != null) {
-            cost = ` · <span class="cote">${eur(pr.cost_now_eur)}</span>`;
-            if (pr.saving_by_waiting_eur != null && pr.saving_by_waiting_eur >= 0.01)
-              cost += ` <span class="cote">−${eur(pr.saving_by_waiting_eur)} ${m.t("en attendant")}</span>`;
-          }
-          const edit = `<button type="button" class="icon-btn" aria-label="${esc(m.t("Renommer ce programme"))}" title="${esc(m.t("Renommer ce programme"))}" data-rename-appliance="${esc(a.name)}" data-rename-program="${esc(pr.program)}">${icon("edit", 16)}</button>`;
-          return `<div class="p-row">
-            <div class="p-name">${esc(pr.program)} <span class="cote">×${pr.samples}</span>${edit}</div>
-            <div class="p-spark">${cycleSpark(pr.curve_w)}</div>
-            <div class="p-meta cote">${pr.duration_min}${NBSP}min · ${withUnit(fmtNum(pr.energy_kwh, 2, m.lang), "kWh")} ${pct}${better}${cost}</div>
-          </div>`;
-        })
-        .join("");
-      let labelRow = "";
-      if (a.unlabelled) {
-        const lu = a.last_unlabelled;
-        const desc = lu ? ` (${lu.duration_min}${NBSP}min · ${withUnit(fmtNum(lu.energy_kwh, 2, m.lang), "kWh")})` : "";
-        labelRow = `<div class="p-label"><span class="note">${a.unlabelled} ${m.t("cycle(s) non étiqueté(s)")}</span>
-          <button type="button" class="btn small" data-label-appliance="${esc(a.name)}">${esc(m.t("Étiqueter le dernier"))}${esc(desc)}</button></div>`;
-      }
-      return `<div class="app-row">
-        <div class="app-name">${esc(a.name)}${run}${conf}</div>
-        <div class="app-meta cote">${dur} · ${kwh}${a.program && a.program !== "unknown" ? ` · ${esc(a.program)}` : ""}</div>
-        <div class="app-advice">${advice}</div>
-        ${progRows ? `<div class="p-list">${progRows}</div>` : ""}
-        ${labelRow}
-      </div>`;
-    })
-    .join("");
-  return card(m.t("Appareils et solaire récupérable"), rows);
-}
-
 function planSummary(m, sched) {
   const SLOT_MS = 3600000;
   const cls = (p) => (p > 50 ? "charge" : p < -50 ? "discharge" : "hold");
@@ -228,7 +162,6 @@ export function renderControl(m, st) {
     controlsCard(m),
     loadsCard(m),
     subscribedCard(m),
-    applianceCard(m),
     curtailCard(m),
     planCard(m, st),
   ].filter(Boolean);

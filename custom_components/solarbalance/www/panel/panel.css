@@ -51,10 +51,14 @@ h1 { margin: 0; font-family: var(--font-display); font-size: 28px; line-height: 
 main { outline: none; }
 
 /* ---- layout ---- */
-.grid { display: grid; gap: var(--space-4); margin-bottom: var(--space-4);
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); }
-.grid.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); }
-.span-all { grid-column: 1 / -1; }
+/* Cards flow into balanced columns (masonry): a short card never stretches to the height of
+   its neighbour, so there is no empty space under it. */
+.grid { column-width: 340px; column-gap: var(--space-4); margin-bottom: var(--space-4); }
+.grid > * { break-inside: avoid; margin: 0 0 var(--space-4); }
+.grid > .span-all { column-span: all; }
+/* "Maintenant": diagram, explanation and power chart stacked beside the day summary. */
+.split { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--space-4); align-items: start; margin-bottom: var(--space-4); }
+.col { display: flex; flex-direction: column; gap: var(--space-4); min-width: 0; }
 .banners { display: grid; gap: var(--space-2); margin-bottom: var(--space-4); }
 
 /* ---- cards ---- */
@@ -154,8 +158,6 @@ b { font-weight: 600; }
 .sw { flex: none; }
 .chart-card .card-h { align-items: flex-start; }
 
-.flow-card { display: flex; flex-direction: column; }
-.flow-card .flow { margin: auto 0; }
 .flow { display: block; width: 100%; height: auto; max-height: 280px; }
 .fn-box { fill: var(--surface); stroke: var(--line); stroke-width: 1; }
 .fn-lbl { font: 600 12px var(--font-ui); fill: var(--ink-muted); }
@@ -173,18 +175,6 @@ b { font-weight: 600; }
 .load-row { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3) 0; border-bottom: 1px solid var(--line-subtle); }
 .load-row:last-child { border-bottom: 0; }
 .load-name { font-weight: 600; font-size: 14px; }
-.app-row { padding: var(--space-3) 0; border-bottom: 1px solid var(--line-subtle); }
-.app-row:last-child { border-bottom: 0; }
-.app-name { font-weight: 600; font-size: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
-.app-meta, .app-advice { margin-top: var(--space-1); }
-.p-list { margin-top: var(--space-2); padding-left: var(--space-3); border-left: 2px solid var(--line-subtle); }
-.p-row { display: grid; grid-template-columns: 1fr 120px; gap: 2px var(--space-3); align-items: center; padding: var(--space-1) 0; }
-.p-name { display: flex; align-items: center; gap: var(--space-1); font-size: 14px; }
-.p-meta { grid-column: 1 / -1; }
-.cyc { width: 120px; height: 22px; }
-.cyc-fill { fill: color-mix(in srgb, var(--consommation) 22%, transparent); stroke: none; }
-.cyc-line { fill: none; stroke: var(--consommation); stroke-width: 1.2; }
-.p-label { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); margin-top: var(--space-2); }
 .plan-summary { margin: 0 0 var(--space-2); font-size: 14px; }
 .table-wrap { overflow-x: auto; margin-top: var(--space-3); }
 .pred-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -207,6 +197,9 @@ dialog input { width: 100%; min-height: 40px; margin-bottom: var(--space-3); pad
   border-radius: var(--radius-sm); background: var(--surface-sunken); color: var(--ink); font: 15px var(--font-ui); }
 dialog .btn-row { justify-content: flex-end; }
 
+@media (max-width: 900px) {
+  .split { grid-template-columns: minmax(0, 1fr); }
+}
 @media (max-width: 600px) {
   .wrap { padding: var(--space-3) var(--space-3) var(--space-6); }
   h1 { font-size: 24px; line-height: 30px; }

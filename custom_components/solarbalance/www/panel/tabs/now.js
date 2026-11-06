@@ -105,9 +105,7 @@ function explainCard(m) {
   else if (base === "charge") fr = `Charge ${p.t} : le solaire produit ${p.pv}, la maison tire ${p.h}.`;
   else if (base === "idle") fr = "Parc à l'arrêt : production et consommation s'équilibrent.";
   else fr = text;
-  return card(m.t("Ce que fait le système"), `<p class="explain">${esc(m.isEnglish ? text : fr)}</p>`, {
-    cls: "span-all",
-  });
+  return card(m.t("Ce que fait le système"), `<p class="explain">${esc(m.isEnglish ? text : fr)}</p>`);
 }
 
 function optTile(m, label, id, digits, unit) {
@@ -170,12 +168,11 @@ function windowSelector(m, st) {
 export function renderNow(m, st) {
   return `
     ${banners(m)}
-    <div class="grid two">
-      ${card(m.t("Flux en temps réel"), flowDiagram(flowFromModel(m)), { cls: "flow-card" })}
-      ${summaryCard(m)}
-    </div>
-    <div class="grid">
-      ${explainCard(m)}
-    </div>
-    ${card(m.t("Puissance"), powerChart(m, st), { cls: "chart-card", actions: windowSelector(m, st) })}`;
+    <div class="split">
+      <div class="col">
+        ${card(m.t("Flux en temps réel"), flowDiagram(flowFromModel(m)), { cls: "flow-card" })}
+        ${card(m.t("Puissance"), powerChart(m, st), { cls: "chart-card", actions: windowSelector(m, st) })}
+      </div>
+      <div class="col">${explainCard(m)}${summaryCard(m)}</div>
+    </div>`;
 }

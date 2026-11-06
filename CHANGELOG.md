@@ -48,6 +48,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
   neuves (les `import` relatifs du panneau en héritent). `/solarbalance_card/` reste disponible
   pour une ressource Lovelace ajoutée à la main.
 
+### Changed
+
+- **Panneau : fin des grands vides.** Les cartes des onglets Pilotage, Batteries et Santé
+  s'empilent désormais en colonnes équilibrées (maçonnerie) au lieu d'être étirées à la hauteur de
+  leur voisine. L'onglet Maintenant place le schéma de flux et le graphique de puissance à gauche,
+  « Ce que fait le système » et le bilan du jour à droite, et le graphique prend la largeur réelle
+  de sa carte.
+- **Carte « Appareils et solaire récupérable » retirée du panneau.** Les services
+  `solarbalance.label_last_cycle` et `solarbalance.rename_appliance_program` et le capteur
+  `sensor.solarbalance_appliance_advice` restent disponibles.
+- Libellés « Bonne / Moyenne / Dégradée » du score de santé traduits en anglais.
+
 ## [2.0.8-beta89] — 2026-11-06
 
 ### Changed

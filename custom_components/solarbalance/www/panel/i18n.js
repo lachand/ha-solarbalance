@@ -122,20 +122,6 @@ export const STR_EN = {
     "Instant import against the subscribed power",
   Élevé: "High",
   "Limite proche": "Near limit",
-  "Appareils et solaire récupérable": "Appliances and recoverable solar",
-  "Apprentissage en cours : aucun cycle complet enregistré.":
-    "Learning: no complete cycle recorded yet.",
-  "en cours": "running",
-  "peu de cycles": "few cycles",
-  "de solaire maintenant": "solar now",
-  à: "at",
-  "en attendant": "by waiting",
-  "Renommer ce programme": "Rename this program",
-  "Nouveau nom du programme": "New program name",
-  "Nom du cycle que vous venez de lancer (par exemple Coton 40)":
-    "Name the cycle you just ran (for example Cottons 40)",
-  "cycle(s) non étiqueté(s)": "unlabelled cycle(s)",
-  "Étiqueter le dernier": "Label the last one",
   "Plan indicatif sur 24 h": "Advisory plan, 24 h",
   "Plan indicatif de la batterie sur 24 h": "Advisory battery plan, 24 h",
   "barres pleines, charge prévue ; barres creuses, décharge prévue ; ligne, niveau de charge prévu.":
@@ -144,6 +130,7 @@ export const STR_EN = {
   "Décharge prévue": "Planned discharge",
   "Niveau prévu": "Planned level",
   de: "from",
+  à: "to",
   "Aucune action batterie planifiée": "No battery action planned",
   Heure: "Time",
   Batterie: "Battery",
@@ -178,6 +165,9 @@ export const STR_EN = {
   "Aucun appareil batterie détecté.": "No battery device detected.",
   // Health
   "Santé de l'installation": "Installation health",
+  Bonne: "Good",
+  Moyenne: "Fair",
+  Dégradée: "Degraded",
   "Score de santé de l'installation": "Installation health score",
   "Alertes en cours": "Active alerts",
   "Aucune alerte en cours.": "No active alert.",

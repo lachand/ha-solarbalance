@@ -157,7 +157,9 @@ class SolarBalancePanel extends HTMLElement {
   }
 
   _measure() {
-    const w = this._el("main").getBoundingClientRect().width;
+    // Charts are drawn at the real pixel width of the card that holds them.
+    const probe = this.shadowRoot.querySelector("main .chart-card") || this._el("main");
+    const w = probe.getBoundingClientRect().width;
     if (!w) return;
     // Card padding on each side; quantised so a scrollbar appearing does not re-render.
     const cw = Math.max(280, Math.floor((w - 32) / 8) * 8);
@@ -236,6 +238,7 @@ class SolarBalancePanel extends HTMLElement {
     const main = this._el("main");
     main.setAttribute("aria-labelledby", `tab-${tab.id}`);
     this._set("main", tab.render(m, this.st));
+    this._measure();
     this._ensureMenu();
   }
 
@@ -366,36 +369,6 @@ class SolarBalancePanel extends HTMLElement {
       }
       if (svc.dataset.confirm && !(await this._dialog({ message: svc.dataset.confirm }))) return;
       hass.callService("solarbalance", svc.dataset.service, args);
-      return;
-    }
-    const ren = find("renameProgram");
-    if (ren && hass) {
-      const from = ren.dataset.renameProgram;
-      const to = await this._dialog({
-        message: this.m.t("Nouveau nom du programme"),
-        input: from,
-      });
-      if (to && to.trim() && to.trim() !== from) {
-        hass.callService("solarbalance", "rename_appliance_program", {
-          appliance: ren.dataset.renameAppliance,
-          from_program: from,
-          to_program: to.trim(),
-        });
-      }
-      return;
-    }
-    const lbl = find("labelAppliance");
-    if (lbl && hass) {
-      const program = await this._dialog({
-        message: this.m.t("Nom du cycle que vous venez de lancer (par exemple Coton 40)"),
-        input: "",
-      });
-      if (program && program.trim()) {
-        hass.callService("solarbalance", "label_last_cycle", {
-          appliance: lbl.dataset.labelAppliance,
-          program: program.trim(),
-        });
-      }
       return;
     }
     if (find("toggleDebug")) {
