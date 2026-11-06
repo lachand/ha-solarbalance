@@ -1,16 +1,15 @@
 /**
- * SolarBalance Sankey power-flow card.
+ * SolarBalance power-flow card, Signature design.
  *
- * Renders a real-time energy flow diagram:
- *   PV  ──►  Battery
- *        ├──►  Home load
- *        └──►  Grid (export)
- *   Grid ──►  Home load (import)
+ * Shares its diagram, stamps, measures and tokens with the full-page panel: the drawing
+ * code is imported from `custom_components/solarbalance/www/panel/` (single source), the
+ * Signature tokens and `panel.css` are loaded from the integration's static path.
  *
  * Configuration:
  *   type: custom:solarbalance-card
  *   title: "Tableau de bord solaire"        # optional
- *   # Entity overrides — all have auto-detected defaults
+ *   contrast: false                          # optional, high-contrast theme
+ *   # Entity overrides, all auto-detected by translation_key when omitted
  *   mode_entity:          sensor.solarbalance_mode
  *   strategy_entity:      sensor.solarbalance_dominant_strategy
  *   grid_power_entity:    sensor.solarbalance_grid_power
@@ -19,14 +18,21 @@
  *   battery_soc_entity:   sensor.solarbalance_battery_soc_avg
  */
 
-import { LitElement, html, css, nothing, type TemplateResult } from "lit";
+import { LitElement, css, html, type TemplateResult } from "lit";
 import { customElement, property, state } from "lit/decorators.js";
-import type { HomeAssistant, LovelaceCardConfig, HassEntity } from "./types.js";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
+import { STR_EN } from "../../../custom_components/solarbalance/www/panel/i18n.js";
+import { esc, fmtNum, fmtPower, withUnit } from "../../../custom_components/solarbalance/www/panel/format.js";
+import { modeState } from "../../../custom_components/solarbalance/www/panel/mode.js";
+import { flowDiagram } from "../../../custom_components/solarbalance/www/panel/svg/flow.js";
+import { measureOf, meter, stamp, tile } from "../../../custom_components/solarbalance/www/panel/ui.js";
+import type { HomeAssistant, HassEntity, LovelaceCardConfig } from "./types.js";
 
 // ─── Config ────────────────────────────────────────────────────────────────
 
 interface SolarBalanceCardConfig extends LovelaceCardConfig {
   title?: string;
+  contrast?: boolean;
   mode_entity?: string;
   strategy_entity?: string;
   grid_power_entity?: string;
@@ -35,128 +41,57 @@ interface SolarBalanceCardConfig extends LovelaceCardConfig {
   battery_soc_entity?: string;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+type EntityKey =
+  | "mode_entity"
+  | "strategy_entity"
+  | "grid_power_entity"
+  | "pv_power_entity"
+  | "battery_power_entity"
+  | "battery_soc_entity";
 
-function numericState(entity: HassEntity | undefined): number {
-  if (!entity) return 0;
+/** Config key → [translation_key, English default entity_id]. */
+const ENTITIES: Record<EntityKey, [string, string]> = {
+  mode_entity: ["mode", "sensor.solarbalance_mode"],
+  strategy_entity: ["dominant_strategy", "sensor.solarbalance_dominant_strategy"],
+  grid_power_entity: ["grid_power", "sensor.solarbalance_grid_power"],
+  pv_power_entity: ["pv_power", "sensor.solarbalance_pv_power"],
+  battery_power_entity: ["battery_power", "sensor.solarbalance_battery_power"],
+  battery_soc_entity: ["battery_soc_avg", "sensor.solarbalance_battery_soc_avg"],
+};
+
+const STATIC_BASE = new URL(/* @vite-ignore */ "vendor/signature/", import.meta.url).href;
+const PANEL_CSS = new URL(/* @vite-ignore */ "panel/panel.css", import.meta.url).href;
+
+/** Strategy keys → French label. */
+const STRATEGY_LABELS: Record<string, string> = {
+  normal: "Normal",
+  storm: "Tempête",
+  vacation: "Vacances",
+  self_consumption: "Autoconsommation",
+  cost_min: "Coût minimal",
+  revenue_max: "Revenu maximal",
+  peak_shaving: "Écrêtage",
+  backup: "Secours",
+  longevity: "Longévité",
+  manual_override: "Manuel",
+  degraded: "Dégradé",
+  paused: "En pause",
+};
+
+function numeric(entity: HassEntity | undefined): number | null {
+  if (!entity || entity.state === "unavailable" || entity.state === "unknown") return null;
   const v = parseFloat(entity.state);
-  return isNaN(v) ? 0 : v;
+  return Number.isNaN(v) ? null : v;
 }
 
-function fmtW(watts: number): string {
-  const abs = Math.abs(watts);
-  if (abs >= 1000) return `${(watts / 1000).toFixed(2)} kW`;
-  return `${watts.toFixed(0)} W`;
-}
-
-/** Map HEMS mode key to a display label. */
-function modeLabel(mode: string): string {
-  const MAP: Record<string, string> = {
-    normal: "Normal",
-    storm: "Tempête",
-    vacation: "Vacances",
-    self_consumption: "Auto-conso",
-    cost_min: "Coût min",
-    revenue_max: "Revenu max",
-    peak_shaving: "Écrêtage",
-    backup: "Secours",
-    longevity: "Longévité",
-    manual_override: "Manuel",
-    degraded: "Dégradé",
-    paused: "Pause",
-  };
-  return MAP[mode] ?? mode;
-}
-
-// ─── Sankey geometry ────────────────────────────────────────────────────────
-
-interface FlowLink {
-  from: string;
-  to: string;
-  value: number; // absolute watts
-}
-
-interface FlowNode {
-  id: string;
-  label: string;
-  x: number;
-  y: number;
-}
-
-const NODE_W = 90;
-const NODE_H = 44;
-
-/** Compute SVG Sankey nodes + links from raw power readings.
- *
- * Sign conventions (internal SolarBalance pdl convention):
- *   grid_power_w > 0 → import (soutirage)
- *   battery_power_w > 0 → charging
- *   pv_power_w ≥ 0 always
- */
-function buildSankey(
-  pvW: number,
-  gridW: number,
-  batW: number,
-): { nodes: FlowNode[]; links: FlowLink[] } {
-  // Derived values
-  const pvAvail = Math.max(0, pvW);
-  const gridImport = Math.max(0, gridW);
-  const gridExport = Math.max(0, -gridW);
-  const batCharge = Math.max(0, batW);
-  const batDischarge = Math.max(0, -batW);
-
-  // Home load = PV + grid import + bat discharge − bat charge − grid export
-  const homeLoad = Math.max(
-    0,
-    pvAvail + gridImport + batDischarge - batCharge - gridExport,
-  );
-
-  const nodes: FlowNode[] = [
-    { id: "pv", label: "Solaire", x: 20, y: 20 },
-    { id: "battery", label: "Batterie", x: 200, y: 130 },
-    { id: "home", label: "Maison", x: 380, y: 20 },
-    { id: "grid", label: "Réseau", x: 200, y: 20 },
-  ];
-
-  const links: FlowLink[] = [];
-  if (pvAvail > 0 && homeLoad > 0)
-    links.push({ from: "pv", to: "home", value: Math.min(pvAvail, homeLoad) });
-  if (pvAvail > 0 && batCharge > 0)
-    links.push({ from: "pv", to: "battery", value: batCharge });
-  if (pvAvail > 0 && gridExport > 0)
-    links.push({ from: "pv", to: "grid", value: gridExport });
-  if (gridImport > 0)
-    links.push({ from: "grid", to: "home", value: gridImport });
-  if (batDischarge > 0)
-    links.push({ from: "battery", to: "home", value: batDischarge });
-
-  return { nodes, links };
-}
-
-/** Render a simple cubic Bezier between node centres. */
-function linkPath(
-  from: FlowNode,
-  to: FlowNode,
-  thickness: number,
-): TemplateResult {
-  const x1 = from.x + NODE_W;
-  const y1 = from.y + NODE_H / 2;
-  const x2 = to.x;
-  const y2 = to.y + NODE_H / 2;
-  const mx = (x1 + x2) / 2;
-  const color =
-    from.id === "grid"
-      ? "var(--warning-color, #ff9800)"
-      : from.id === "battery"
-        ? "var(--info-color, #03a9f4)"
-        : "var(--success-color, #4caf50)";
-  return html`<path
-    d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"
-    fill="none"
-    stroke="${color}"
-    stroke-width="${Math.max(2, thickness)}"
-    stroke-opacity="0.7"
-  />`;
+/** @font-face is ignored inside a shadow root, so the fonts are declared once on the document. */
+function ensureFonts(): void {
+  if (document.getElementById("sb-signature-fonts")) return;
+  const link = document.createElement("link");
+  link.id = "sb-signature-fonts";
+  link.rel = "stylesheet";
+  link.href = `${STATIC_BASE}fonts.css`;
+  document.head.appendChild(link);
 }
 
 // ─── Card element ────────────────────────────────────────────────────────────
@@ -166,244 +101,107 @@ export class SolarBalanceCard extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
 
   @state() private _config?: SolarBalanceCardConfig;
+  @state() private _ready = false;
 
   static override styles = css`
     :host {
       display: block;
+      background: none;
+      min-height: 0;
     }
-    ha-card {
-      padding: 16px;
+    .sbc-root {
+      visibility: hidden;
+      color: var(--ink);
+      font-family: var(--font-ui);
     }
-    .header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      margin-bottom: 12px;
+    .sbc-root.ready {
+      visibility: visible;
     }
-    .title {
-      font-size: 1.1em;
-      font-weight: 600;
-    }
-    .mode-badge {
-      font-size: 0.8em;
-      padding: 2px 8px;
-      border-radius: 12px;
-      background: var(--primary-color);
-      color: var(--text-primary-color, #fff);
-    }
-    .mode-badge.degraded {
-      background: var(--error-color, #f44336);
-    }
-    .mode-badge.paused {
-      background: var(--disabled-color, #9e9e9e);
-    }
-    .sankey-svg {
-      width: 100%;
-      height: 220px;
-    }
-    .node-rect {
-      rx: 6;
-      ry: 6;
-    }
-    .node-label {
-      font-size: 11px;
-      fill: var(--primary-text-color);
-      text-anchor: middle;
-      dominant-baseline: middle;
-    }
-    .node-value {
-      font-size: 10px;
-      fill: var(--secondary-text-color);
-      text-anchor: middle;
-      dominant-baseline: middle;
-    }
-    .metrics {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-      gap: 8px;
-      margin-top: 12px;
-    }
-    .metric {
-      text-align: center;
-      padding: 8px;
-      border-radius: 8px;
-      background: var(--secondary-background-color);
-    }
-    .metric-label {
-      font-size: 0.75em;
-      color: var(--secondary-text-color);
-    }
-    .metric-value {
-      font-size: 1em;
-      font-weight: 600;
-      margin-top: 2px;
-    }
-    .metric-value.positive {
-      color: var(--success-color, #4caf50);
-    }
-    .metric-value.negative {
-      color: var(--warning-color, #ff9800);
-    }
-    .soc-bar-bg {
-      height: 6px;
-      border-radius: 3px;
-      background: var(--divider-color);
-      margin-top: 4px;
-      overflow: hidden;
-    }
-    .soc-bar-fill {
-      height: 100%;
-      border-radius: 3px;
-      background: var(--info-color, #03a9f4);
-      transition: width 0.4s ease;
+    .sbc-foot {
+      margin-top: var(--space-3);
     }
   `;
+
+  override connectedCallback(): void {
+    super.connectedCallback();
+    ensureFonts();
+    // Fallback so a blocked stylesheet never leaves the card invisible.
+    window.setTimeout(() => (this._ready = true), 1500);
+  }
 
   setConfig(config: SolarBalanceCardConfig): void {
     this._config = config;
   }
 
   getCardSize(): number {
-    return 4;
+    return 5;
   }
 
-  private _entity(
-    key: keyof SolarBalanceCardConfig,
-    fallback: string,
-  ): HassEntity | undefined {
-    const id = (this._config?.[key] as string | undefined) ?? fallback;
-    return this.hass?.states[id];
+  /** Resolve an entity: explicit config, then translation_key (localised ids), then default id. */
+  private _entity(key: EntityKey): HassEntity | undefined {
+    const hass = this.hass;
+    if (!hass) return undefined;
+    const configured = this._config?.[key];
+    if (configured) return hass.states[configured];
+    const [translationKey, fallback] = ENTITIES[key];
+    for (const [eid, e] of Object.entries(hass.entities ?? {})) {
+      if (e.platform === "solarbalance" && e.translation_key === translationKey) return hass.states[eid];
+    }
+    return hass.states[fallback];
   }
 
   override render(): TemplateResult {
     if (!this._config || !this.hass) return html``;
+    const hass = this.hass;
+    const lang = hass.locale?.language || hass.language || "fr";
+    const english = lang.startsWith("en");
+    const t = (s: string): string => (english ? (STR_EN[s as keyof typeof STR_EN] ?? s) : s);
 
-    const modeEntity = this._entity("mode_entity", "sensor.solarbalance_mode");
-    const strategyEntity = this._entity(
-      "strategy_entity",
-      "sensor.solarbalance_dominant_strategy",
-    );
-    const gridEntity = this._entity(
-      "grid_power_entity",
-      "sensor.solarbalance_grid_power",
-    );
-    const pvEntity = this._entity(
-      "pv_power_entity",
-      "sensor.solarbalance_pv_power",
-    );
-    const batEntity = this._entity(
-      "battery_power_entity",
-      "sensor.solarbalance_battery_power",
-    );
-    const socEntity = this._entity(
-      "battery_soc_entity",
-      "sensor.solarbalance_battery_soc_avg",
-    );
+    const modeEntity = this._entity("mode_entity");
+    const strategy = this._entity("strategy_entity")?.state ?? "";
+    const gridW = numeric(this._entity("grid_power_entity"));
+    const pvW = numeric(this._entity("pv_power_entity"));
+    const batW = numeric(this._entity("battery_power_entity"));
+    const soc = numeric(this._entity("battery_soc_entity"));
 
-    const mode = modeEntity?.state ?? "unknown";
-    const strategy = strategyEntity?.state ?? "";
-    const gridW = numericState(gridEntity);
-    const pvW = numericState(pvEntity);
-    const batW = numericState(batEntity);
-    const soc = numericState(socEntity);
-
-    const { nodes, links } = buildSankey(pvW, gridW, batW);
-
-    const maxFlow = Math.max(1, ...links.map((l) => l.value));
-    const scale = (v: number) => (v / maxFlow) * 14 + 2;
-
-    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
-
+    // Home load = PV + grid (+ import, − export) − battery (+ charge, − discharge).
+    const home = Math.max(0, (pvW ?? 0) + (gridW ?? 0) - (batW ?? 0));
+    const [modeSt, modeLabel] = modeState(modeEntity?.state);
+    const theme = this._config.contrast ? "contrast" : hass.themes?.darkMode ? "dark" : "light";
     const title = this._config.title ?? "SolarBalance";
 
+    const power = (label: string, w: number | null, note = ""): string =>
+      w == null ? "" : tile(t(label), measureOf(fmtPower(w, lang)), note);
+    const gridNote = gridW == null ? "" : gridW > 20 ? t("Soutirage") : gridW < -20 ? t("Injection") : "";
+    const battNote = batW == null ? "" : batW > 20 ? t("Charge") : batW < -20 ? t("Décharge") : "";
+
+    const socTile =
+      soc == null
+        ? ""
+        : `<div class="tile"><div class="tl">${esc(t("Niveau moyen"))}</div>${measureOf(
+            withUnit(fmtNum(Math.round(soc), 0, lang), "%"),
+          )}</div>`;
+
+    const body = `
+      <div class="card-h"><h3 class="cote-rule">${esc(title)}</h3>${stamp(modeSt, t(modeLabel))}</div>
+      ${flowDiagram({ pv: pvW ?? 0, grid: gridW ?? 0, batt: batW ?? 0, home, soc, lang, t })}
+      <div class="tiles sbc-foot">
+        ${power("Solaire", pvW)}${power("Réseau", gridW, gridNote)}${power("Batteries", batW, battNote)}${socTile}
+      </div>
+      ${soc == null ? "" : `<div class="sbc-foot">${meter(soc, t("Niveau de charge"))}</div>`}
+      ${strategy ? `<p class="note">${esc(t("Stratégie"))} : ${esc(STRATEGY_LABELS[strategy] ?? strategy)}</p>` : ""}`;
+
     return html`
-      <ha-card>
-        <div class="header">
-          <span class="title">${title}</span>
-          <span class="mode-badge ${mode}">${modeLabel(mode)}</span>
-        </div>
-
-        <svg
-          class="sankey-svg"
-          viewBox="0 0 520 200"
-          preserveAspectRatio="xMidYMid meet"
-        >
-          ${links.map((link) => {
-            const fromN = nodeMap.get(link.from);
-            const toN = nodeMap.get(link.to);
-            if (!fromN || !toN) return nothing;
-            return linkPath(fromN, toN, scale(link.value));
-          })}
-          ${nodes.map(
-            (n) => html`
-              <rect
-                class="node-rect"
-                x="${n.x}"
-                y="${n.y}"
-                width="${NODE_W}"
-                height="${NODE_H}"
-                fill="var(--card-background-color)"
-                stroke="var(--divider-color)"
-                stroke-width="1.5"
-                rx="6"
-                ry="6"
-              />
-              <text class="node-label" x="${n.x + NODE_W / 2}" y="${n.y + 14}">
-                ${n.label}
-              </text>
-              <text class="node-value" x="${n.x + NODE_W / 2}" y="${n.y + 30}">
-                ${n.id === "pv"
-                  ? fmtW(pvW)
-                  : n.id === "grid"
-                    ? fmtW(Math.abs(gridW))
-                    : n.id === "battery"
-                      ? fmtW(Math.abs(batW))
-                      : fmtW(
-                          Math.max(
-                            0,
-                            pvW + Math.max(0, -gridW) + Math.max(0, -batW),
-                          ),
-                        )}
-              </text>
-            `,
-          )}
-        </svg>
-
-        <div class="metrics">
-          <div class="metric">
-            <div class="metric-label">Solaire</div>
-            <div class="metric-value positive">${fmtW(pvW)}</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">Réseau</div>
-            <div class="metric-value ${gridW > 0 ? "negative" : "positive"}">
-              ${gridW > 0 ? "+" : ""}${fmtW(gridW)}
-            </div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">Batterie</div>
-            <div class="metric-value ${batW < 0 ? "positive" : "negative"}">
-              ${batW >= 0 ? "Charge" : "Décharge"} ${fmtW(Math.abs(batW))}
-            </div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">SoC batterie</div>
-            <div class="metric-value">${soc.toFixed(0)} %</div>
-            <div class="soc-bar-bg">
-              <div
-                class="soc-bar-fill"
-                style="width: ${Math.min(100, soc).toFixed(0)}%"
-              ></div>
-            </div>
-          </div>
-          ${strategy
-            ? html`<div class="metric">
-                <div class="metric-label">Stratégie</div>
-                <div class="metric-value">${modeLabel(strategy)}</div>
-              </div>`
-            : nothing}
-        </div>
-      </ha-card>
+      <link rel="stylesheet" href="${STATIC_BASE}tokens.scoped.css" />
+      <link rel="stylesheet" href="${STATIC_BASE}overlay.css" />
+      <link
+        rel="stylesheet"
+        href="${PANEL_CSS}"
+        @load=${() => (this._ready = true)}
+      />
+      <div class="sg-scope sbc-root ${this._ready ? "ready" : ""}" data-theme="${theme}">
+        <section class="card">${unsafeHTML(body)}</section>
+      </div>
     `;
   }
 }
@@ -412,8 +210,8 @@ export class SolarBalanceCard extends LitElement {
 window.customCards = window.customCards ?? [];
 window.customCards.push({
   type: "solarbalance-card",
-  name: "SolarBalance Card",
+  name: "SolarBalance",
   description:
-    "Flux d'énergie temps réel (solaire / batterie / réseau / maison) avec indicateurs HEMS.",
+    "Flux d'énergie en temps réel (solaire, batteries, réseau, maison) et état du pilotage.",
   preview: true,
 });

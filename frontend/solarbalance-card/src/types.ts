@@ -11,8 +11,14 @@ export interface HassEntity {
   last_updated: string;
 }
 
+export interface HassEntityRegistryEntry {
+  platform: string;
+  translation_key?: string;
+}
+
 export interface HomeAssistant {
   states: Record<string, HassEntity>;
+  entities?: Record<string, HassEntityRegistryEntry>;
   language: string;
   locale: { language: string; number_format: string };
   themes: { darkMode: boolean };

@@ -2,7 +2,9 @@
 
 Custom Lovelace card for [SolarBalance](https://github.com/solarbalance/ha-solarbalance).
 
-Displays a real-time energy-flow Sankey diagram: solar → battery / home / grid, with current HEMS mode and battery SoC.
+Displays a real-time energy-flow diagram (solar, grid, batteries, home) with the current HEMS mode, live measures and battery level, in the **Signature** design shared with the full-page panel.
+
+The drawing code lives in `custom_components/solarbalance/www/panel/` and is imported here (single source); the Signature tokens, fonts and `panel.css` are loaded from the integration's static path `/solarbalance_card/`, so the card expects the integration to be installed.
 
 ## Installation
 
@@ -36,6 +38,8 @@ Displays a real-time energy-flow Sankey diagram: solar → battery / home / grid
          type: module
    ```
 
+   The integration already registers the card and serves `vendor/` and `panel/` under `/solarbalance_card/`; a manual resource is only needed if you copy the bundle elsewhere, in which case copy those two folders next to it.
+
 3. Add the card to a dashboard:
    ```yaml
    type: custom:solarbalance-card
@@ -47,6 +51,7 @@ Displays a real-time energy-flow Sankey diagram: solar → battery / home / grid
 | Option                 | Default                                 | Description                          |
 | ---------------------- | --------------------------------------- | ------------------------------------ |
 | `title`                | `"SolarBalance"`                        | Card title                           |
+| `contrast`             | `false`                                 | High-contrast (AAA) theme            |
 | `mode_entity`          | `sensor.solarbalance_mode`              | HEMS mode entity                     |
 | `strategy_entity`      | `sensor.solarbalance_dominant_strategy` | Dominant strategy entity             |
 | `grid_power_entity`    | `sensor.solarbalance_grid_power`        | Grid power (W, positive = import)    |
