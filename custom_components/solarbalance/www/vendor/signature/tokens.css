@@ -1,0 +1,194 @@
+/* Signature, fusion par axe (Signature x Établi).
+   Même vocabulaire de jetons que tokens.css : valeurs changées = bg, surface, surface-sunken, line-subtle,
+   ok-fond, inactif-fond, ombres, rayons 2/4/6 ; jetons ajoutés = cote, scene-cote (bleu de cote), chaleur-1 à 3 (paliers tonals de la chaleur dans les schémas).
+   À reporter dans tokens.json si tokens.css est généré depuis lui. */
+:root, [data-theme="light"] {
+  --bg: #eae6d7;
+  --surface: #f6f2e7;
+  --surface-sunken: #dbd6c4;
+  --surface-wood: #ddc9a0;
+  --line: #7a6c58;
+  --line-subtle: #cbc3aa;
+  --ink: #2a2118;
+  --ink-muted: #5a4d3e;
+  --accent: #a63d14;
+  --accent-strong: #862f0c;
+  --on-accent: #fff9ef;
+  --accent-fond: #f2d9c6;
+  --ok: #14654f;
+  --attention: #8a5a00;
+  --critique: #a3162b;
+  --inactif: #6b6254;
+  --ok-fond: #d9e8de;
+  --attention-fond: #f3e2b3;
+  --critique-fond: #f4d0d0;
+  --inactif-fond: #e6e0cf;
+  --production: #0b63a5;
+  --consommation: #a85f00;
+  --stockage: #8e3a78;
+  --focus: #2a5a7c;
+  --cote: #2a5a7c;
+  --scene-bg: #e4dfd3;
+  --scene-ground: #d6d0c1;
+  --scene-grid: #7a715f;
+  --scene-edge: #2a2118;
+  --scene-hatch: #2a2118;
+  --scene-cote: #2a5a7c;
+  --scene-cote-fond: #f6f2e7;
+  --chaleur-1: color-mix(in srgb, var(--scene-hatch) 12%, var(--surface));
+  --chaleur-2: color-mix(in srgb, var(--scene-hatch) 26%, var(--surface));
+  --chaleur-3: color-mix(in srgb, var(--scene-hatch) 42%, var(--surface));
+  --fil-noir: #25262a;
+  --fil-blanc: #f0eee8;
+  --fil-gris: #8d9094;
+  --fil-bleu: #2f6fbf;
+  --fil-rouge: #c0392b;
+  --fil-vert: #3e8e5a;
+  --fil-orange: #e07b1e;
+  --fil-jaune: #e8c21a;
+  --shadow-paper: 0 1px 0 rgba(42,33,24,0.14);
+  --shadow-lift: 0 1px 0 rgba(42,33,24,0.14), 0 2px 4px rgba(42,33,24,0.12);
+  --shadow-inset: inset 0 1px 1px rgba(42,33,24,0.16);
+}
+[data-theme="dark"] {
+  --bg: #1e1b18;
+  --surface: #27231f;
+  --surface-sunken: #171512;
+  --surface-wood: #332d26;
+  --line: #948977;
+  --line-subtle: #3e372f;
+  --ink: #f3ebdc;
+  --ink-muted: #bdb1a0;
+  --accent: #e8895a;
+  --accent-strong: #f2a27c;
+  --on-accent: #1e1b18;
+  --accent-fond: #3d2a20;
+  --ok: #55c4a8;
+  --attention: #e8b93e;
+  --critique: #ff8a80;
+  --inactif: #9a9080;
+  --ok-fond: #1b3a32;
+  --attention-fond: #3f3216;
+  --critique-fond: #4a2022;
+  --inactif-fond: #2e2a25;
+  --production: #62b6f0;
+  --consommation: #e8a33a;
+  --stockage: #e091c2;
+  --focus: #7dc3e0;
+  --cote: #7dc3e0;
+  --scene-bg: #121110;
+  --scene-ground: #1b1a17;
+  --scene-grid: #7c7568;
+  --scene-edge: #f3ebdc;
+  --scene-hatch: #f3ebdc;
+  --scene-cote: #7dc3e0;
+  --scene-cote-fond: #27231f;
+  --chaleur-1: color-mix(in srgb, var(--scene-hatch) 14%, var(--surface));
+  --chaleur-2: color-mix(in srgb, var(--scene-hatch) 27%, var(--surface));
+  --chaleur-3: color-mix(in srgb, var(--scene-hatch) 40%, var(--surface));
+  --fil-noir: #25262a;
+  --fil-blanc: #f0eee8;
+  --fil-gris: #8d9094;
+  --fil-bleu: #2f6fbf;
+  --fil-rouge: #c0392b;
+  --fil-vert: #3e8e5a;
+  --fil-orange: #e07b1e;
+  --fil-jaune: #e8c21a;
+  --shadow-paper: 0 1px 0 rgba(0,0,0,0.5);
+  --shadow-lift: 0 1px 0 rgba(0,0,0,0.5), 0 2px 4px rgba(0,0,0,0.45);
+  --shadow-inset: inset 0 1px 1px rgba(0,0,0,0.6);
+}
+[data-theme="contrast"] {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-sunken: #f0f0f0;
+  --surface-wood: #e6e6e6;
+  --line: #000000;
+  --line-subtle: #767676;
+  --ink: #000000;
+  --ink-muted: #333333;
+  --accent: #8a2800;
+  --accent-strong: #5e1a00;
+  --on-accent: #ffffff;
+  --accent-fond: #ffe4d6;
+  --ok: #004d3a;
+  --attention: #6b4300;
+  --critique: #8a0016;
+  --inactif: #4d4d4d;
+  --ok-fond: #e3f2ec;
+  --attention-fond: #f6e7c2;
+  --critique-fond: #f7d9dc;
+  --inactif-fond: #eeeeee;
+  --production: #004e8c;
+  --consommation: #7a3e00;
+  --stockage: #6b1f58;
+  --focus: #0033cc;
+  --cote: #003d7a;
+  --scene-bg: #ffffff;
+  --scene-ground: #ffffff;
+  --scene-grid: #444444;
+  --scene-edge: #000000;
+  --scene-hatch: #000000;
+  --scene-cote: #003d7a;
+  --scene-cote-fond: #ffffff;
+  --chaleur-1: color-mix(in srgb, var(--scene-hatch) 10%, var(--surface));
+  --chaleur-2: color-mix(in srgb, var(--scene-hatch) 22%, var(--surface));
+  --chaleur-3: color-mix(in srgb, var(--scene-hatch) 38%, var(--surface));
+  --fil-noir: #25262a;
+  --fil-blanc: #f0eee8;
+  --fil-gris: #8d9094;
+  --fil-bleu: #2f6fbf;
+  --fil-rouge: #c0392b;
+  --fil-vert: #3e8e5a;
+  --fil-orange: #e07b1e;
+  --fil-jaune: #e8c21a;
+  --shadow-paper: none;
+  --shadow-lift: 0 0 0 2px #000000;
+  --shadow-inset: none;
+}
+:root {
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+  --radius-pill: 999px;
+  --dur-fast: 120ms;
+  --dur-base: 240ms;
+  --dur-settle: 480ms;
+  --dur-flow: 1600ms;
+  --ease-settle: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --border-hair: 1px;
+  --border-strong: 2px;
+  --font-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+  --font-ui: "Inter Tight", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+.display-xl { font-family: var(--font-display); font-size: 48px; line-height: 52px; font-weight: 600; }
+.display-l { font-family: var(--font-display); font-size: 36px; line-height: 42px; font-weight: 600; }
+.display-m { font-family: var(--font-display); font-size: 24px; line-height: 30px; font-weight: 600; }
+.heading { font-family: var(--font-ui); font-size: 18px; line-height: 24px; font-weight: 600; }
+.body { font-family: var(--font-ui); font-size: 16px; line-height: 24px; font-weight: 400; }
+.body-sm { font-family: var(--font-ui); font-size: 14px; line-height: 20px; font-weight: 400; }
+.label { font-family: var(--font-ui); font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.mesure-xl { font-family: var(--font-mono); font-size: 56px; line-height: 56px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.mesure-l { font-family: var(--font-mono); font-size: 32px; line-height: 36px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.mesure-m { font-family: var(--font-mono); font-size: 20px; line-height: 24px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.cote { font-family: var(--font-mono); font-size: 13px; line-height: 16px; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+/* Titre de section en cote : filet avec deux repères d'extrémité (motif Établi). */
+.cote-rule { display: flex; align-items: center; gap: var(--space-4); }
+.cote-rule::after { content: ""; flex: 1; min-width: 24px; height: 11px;
+  background: linear-gradient(var(--line), var(--line)) center / 100% 1px no-repeat,
+              linear-gradient(var(--line), var(--line)) left / 1px 100% no-repeat,
+              linear-gradient(var(--line), var(--line)) right / 1px 100% no-repeat; }
+/* Libellé en minuscules (la version en capitales reste disponible : .label-caps). */
+.label { letter-spacing: 0; text-transform: none; font-size: 13px; }
+.label-caps { font-family: var(--font-ui); font-size: 12px; line-height: 16px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }

@@ -1,0 +1,10 @@
+/* signature-fusion-overlay.css : à charger APRÈS bundle.css.
+   Reprend de Établi : libellés en minuscules et tampon à double filet.
+   Les rayons, ombres et la couleur des cotes passent déjà par les jetons. */
+.sg-label, .sg-axis-title, .sg-alert-level, .sg-slide .sg-s-kick { letter-spacing: 0; text-transform: none; }
+.sg-label { font-size: 13px; }
+.sg-stamp { letter-spacing: 0; text-transform: none; font-size: 13px; margin: 3px;
+  border-width: 1px; outline: 1px solid var(--st); outline-offset: 2px; }
+.sg-node-lbl, .sg-cell-state { letter-spacing: 0; }
+/* L'étiquette imprimée garde ses capitales : lisibilité à deux mètres. */
+.sg-bin-name { text-transform: uppercase; }
