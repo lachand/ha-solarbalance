@@ -37,6 +37,23 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and this
 
 ## [Unreleased]
 
+## [2.0.8-beta92] — 2026-11-06
+
+### Fixed
+
+- **La beta91 n'a jamais été publiée** : son tag pointait sur un `manifest.json` encore en
+  `2.0.8-beta90`, ce que le workflow de release refuse. La beta92 reprend son contenu (les
+  correctifs de mise en page de la beta90 et de la beta91) avec la version alignée.
+- **La carte Lovelace ne plante plus si elle est chargée deux fois** (par exemple quand
+  `/solarbalance_card/solarbalance-card.js` a aussi été ajouté à la main dans `extra_module_url`) :
+  la redéfinition de l'élément est ignorée au lieu de lever une erreur.
+
+### Changed
+
+- **Documentation** : le guide décrit les étapes du thème Home Assistant qui manquaient (bloc
+  `frontend: themes:`, création du dossier `themes/`, message « Aucun thème disponible »), et
+  déconseille d'ajouter la carte à `extra_module_url` : l'intégration l'enregistre déjà.
+
 ## [2.0.8-beta90] — 2026-11-06
 
 ### Fixed

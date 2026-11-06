@@ -19,7 +19,7 @@
  */
 
 import { LitElement, css, html, type TemplateResult } from "lit";
-import { customElement, property, state } from "lit/decorators.js";
+import { property, state } from "lit/decorators.js";
 import { unsafeHTML } from "lit/directives/unsafe-html.js";
 import { STR_EN } from "../../../custom_components/solarbalance/www/panel/i18n.js";
 import { esc, fmtNum, fmtPower, withUnit } from "../../../custom_components/solarbalance/www/panel/format.js";
@@ -96,7 +96,6 @@ function ensureFonts(): void {
 
 // ─── Card element ────────────────────────────────────────────────────────────
 
-@customElement("solarbalance-card")
 export class SolarBalanceCard extends LitElement {
   @property({ attribute: false }) hass?: HomeAssistant;
 
@@ -206,12 +205,17 @@ export class SolarBalanceCard extends LitElement {
   }
 }
 
-// Register for Lovelace card picker
-window.customCards = window.customCards ?? [];
-window.customCards.push({
-  type: "solarbalance-card",
-  name: "SolarBalance",
-  description:
-    "Flux d'énergie en temps réel (solaire, batteries, réseau, maison) et état du pilotage.",
-  preview: true,
-});
+// A manual `extra_module_url` entry next to the integration's own registration loads this
+// module twice; defining the element a second time would throw.
+if (!customElements.get("solarbalance-card")) {
+  customElements.define("solarbalance-card", SolarBalanceCard);
+  // Register for Lovelace card picker
+  window.customCards = window.customCards ?? [];
+  window.customCards.push({
+    type: "solarbalance-card",
+    name: "SolarBalance",
+    description:
+      "Flux d'énergie en temps réel (solaire, batteries, réseau, maison) et état du pilotage.",
+    preview: true,
+  });
+}

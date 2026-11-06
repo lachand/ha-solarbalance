@@ -596,17 +596,9 @@ La carte `custom:solarbalance-card` affiche en temps réel :
 
 Après installation et redémarrage, la carte est enregistrée automatiquement dans le frontend HA. Elle apparaît dans le picker de cartes Lovelace sous **"SolarBalance Card"**.
 
-### 10.2 Ajout via YAML (si automatique ne fonctionne pas)
+### 10.2 Enregistrement de la carte
 
-Dans votre `configuration.yaml` :
-
-```yaml
-frontend:
-  extra_module_url:
-    - /solarbalance_card/solarbalance-card.js
-```
-
-Puis redémarrer HA.
+L'intégration enregistre la carte toute seule, sous une URL qui change à chaque version (`/solarbalance_static/<version>/solarbalance-card.js`). **N'ajoutez pas** `/solarbalance_card/solarbalance-card.js` dans `extra_module_url` : la carte serait chargée deux fois, et cette URL fixe peut rester en cache après une mise à jour. Si vous l'aviez ajoutée, supprimez cette ligne (gardez les autres) et redémarrez HA.
 
 ### 10.3 Configuration de la carte
 
@@ -635,7 +627,17 @@ Un badge sur l'onglet **Santé** et un bandeau sous les onglets signalent les po
 
 Convention du compteur : une puissance réseau **positive** est un soutirage, **négative** une injection. Le mot correspondant est écrit sous la valeur.
 
-**Thème Home Assistant (facultatif).** Pour que le reste de Home Assistant reprenne la même palette, copiez `custom_components/solarbalance/www/vendor/signature/signature-ha-theme.yaml` dans le dossier `themes/` de votre configuration, rechargez les thèmes, puis choisissez « signature » (ou « signature_contrast ») dans votre profil.
+**Thème Home Assistant (facultatif).** Pour que le reste de Home Assistant reprenne la même palette :
+
+1. Dans `configuration.yaml`, vérifiez la présence de ces deux lignes (HA ne charge aucun thème sans elles) :
+   ```yaml
+   frontend:
+     themes: !include_dir_merge_named themes
+   ```
+2. Créez le dossier **`themes/`** à la racine de la configuration (au même niveau que `configuration.yaml`) : HA ne le crée pas et ne signale pas son absence.
+3. Copiez-y `custom_components/solarbalance/www/vendor/signature/signature-ha-theme.yaml` sous le nom `signature.yaml`.
+4. Outils de développement, onglet YAML, « Recharger les thèmes » (un redémarrage complet est nécessaire seulement si vous venez d'ajouter la ligne `themes:`).
+5. Dans votre profil, choisissez « signature » (ou « signature_contrast »). Si la liste indique « Aucun thème disponible », le dossier `themes/` est absent ou vide, ou la ligne `themes:` manque.
 
 Le détail par appareil s'appuie sur les capteurs `sensor.solarbalance_<device>_soc` / `_power` / `_temperature` (température seulement si `temperature_entity` est déclarée) et `_setpoint_charge` / `_setpoint_discharge`.
 
@@ -721,12 +723,7 @@ automation:
 1. Forcer le rechargement du cache navigateur : `Ctrl+Shift+R` (ou vider le cache navigateur).
 2. Vérifier que `/solarbalance_card/solarbalance-card.js` est accessible : ouvrir l'URL dans le navigateur depuis votre instance HA.
 3. Si inaccessible : vérifier que le dossier `custom_components/solarbalance/www/` contient bien `solarbalance-card.js`.
-4. En dernier recours, ajouter manuellement dans `configuration.yaml` :
-   ```yaml
-   frontend:
-     extra_module_url:
-       - /solarbalance_card/solarbalance-card.js
-   ```
+4. Vérifier que `configuration.yaml` ne contient pas `/solarbalance_card/solarbalance-card.js` dans `extra_module_url` (l'intégration l'enregistre déjà ; voir §10.2).
 
 ### Zéro-injection ne fonctionne pas
 
